@@ -54,7 +54,11 @@ async fn sync_models_dev_json(
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let body = resp.text().await.unwrap_or_default();
-        return Err(CabError::ProviderError { status, body });
+        return Err(CabError::ProviderError {
+            status,
+            body,
+            retry_after: None,
+        });
     }
 
     let json: serde_json::Value = resp.json().await.map_err(|e| {
@@ -107,7 +111,11 @@ pub async fn sync_artificial_analysis_catalog(
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let body = resp.text().await.unwrap_or_default();
-        return Err(CabError::ProviderError { status, body });
+        return Err(CabError::ProviderError {
+            status,
+            body,
+            retry_after: None,
+        });
     }
 
     let response: ArtificialAnalysisResponse = resp.json().await.map_err(|e| {

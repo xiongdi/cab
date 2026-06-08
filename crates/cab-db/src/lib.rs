@@ -40,22 +40,18 @@ impl InMemoryStore {
     pub fn new() -> Self {
         let mut agents = HashMap::new();
         for id in &[
-            "cursor",
             "claude-code",
             "codex",
             "opencode",
-            "antigravity",
             "hermes",
             "kilocode",
             "openclaw",
             "pi",
         ] {
             let name = match *id {
-                "cursor" => "Cursor",
                 "claude-code" => "Claude Code",
                 "codex" => "Codex",
                 "opencode" => "OpenCode",
-                "antigravity" => "Antigravity",
                 "hermes" => "Hermes Agent",
                 "kilocode" => "Kilo Code",
                 "openclaw" => "OpenClaw",

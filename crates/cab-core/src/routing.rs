@@ -5,9 +5,12 @@
 //! 2. Score each enabled model with a task-weighted capability blend (AA indices on `Model`).
 //! 3. Require minimum capability that rises with complexity (simple → cheap OK, hard → flagship).
 //! 4. Rank by value = capability / effective_cost, where effective_cost uses a 3:1 input:output ratio.
+//!    Providers with a subscribed API key use near-zero marginal cost (prepaid quota).
 //!
 //! ## Balanced (`balanced`)
 //! Rank by task-primary capability / effective_cost (same 3:1 price weighting).
+
+use std::collections::HashSet;
 
 use crate::types::Model;
 
@@ -66,14 +69,30 @@ pub fn effective_token_cost(input_cost: Option<f64>, output_cost: Option<f64>) -
     (input * BALANCED_INPUT_OUTPUT_RATIO + output).max(MIN_COST_EPSILON)
 }
 
+pub fn effective_routing_cost(
+    model: &Model,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> f64 {
+    if subscribed_provider_ids
+        .map(|ids| ids.contains(&model.provider_id))
+        .unwrap_or(false)
+    {
+        MIN_COST_EPSILON
+    } else {
+        effective_token_cost(model.input_cost, model.output_cost)
+    }
+}
+
 pub fn rank_models<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<&'a Model> {
     let mut scored: Vec<(&Model, f64, f64)> = models
         .iter()
         .map(|model| {
+            let routing_cost = effective_routing_cost(model, subscribed_provider_ids);
             let capability = match strategy {
                 RoutingStrategy::Intelligent => model.coding_index,
                 RoutingStrategy::Cheapest => 0.0,
@@ -81,13 +100,9 @@ pub fn rank_models<'a>(
                 RoutingStrategy::Auto => composite_capability(model, profile.task),
             };
             let value = match strategy {
-                RoutingStrategy::Cheapest => {
-                    -effective_token_cost(model.input_cost, model.output_cost)
-                }
+                RoutingStrategy::Cheapest => -routing_cost,
                 RoutingStrategy::Intelligent => capability,
-                RoutingStrategy::Balanced | RoutingStrategy::Auto => {
-                    capability / effective_token_cost(model.input_cost, model.output_cost)
-                }
+                RoutingStrategy::Balanced | RoutingStrategy::Auto => capability / routing_cost,
             };
             (model, capability, value)
         })
@@ -100,9 +115,9 @@ pub fn rank_models<'a>(
             scored = models
                 .iter()
                 .map(|model| {
+                    let routing_cost = effective_routing_cost(model, subscribed_provider_ids);
                     let capability = composite_capability(model, profile.task);
-                    let value =
-                        capability / effective_token_cost(model.input_cost, model.output_cost);
+                    let value = capability / routing_cost;
                     (model, capability, value)
                 })
                 .collect();
@@ -119,11 +134,8 @@ pub fn rank_models<'a>(
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .then_with(|| {
-                effective_token_cost(a_model.input_cost, a_model.output_cost)
-                    .partial_cmp(&effective_token_cost(
-                        b_model.input_cost,
-                        b_model.output_cost,
-                    ))
+                effective_routing_cost(a_model, subscribed_provider_ids)
+                    .partial_cmp(&effective_routing_cost(b_model, subscribed_provider_ids))
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .then_with(|| a_model.name.cmp(&b_model.name))
@@ -275,14 +287,12 @@ fn classify_request(
     let agent_is_coding = matches_agent_kind(
         &agent_lower,
         &[
-            "cursor",
             "claude",
             "codex",
             "copilot",
             "aider",
             "cline",
             "continue",
-            "antigravity",
             "gemini",
             "hermes",
             "kilo",
@@ -468,7 +478,7 @@ mod tests {
             estimated_input_tokens: 8000,
         };
         let models = [cheap, strong];
-        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile);
+        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile, None);
         assert_eq!(ranked[0].name, "strong");
     }
 
@@ -482,7 +492,7 @@ mod tests {
             estimated_input_tokens: 120,
         };
         let models = [cheap, strong];
-        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile);
+        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile, None);
         assert_eq!(ranked[0].name, "cheap");
     }
 
@@ -496,8 +506,30 @@ mod tests {
             estimated_input_tokens: 1000,
         };
         let models = [a, b];
-        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
         assert_eq!(ranked[0].name, "b");
+    }
+
+    #[test]
+    fn subscribed_provider_beats_expensive_payg_model() {
+        let mut cheap = sample_model("cheap-payg", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
+        cheap.provider_id = "payg".into();
+        let mut subscribed = sample_model("subscribed-flagship", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
+        subscribed.provider_id = "subscribed-vendor".into();
+        let profile = RequestProfile {
+            task: TaskKind::General,
+            complexity: 0.3,
+            estimated_input_tokens: 500,
+        };
+        let models = [cheap, subscribed];
+        let subscribed_ids = HashSet::from(["subscribed-vendor".to_string()]);
+        let ranked = rank_models(
+            &models,
+            RoutingStrategy::Balanced,
+            &profile,
+            Some(&subscribed_ids),
+        );
+        assert_eq!(ranked[0].name, "subscribed-flagship");
     }
 
     #[test]

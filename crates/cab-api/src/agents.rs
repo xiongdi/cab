@@ -8,10 +8,6 @@ use std::fs;
 use std::path::Path as StdPath;
 
 use crate::ApiState;
-use crate::traffic_hook::{
-    self, ANTIGRAVITY_PROXY_HOSTS, CLAUDE_DESKTOP_PROXY_HOSTS, ensure_ca_bundle, hook_paths,
-    write_wrapper_script,
-};
 
 pub async fn list_agents(State(state): State<ApiState>) -> Result<impl IntoResponse, CabError> {
     let agents = cab_db::agent::list(&state.pool)
@@ -66,9 +62,10 @@ pub async fn update_agent(
     Ok(Json(agent))
 }
 
-fn normalize_agent_mode(mut agent: cab_core::types::Agent) -> cab_core::types::Agent {
+pub(crate) fn normalize_agent_mode(mut agent: cab_core::types::Agent) -> cab_core::types::Agent {
     agent.mode = match agent.mode.as_str() {
         "config" => "auto".to_string(),
+        "proxy" => "native".to_string(),
         other => other.to_string(),
     };
     agent
@@ -210,7 +207,6 @@ async fn collect_enabled_models(pool: &cab_db::InMemoryStore) -> Vec<cab_core::t
 /// Writes agent config files for CAB-managed modes:
 /// - auto: gateway + routing strategy aliases (CAB picks provider/model per request)
 /// - manual: gateway + all enabled models exposed to the agent
-/// - proxy: LD_PRELOAD traffic hijack + local TLS terminator (no client base URL needed)
 async fn apply_agent_config(
     pool: &cab_db::InMemoryStore,
     agent: &cab_core::types::Agent,
@@ -223,7 +219,6 @@ async fn apply_agent_config(
     let endpoint = &agent.endpoint;
     let strategy = agent.model_id.as_deref().filter(|s| !s.is_empty());
     let cab_managed = mode == "auto" || mode == "manual";
-    let proxy_managed = mode == "proxy";
     let enabled_models = if mode == "manual" {
         collect_enabled_models(pool).await
     } else {
@@ -297,70 +292,6 @@ async fn apply_agent_config(
                                 config_path.display(),
                                 mode
                             );
-                        }
-                    }
-                }
-            }
-        }
-        "antigravity" => {
-            let gemini_dir = StdPath::new(&home).join(".gemini");
-            let cab_bin = home_cab_bin(&home);
-
-            if proxy_managed {
-                let https_port = cab_proxy_https_port();
-                let paths = hook_paths(&gemini_dir);
-                traffic_hook::compile_traffic_hook(ANTIGRAVITY_PROXY_HOSTS, https_port, &paths)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                let cab_dir = StdPath::new(&home).join(".cab");
-                let ca_bundle = ensure_ca_bundle(&cab_dir, &gemini_dir)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                let wrapper = cab_bin.join("agy-proxy");
-                let port_str = https_port.to_string();
-                write_wrapper_script(
-                    &wrapper,
-                    &paths.library,
-                    "agy",
-                    &[
-                        ("GODEBUG", "netdns=cgo"),
-                        ("SSL_CERT_FILE", ca_bundle.to_str().unwrap_or("")),
-                        ("CAB_PROXY_PORT", &port_str),
-                    ],
-                )
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-                tracing::info!(
-                    "Proxy mode: Antigravity traffic hook -> 127.0.0.1:{https_port}, wrapper {}",
-                    wrapper.display()
-                );
-            }
-
-            // Legacy Gemini CLI settings (ignored by agy); remove gateway when proxy/native.
-            let config_path = gemini_dir.join("settings.json");
-            if config_path.exists() {
-                if let Ok(content) = fs::read_to_string(&config_path) {
-                    if let Ok(mut json) = serde_json::from_str::<Value>(&content) {
-                        if cab_managed {
-                            let default_ep = format!("http://localhost:{}/v1beta", gateway_port);
-                            let ep = if endpoint.is_empty() {
-                                default_ep
-                            } else {
-                                endpoint.to_string()
-                            };
-                            let mut gateway_map = serde_json::Map::new();
-                            gateway_map.insert("baseURL".to_string(), Value::String(ep));
-                            if mode == "auto" {
-                                if let Some(s) = strategy {
-                                    gateway_map
-                                        .insert("model".to_string(), Value::String(s.to_string()));
-                                }
-                            }
-                            json["gateway"] = Value::Object(gateway_map);
-                        } else if let Some(obj) = json.as_object_mut() {
-                            obj.remove("gateway");
-                        }
-
-                        if let Ok(pretty) = serde_json::to_string_pretty(&json) {
-                            backup_agent_config(&config_path);
-                            fs::write(&config_path, pretty)?;
                         }
                     }
                 }
@@ -906,139 +837,41 @@ async fn apply_agent_config(
     Ok(())
 }
 
-fn home_cab_bin(home: &str) -> std::path::PathBuf {
-    StdPath::new(home).join(".cab").join("bin")
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cab_core::types::Agent;
 
-fn cab_proxy_https_port() -> u16 {
-    46656
-}
-
-/// Install / refresh LD_PRELOAD hook + wrapper script for an agent in proxy mode.
-pub async fn install_agent_proxy(
-    State(state): State<ApiState>,
-    Path(id): Path<String>,
-) -> Result<impl IntoResponse, CabError> {
-    let agent = cab_db::agent::get_by_id(&state.pool, &id)
-        .await
-        .map_err(CabError::Database)?
-        .ok_or_else(|| CabError::NotFound(format!("Agent {id} not found")))?;
-
-    if agent.mode != "proxy" {
-        return Err(CabError::InvalidRequest(format!(
-            "Agent {} is not in proxy mode",
-            agent.id
-        )));
-    }
-
-    let settings = cab_db::settings::get(&state.pool)
-        .await
-        .unwrap_or_else(|_| cab_db::settings::default_settings());
-
-    apply_agent_config(
-        &state.pool,
-        &agent,
-        settings.gateway_port,
-        &settings.gateway_key,
-    )
-    .await
-    .map_err(|e| CabError::NotFound(e.to_string()))?;
-
-    let setup_status = traffic_hook::try_setcap_cab_server().unwrap_or_else(|setcap_err| {
-        traffic_hook::setup_loopback_443_redirect(cab_proxy_https_port())
-            .unwrap_or_else(|_| setcap_err.to_string())
-    });
-
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| CabError::NotFound("HOME not set".into()))?;
-
-    let wrapper = match agent.id.as_str() {
-        "antigravity" => home_cab_bin(&home).join("agy-proxy"),
-        "claude-code" => home_cab_bin(&home).join("claude-proxy"),
-        other => {
-            return Err(CabError::InvalidRequest(format!(
-                "Proxy mode not supported for agent {other}"
-            )));
-        }
-    };
-
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "agent": agent.id,
-        "wrapper": wrapper.to_str().unwrap_or(""),
-        "launch_example": format!("{} -p \"Say hello\"", wrapper.display()),
-        "redirect": setup_status,
-        "note": "LD_PRELOAD hijacks Cloud Code hostnames to 127.0.0.1:443. Use setcap (preferred) or iptables so CAB can receive Go/agy TLS on port 443."
-    })))
-}
-
-pub async fn hijack_claude_desktop(
-    State(state): State<ApiState>,
-) -> Result<impl IntoResponse, CabError> {
-    // Get dynamic gateway port from DB
-    let settings = cab_db::settings::get(&state.pool)
-        .await
-        .unwrap_or_else(|_| cab_db::settings::default_settings());
-    let redirect_port = settings.gateway_port as u16;
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| {
-            CabError::NotFound(
-                "User home directory could not be resolved (neither HOME nor USERPROFILE env var is set)".to_string(),
-            )
-        })?;
-    let gemini_dir = StdPath::new(&home).join(".gemini");
-    if !gemini_dir.exists() {
-        let _ = fs::create_dir_all(&gemini_dir);
-    }
-    let paths = hook_paths(&gemini_dir);
-
-    traffic_hook::compile_traffic_hook(CLAUDE_DESKTOP_PROXY_HOSTS, redirect_port, &paths)
-        .map_err(|e| CabError::NotFound(e.to_string()))?;
-
-    // Try to spawn Claude Desktop
-    let commands_to_try = vec!["claude-desktop", "claude-desktop-app", "claude"];
-    let mut spawned = false;
-    let mut error_msg = String::new();
-
-    for cmd in commands_to_try {
-        tracing::info!(
-            "Attempting to spawn Claude Desktop using command: {}...",
-            cmd
-        );
-        let spawn_res = std::process::Command::new(cmd)
-            .env("LD_PRELOAD", paths.library.to_str().unwrap())
-            .arg("--ignore-certificate-errors")
-            .spawn();
-
-        match spawn_res {
-            Ok(_) => {
-                tracing::info!(
-                    "Successfully spawned hijacked Claude Desktop with command: {}",
-                    cmd
-                );
-                spawned = true;
-                break;
-            }
-            Err(e) => {
-                error_msg = format!("Command '{}' not found or failed to spawn: {}", cmd, e);
-                tracing::warn!("{}", error_msg);
-            }
+    fn sample_agent(mode: &str) -> Agent {
+        Agent {
+            id: "codex".to_string(),
+            name: "Codex".to_string(),
+            mode: mode.to_string(),
+            model_id: None,
+            api_key: String::new(),
+            endpoint: String::new(),
+            updated_at: String::new(),
         }
     }
 
-    if spawned {
-        Ok(Json(serde_json::json!({
-            "success": true,
-            "message": "Hijacked Claude Desktop started successfully."
-        })))
-    } else {
-        Ok(Json(serde_json::json!({
-            "success": false,
-            "message": format!("Hijack library compiled successfully at {}, but failed to auto-launch the desktop client ({}). You can manually launch it in your terminal:\n\nLD_PRELOAD={} claude-desktop --ignore-certificate-errors", paths.library.display(), error_msg, paths.library.display()),
-            "hook_path": paths.library.to_str().unwrap()
-        })))
+    #[test]
+    fn normalize_maps_config_to_auto() {
+        let agent = normalize_agent_mode(sample_agent("config"));
+        assert_eq!(agent.mode, "auto");
+    }
+
+    #[test]
+    fn normalize_maps_proxy_to_native() {
+        let agent = normalize_agent_mode(sample_agent("proxy"));
+        assert_eq!(agent.mode, "native");
+    }
+
+    #[test]
+    fn normalize_preserves_supported_modes() {
+        for mode in ["native", "auto", "manual"] {
+            let agent = normalize_agent_mode(sample_agent(mode));
+            assert_eq!(agent.mode, mode);
+        }
     }
 }
 

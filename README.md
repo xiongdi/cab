@@ -1,25 +1,20 @@
 # CAB (Coding Agents Bridge)
 
-CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router and proxy designed specifically for coding agents and developer workflows. By intercepting and routing requests dynamically, CAB bridges the gap between high-capability/high-cost LLMs (like GPT-4o, Claude 3.5 Sonnet) and cost-effective alternatives, ensuring your coding agents get the intelligence they need without breaking the bank.
+CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed for coding agents and developer workflows. Point your agent CLI at the CAB gateway (`http://localhost:3125/v1` by default); CAB ranks and forwards requests to the best enabled provider/model for each prompt.
 
 ---
 
-## ✨ Features
+## Features
 
-- **🔌 Seamless Proxy Interception**: Intercepts requests targeting OpenAI, Anthropic, Gemini, and Google Cloud Code APIs transparently. Run officially-provided SDKs directly without modifying base URLs.
-- **🧠 Ability & Cost-Aware Routing**: Routes requests dynamically by ranking models based on:
-  - **Intelligence Indices** (Overall Intelligence, Coding Index, Agentic Index)
-  - **Cost Profile** (Input/Output token prices)
-  - **Context Window** requirements
-- **📊 Real-time Catalog Sync**: Automatically synchronizes models, pricing, and benchmark data from `models.dev` to keep your local router up to date.
-- **🖥️ Beautiful Desktop Dashboard**: A cross-platform desktop app (built with **Tauri** and **Svelte**) to configure providers, API keys, routing strategies, custom agent profiles, and inspect live proxy logs.
-- **🔒 TLS 1.3 Local Gateway**: Built-in self-signed TLS certificate generation for secure, local HTTPS (`https://127.0.0.1:443`) and HTTP/3 (QUIC) interception.
+- **OpenAI / Anthropic / Gemini gateway**: Exposes `/v1/chat/completions`, `/v1/messages`, `/v1/responses`, and Gemini-compatible endpoints on a single local HTTP port.
+- **Ability & cost-aware routing**: Ranks models using Intelligence / Coding / Agentic indices, token pricing, and context window.
+- **Real-time catalog sync**: Pulls models, pricing, and benchmark data from `models.dev`.
+- **Desktop dashboard**: Tauri + Svelte UI for providers, keys, routing strategies, agent config, and request logs.
+- **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, and Pi.
 
 ---
 
-## 🏗️ System Architecture
-
-CAB is structured as a modular Rust workspace alongside a Svelte-based frontend:
+## System Architecture
 
 ```mermaid
 graph TD
@@ -29,12 +24,12 @@ graph TD
 
     subgraph Backend [cab-server / Daemon]
         API[cab-api: Management API]
-        Gateway[cab-gateway: HTTP/HTTPS/H3 Proxy]
-        DB[(cab-db: Persisted JSON/Sled Store)]
+        Gateway[cab-gateway: HTTP Gateway]
+        DB[(cab-db: Persisted JSON Store)]
         Core[cab-core: Routing Logic]
     end
 
-    AgentSDK[Coding Agent / SDK] -- "HTTPS / HTTP/3" --> Gateway
+    AgentCLI[Coding Agent CLI] -- "HTTP /v1" --> Gateway
     Gateway -- "1. Profile Request" --> Core
     Core -- "2. Retrieve Config" --> DB
     Core -- "3. Rank & Route" --> Gateway
@@ -43,58 +38,57 @@ graph TD
     API <--> DB
 ```
 
-* **`cab-core`**: Core models, request profiling, and the cost-intelligence ranking algorithm.
-* **`cab-db`**: Local database and persistence layer.
-* **`cab-gateway`**: High-performance HTTP/HTTPS proxy that translates protocols, manages connection pools, and performs routing.
-* **`cab-api`**: Management API endpoints for controlling providers, keys, agents, and system logs.
-* **`cab-server`**: The daemon wrapper combining the API, gateway, and static assets server.
-* **`src`**: Svelte frontend providing the UI dashboard.
+| Crate | Role |
+| --- | --- |
+| `cab-core` | Types, request profiling, routing algorithm |
+| `cab-db` | In-memory store + `~/.cab/settings.json` persistence |
+| `cab-gateway` | HTTP gateway, protocol translation, upstream forwarding |
+| `cab-api` | Management REST API (`/api/*`) |
+| `cab-server` | Headless daemon (gateway + API + static UI) |
+| `src` | Svelte dashboard |
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
-Ensure you have the following installed:
 - [Rust](https://rustup.rs/) (2024 Edition)
 - [Node.js](https://nodejs.org/) (v18+)
-- OpenSSL (system library)
 
-### Run with Desktop GUI (Tauri)
+### Desktop GUI (Tauri)
 
-To launch the desktop dashboard:
+```bash
+npm install
+npm run tauri:dev
+```
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Start development mode:
-   ```bash
-   npm run tauri:dev
-   ```
+### Headless server
 
-### Run Daemon Only (Headless Server)
-
-To run the proxy server headless:
 ```bash
 cargo run -p cab-server
 ```
 
----
-
-## 🔒 Privileged Port Interception (Linux)
-
-To support transparent proxy interception (e.g. routing Anthropic/OpenAI SDK calls without modifying the endpoint URLs), CAB can bind to `127.0.0.1:443` via a local DNS hijack (e.g., adding `127.0.0.1 api.anthropic.com` to `/etc/hosts`).
-
-Since binding to port 443 requires elevated privileges on Linux, you can run CAB using the provided helper script which applies `setcap` to the binary:
-
-```bash
-./scripts/run-with-setcap.sh
-```
+Default gateway: `http://127.0.0.1:3125/v1`
 
 ---
 
-## 📝 License
+## Supported coding agents (v0.1.0)
 
-This project is licensed under the [MIT License](LICENSE).
+| Agent | Integration |
+| --- | --- |
+| Claude Code | `~/.claude/settings.json` |
+| Codex | `~/.codex/config.toml` |
+| OpenCode | `~/.config/opencode/opencode.json` |
+| Hermes | `~/.hermes/config.yaml` |
+| Kilo Code | `~/.config/kilo/opencode.json` |
+| OpenClaw | `openclaw config` |
+| Pi | `~/.pi/agent/models.json` |
+
+Configure modes in the **Agents** page: **Native** (bypass CAB), **Auto** (routing strategy), **Manual** (expose all enabled models).
+
+---
+
+## License
+
+[MIT License](LICENSE)

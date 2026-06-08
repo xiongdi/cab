@@ -6,6 +6,10 @@
 export interface ApiKeyConfig {
   key: string;
   enabled: boolean;
+  /** Subscription key: fixed cost already paid; routing favors near-zero marginal cost. */
+  subscribed?: boolean;
+  /** RFC3339 timestamp when a 429 quota window ends. */
+  quota_reset_at?: string | null;
 }
 
 export interface ProviderEndpoint {
@@ -289,7 +293,7 @@ export interface SyncCatalogResponse {
 export interface Agent {
   id: string;
   name: string;
-  mode: 'native' | 'auto' | 'manual' | 'config' | 'proxy';
+  mode: 'native' | 'auto' | 'manual' | 'config';
   model_id: string | null;
   model_name?: string; // Client-side mapped helper
   api_key: string;
@@ -298,7 +302,7 @@ export interface Agent {
 }
 
 export interface UpdateAgent {
-  mode?: 'native' | 'auto' | 'manual' | 'config' | 'proxy';
+  mode?: 'native' | 'auto' | 'manual' | 'config';
   model_id?: string | null;
   api_key?: string;
   endpoint?: string;

@@ -1,0 +1,102 @@
+---
+import { getCollection, render } from 'astro:content';
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+import {
+  chapters,
+  findChapter,
+  findSection
+} from '../../../data/chapters';
+export async function getStaticPaths() {
+  const docs = await getCollection('docs');
+  return docs.map((entry) => {
+    const [chapter, section] = entry.id.split('/');
+    return {
+      params: { chapter, section },
+      props: { entry }
+    };
+  });
+}
+
+const { entry } = Astro.props;
+const { chapter, section } = Astro.params;
+const { Content, headings } = await render(entry);
+
+const chapterDef = findChapter(chapter!);
+const sectionDef = findSection(chapter!, section!);
+
+const flat = chapters.flatMap((ch) =>
+  ch.sections.map((sec) => ({
+    chapterId: ch.id,
+    chapterTitle: ch.title,
+    section: sec
+  }))
+);
+const currentIndex = flat.findIndex(
+  (item) => item.chapterId === chapter && item.section.slug === section
+);
+const prev = currentIndex > 0 ? flat[currentIndex - 1] : undefined;
+const next =
+  currentIndex >= 0 && currentIndex < flat.length - 1
+    ? flat[currentIndex + 1]
+    : undefined;
+---
+
+<DocsLayout
+  title={entry.data.title}
+  description={entry.data.description}
+  chapterTitle={chapterDef?.title}
+  activeChapter={chapter}
+  activeSection={section}
+  headings={headings}
+>
+  <header class="article-header">
+    <div class="breadcrumb">
+      {chapterDef?.title} / {sectionDef?.title}
+      {chapterDef?.phase === 'definition' && chapterDef.validationOf && (
+        <span> · 对应确认：{findChapter(chapterDef.validationOf)?.title}</span>
+      )}
+    </div>
+    <h1>{entry.data.title}</h1>
+    {entry.data.description && <p>{entry.data.description}</p>}
+    {sectionDef?.validates && (() => {
+      const [vChapter, vSection] = sectionDef.validates.split('/');
+      const vSectionDef = findSection(vChapter, vSection);
+      const vChapterDef = findChapter(vChapter);
+      return (
+        <p class="validates-hint">
+          确认映射：
+          <a href={`/docs/${sectionDef.validates}`}>
+            → {vChapterDef?.title} / {vSectionDef?.title ?? vSection}
+          </a>
+        </p>
+      );
+    })()}
+  </header>
+
+  <article class="prose">
+    <Content />
+  </article>
+
+  <nav class="article-nav">
+    {
+      prev ? (
+        <a href={`/docs/${prev.chapterId}/${prev.section.slug}`}>
+          <span class="label">上一篇</span>
+          {prev.section.title}
+        </a>
+      ) : (
+        <span />
+      )
+    }
+    {
+      next ? (
+        <a href={`/docs/${next.chapterId}/${next.section.slug}`}>
+          <span class="label">下一篇</span>
+          {next.section.title}
+        </a>
+      ) : (
+        <span />
+      )
+    }
+  </nav>
+</DocsLayout>

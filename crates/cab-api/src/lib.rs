@@ -8,8 +8,6 @@ pub mod models;
 pub mod providers;
 pub mod routes;
 pub mod settings;
-pub mod traffic_hook;
-
 use axum::Router;
 use axum::routing::{delete, get, post, put};
 use cab_db::InMemoryStore;
@@ -79,14 +77,6 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/logs", get(logs::query_logs))
         // Coding Agents
         .route("/api/agents", get(agents::list_agents))
-        .route(
-            "/api/agents/hijack-claude",
-            post(agents::hijack_claude_desktop),
-        )
-        .route(
-            "/api/agents/{id}/install-proxy",
-            post(agents::install_agent_proxy),
-        )
         .route("/api/agents/{id}", get(agents::get_agent))
         .route("/api/agents/{id}", put(agents::update_agent))
         // Dashboard

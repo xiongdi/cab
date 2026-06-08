@@ -18,6 +18,48 @@ pub struct ProviderEndpoint {
 pub struct ApiKeyConfig {
     pub key: String,
     pub enabled: bool,
+    /// Subscription key: fixed cost already paid; routing treats marginal cost as near-zero.
+    #[serde(default)]
+    pub subscribed: bool,
+    /// RFC3339 timestamp when a 429 quota window ends; key is skipped until then.
+    #[serde(default)]
+    pub quota_reset_at: Option<String>,
+}
+
+impl ApiKeyConfig {
+    pub fn is_usable(&self) -> bool {
+        self.enabled && !self.key.trim().is_empty()
+    }
+}
+
+/// True when the provider has at least one enabled subscribed key not in quota recovery.
+pub fn provider_has_subscribed_key(api_keys: &[ApiKeyConfig]) -> bool {
+    api_keys
+        .iter()
+        .any(|k| k.is_usable() && k.subscribed && !crate::subscription_quota::is_key_rate_limited(k))
+}
+
+/// Prefer subscribed keys, then any other enabled key; skip keys still rate-limited.
+pub fn select_preferred_api_key(api_keys: &[ApiKeyConfig]) -> Option<String> {
+    ordered_api_keys(api_keys).into_iter().next()
+}
+
+/// Keys to try in order: subscribed (available) → pay-as-you-go (available).
+pub fn ordered_api_keys(api_keys: &[ApiKeyConfig]) -> Vec<String> {
+    let mut keys = Vec::new();
+    for key in api_keys {
+        if key.is_usable() && key.subscribed && !crate::subscription_quota::is_key_rate_limited(key)
+        {
+            keys.push(key.key.clone());
+        }
+    }
+    for key in api_keys {
+        if key.is_usable() && !key.subscribed && !crate::subscription_quota::is_key_rate_limited(key)
+        {
+            keys.push(key.key.clone());
+        }
+    }
+    keys
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -334,7 +376,7 @@ pub struct Settings {
 pub struct Agent {
     pub id: String,
     pub name: String,
-    pub mode: String, // "native", "auto", "manual" (legacy: "config", "proxy")
+    pub mode: String, // "native", "auto", "manual" (legacy: "config")
     pub model_id: Option<String>,
     pub api_key: String,
     pub endpoint: String,

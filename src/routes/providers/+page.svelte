@@ -102,7 +102,12 @@
       rebuildProviderModelNames(rawModels);
       enabledDrafts = Object.fromEntries(rawProviders.map(p => [p.id, p.enabled]));
       keyListDrafts = Object.fromEntries(
-        rawProviders.map(p => [p.id, p.api_keys ? p.api_keys.map(k => ({ ...k })) : []])
+        rawProviders.map(p => [
+          p.id,
+          p.api_keys
+            ? p.api_keys.map(k => ({ ...k, subscribed: k.subscribed ?? false }))
+            : []
+        ])
       );
       endpointDrafts = Object.fromEntries(
         rawProviders.map(p => [p.id, p.endpoints ? p.endpoints.map(e => ({ ...e })) : []])
@@ -141,6 +146,18 @@
     return (keyListDrafts[providerId] || []).filter(k => k.key.trim().length > 0).length;
   }
 
+  function isKeyRateLimited(keyConfig: ApiKeyConfig): boolean {
+    if (!keyConfig.quota_reset_at) return false;
+    const resetAt = Date.parse(keyConfig.quota_reset_at);
+    return Number.isFinite(resetAt) && resetAt > Date.now();
+  }
+
+  function formatQuotaReset(keyConfig: ApiKeyConfig): string | null {
+    if (!isKeyRateLimited(keyConfig) || !keyConfig.quota_reset_at) return null;
+    const resetAt = new Date(keyConfig.quota_reset_at);
+    return resetAt.toLocaleString();
+  }
+
   function formatEnv(env: string[] | null | undefined) {
     return env && env.length > 0 ? env : [];
   }
@@ -149,7 +166,7 @@
     if (!keyListDrafts[providerId]) {
       keyListDrafts[providerId] = [];
     }
-    keyListDrafts[providerId].push({ key: '', enabled: true });
+    keyListDrafts[providerId].push({ key: '', enabled: true, subscribed: false });
   }
 
   async function removeKey(provider: ProviderRow, index: number) {
@@ -487,6 +504,23 @@
                         <input type="checkbox" bind:checked={keyConfig.enabled} onchange={() => autoSaveKeys(provider)} />
                         <span class="toggle-slider"></span>
                       </label>
+                      <label
+                        class="subscribed-toggle"
+                        class:active={keyConfig.subscribed}
+                        title={i18n.t('providers.key_subscribed_tip')}
+                      >
+                        <input
+                          type="checkbox"
+                          bind:checked={keyConfig.subscribed}
+                          onchange={() => autoSaveKeys(provider)}
+                        />
+                        <span class="subscribed-label">{i18n.t('providers.key_subscribed')}</span>
+                      </label>
+                      {#if isKeyRateLimited(keyConfig)}
+                        <span class="quota-badge" title={formatQuotaReset(keyConfig) || ''}>
+                          {i18n.t('providers.key_quota_limited')}
+                        </span>
+                      {/if}
                       <button type="button" class="btn-icon-delete" onclick={() => removeKey(provider, index)} title={i18n.t('providers.delete_key')}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                           <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -889,6 +923,51 @@
   .ep-enabled-toggle,
   .key-toggle {
     transform: scale(0.85);
+  }
+
+  .subscribed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+  }
+
+  .subscribed-toggle:hover {
+    border-color: rgba(234, 179, 8, 0.4);
+    color: var(--text-secondary);
+  }
+
+  .subscribed-toggle.active {
+    border-color: rgba(234, 179, 8, 0.5);
+    background: rgba(234, 179, 8, 0.12);
+    color: #fbbf24;
+  }
+
+  .subscribed-toggle input {
+    accent-color: #fbbf24;
+  }
+
+  .quota-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .key-input-field {

@@ -23,6 +23,7 @@ pub async fn update(
         if let Some(ref mode) = input.mode {
             agent.mode = match mode.as_str() {
                 "config" => "auto".to_string(),
+                "proxy" => "native".to_string(),
                 other => other.to_string(),
             };
         }
@@ -42,5 +43,65 @@ pub async fn update(
         Ok(Some(agent.clone()))
     } else {
         Ok(None)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::InMemoryStore;
+
+    const SUPPORTED_AGENT_IDS: &[&str] = &[
+        "claude-code",
+        "codex",
+        "opencode",
+        "hermes",
+        "kilocode",
+        "openclaw",
+        "pi",
+    ];
+
+    #[tokio::test]
+    async fn default_store_lists_seven_supported_agents() {
+        let store = InMemoryStore::new();
+        let agents = list(&store).await.expect("list agents");
+        assert_eq!(agents.len(), 7);
+        for id in SUPPORTED_AGENT_IDS {
+            assert!(agents.iter().any(|a| a.id == *id), "missing agent {id}");
+        }
+        assert!(!agents.iter().any(|a| a.id == "cursor"));
+        assert!(!agents.iter().any(|a| a.id == "antigravity"));
+    }
+
+    #[tokio::test]
+    async fn removed_agents_are_not_found() {
+        let store = InMemoryStore::new();
+        for id in ["cursor", "antigravity"] {
+            let agent = get_by_id(&store, id).await.expect("get_by_id");
+            assert!(agent.is_none(), "{id} should not exist");
+        }
+    }
+
+    #[tokio::test]
+    async fn update_normalizes_legacy_proxy_mode_to_native() {
+        let store = InMemoryStore::new();
+        {
+            let mut inner = store.inner.write().expect("lock");
+            inner.agents.get_mut("codex").unwrap().mode = "proxy".to_string();
+        }
+        let updated = update(
+            &store,
+            "codex",
+            &UpdateAgent {
+                mode: Some("proxy".to_string()),
+                model_id: None,
+                api_key: None,
+                endpoint: None,
+            },
+        )
+        .await
+        .expect("update")
+        .expect("codex exists");
+        assert_eq!(updated.mode, "native");
     }
 }

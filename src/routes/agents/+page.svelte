@@ -10,14 +10,11 @@
   let agents = $state<Agent[]>([]);
   let models = $state<Model[]>([]);
   let providers = $state<Provider[]>([]);
-  let routes = $state<any[]>([]); // All custom routing rules
+  let routes = $state<any[]>([]);
   let settings = $state<Settings | null>(null);
   let loading = $state(true);
   let savingId = $state<string | null>(null);
-  let installingProxyId = $state<string | null>(null);
-  let proxyLaunchByAgent = $state<Record<string, string>>({});
 
-  // Form states mapped by agent ID to prevent form conflicts
   let agentForms = $state<Record<string, { model_id: string; api_key: string; endpoint: string }>>({});
 
   function countManualModels(allModels: Model[], allProviders: Provider[]): number {
@@ -29,34 +26,28 @@
     return allModels.filter((m) => m.enabled && activeProviderIds.has(m.provider_id)).length;
   }
 
-  function supportsProxyMode(agentId: string): boolean {
-    return agentId === 'antigravity';
-  }
-
   function normalizeLoadedMode(mode: string): Agent['mode'] {
     if (mode === 'config') return 'auto';
+    if (mode === 'proxy') return 'native';
     return mode as Agent['mode'];
   }
 
   function modeLabel(mode: Agent['mode']): string {
     if (mode === 'native') return i18n.t('agents.mode_native');
     if (mode === 'auto') return i18n.t('agents.mode_auto');
-    if (mode === 'manual') return i18n.t('agents.mode_manual');
-    return i18n.t('agents.mode_proxy');
+    return i18n.t('agents.mode_manual');
   }
 
   function modeShortLabel(mode: Agent['mode']): string {
     if (mode === 'native') return i18n.t('agents.mode_native_short');
     if (mode === 'auto') return i18n.t('agents.mode_auto_short');
-    if (mode === 'manual') return i18n.t('agents.mode_manual_short');
-    return i18n.t('agents.mode_proxy_short');
+    return i18n.t('agents.mode_manual_short');
   }
 
   function modeBadgeClass(mode: Agent['mode']): string {
     if (mode === 'native') return 'badge-neutral';
     if (mode === 'auto') return 'badge-warning';
-    if (mode === 'manual') return 'badge-success';
-    return 'badge-proxy';
+    return 'badge-success';
   }
 
   function getRouteDisplayName(id: string | null | undefined): string {
@@ -86,8 +77,7 @@
       providers = rawProviders;
       routes = rawRoutes;
       settings = rawSettings;
-      
-      // Initialize forms with current agent details
+
       const initialForms: Record<string, { model_id: string; api_key: string; endpoint: string }> = {};
       for (const a of rawAgents) {
         const normalizedMode = normalizeLoadedMode(a.mode);
@@ -112,7 +102,7 @@
       const updates: UpdateAgent = { mode };
       if (mode === 'manual') {
         updates.model_id = null;
-      } else if ((mode === 'auto' || mode === 'proxy') && !agentForms[agent.id]?.model_id) {
+      } else if (mode === 'auto' && !agentForms[agent.id]?.model_id) {
         updates.model_id = 'auto';
         agentForms[agent.id] = { ...agentForms[agent.id], model_id: 'auto' };
       }
@@ -125,14 +115,10 @@
           model_name: getRouteDisplayName(updated.model_id) || undefined
         };
       }
-      if (mode === 'proxy' && supportsProxyMode(agent.id)) {
-        await handleInstallProxy(agent.id, false);
-      }
-      const modeText = modeShortLabel(mode);
       toast.success(
         i18n.t('agents.mode_switched')
           .replace('{name}', agent.name)
-          .replace('{mode}', modeText)
+          .replace('{mode}', modeShortLabel(mode))
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : i18n.t('common.error'));
@@ -146,19 +132,19 @@
     if (!form) return;
     const agent = agents.find(a => a.id === agentId);
     if (!agent) return;
-    
+
     savingId = agentId;
     try {
       const updates: UpdateAgent = {
         api_key: '',
         endpoint: ''
       };
-      if (agent.mode === 'auto' || agent.mode === 'proxy') {
+      if (agent.mode === 'auto') {
         updates.model_id = form.model_id || 'auto';
       } else if (agent.mode === 'manual') {
         updates.model_id = null;
       }
-      
+
       const updated = await api.agents.update(agentId, updates);
       const idx = agents.findIndex(a => a.id === agentId);
       if (idx !== -1) {
@@ -175,50 +161,10 @@
     }
   }
 
-  async function handleInstallProxy(agentId: string, showToast = true) {
-    installingProxyId = agentId;
-    try {
-      const res = await api.agents.installProxy(agentId);
-      proxyLaunchByAgent = { ...proxyLaunchByAgent, [agentId]: res.launch_example };
-      if (showToast) {
-        toast.success(i18n.t('agents.proxy_install_success'));
-      }
-    } catch (e) {
-      if (showToast) {
-        toast.error(e instanceof Error ? e.message : i18n.t('agents.proxy_install_failed'));
-      } else {
-        throw e;
-      }
-    } finally {
-      installingProxyId = null;
-    }
-  }
-
-  let hijacking = $state(false);
-
-  async function handleHijackClaude() {
-    hijacking = true;
-    try {
-      const res = await api.agents.hijackClaude();
-      if (res.success) {
-        toast.success(i18n.t('agents.hijack_success'));
-      } else {
-        toast.warning(res.message);
-      }
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : i18n.t('agents.hijack_failed'));
-    } finally {
-      hijacking = false;
-    }
-  }
-
-  // Beautiful SVG icons map for Coding Agents
   const agentIcons: Record<string, string> = {
-    cursor: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/></svg>`,
     'claude-code': `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
     codex: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
     opencode: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`,
-    antigravity: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2.5 3.19-2.5 5.5h20c0-2.31-1-4.24-2.5-5.5"/><circle cx="12" cy="8" r="5"/><path d="M12 3v10"/><path d="M8 7h8"/></svg>`,
     hermes: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 9v8"/></svg>`,
     kilocode: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6"/><path d="M9 12h3"/><path d="M9 16h6"/><path d="M15 12l2 2-2 2"/></svg>`,
     openclaw: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l4 7-8 11L4 10l4-7z"/><path d="M8 3l4 18"/><path d="M16 3l-4 18"/><path d="M4 10h16"/></svg>`,
@@ -239,7 +185,6 @@
     {#each agents as agent}
       <Card padding="24px" hover={true} glow={agent.mode !== 'native'}>
         <div class="agent-card-content">
-          <!-- Card Header -->
           <div class="agent-header">
             <div class="agent-icon" style="background: {agent.mode === 'native' ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.1)'}; color: {agent.mode === 'native' ? 'var(--text-secondary)' : '#60a5fa'}">
               {@html agentIcons[agent.id] || agentIcons.codex}
@@ -252,67 +197,51 @@
             </div>
           </div>
 
-          <!-- Description -->
           <p class="agent-desc">
             {#if agent.mode === 'native'}
               {i18n.t('agents.native_desc')}
             {:else if agent.mode === 'auto'}
               {i18n.t('agents.auto_desc')}
-            {:else if agent.mode === 'manual'}
-              {i18n.t('agents.manual_desc')}
             {:else}
-              {i18n.t('agents.proxy_desc')}
+              {i18n.t('agents.manual_desc')}
             {/if}
           </p>
 
-          <!-- Mode Switcher Toggle Segment -->
-          <div class="mode-segment" class:mode-segment-4={supportsProxyMode(agent.id)}>
-            <button 
-              class="segment-btn" 
-              class:active={agent.mode === 'native'} 
+          <div class="mode-segment">
+            <button
+              class="segment-btn"
+              class:active={agent.mode === 'native'}
               onclick={() => handleModeChange(agent, 'native')}
               disabled={savingId === agent.id}
             >
               {i18n.t('agents.mode_native_short')}
             </button>
-            <button 
-              class="segment-btn" 
-              class:active={agent.mode === 'auto'} 
+            <button
+              class="segment-btn"
+              class:active={agent.mode === 'auto'}
               onclick={() => handleModeChange(agent, 'auto')}
               disabled={savingId === agent.id}
             >
               {i18n.t('agents.mode_auto_short')}
             </button>
-            <button 
-              class="segment-btn" 
-              class:active={agent.mode === 'manual'} 
+            <button
+              class="segment-btn"
+              class:active={agent.mode === 'manual'}
               onclick={() => handleModeChange(agent, 'manual')}
               disabled={savingId === agent.id}
             >
               {i18n.t('agents.mode_manual_short')}
             </button>
-            {#if supportsProxyMode(agent.id)}
-              <button 
-                class="segment-btn segment-btn-proxy" 
-                class:active={agent.mode === 'proxy'} 
-                onclick={() => handleModeChange(agent, 'proxy')}
-                disabled={savingId === agent.id}
-              >
-                {i18n.t('agents.mode_proxy_short')}
-              </button>
-            {/if}
           </div>
 
-          <!-- Dynamic inputs for auto, manual & proxy modes -->
           {#if agent.mode !== 'native' && agentForms[agent.id]}
             <div class="agent-inputs fade-in">
-              {#if agent.mode === 'auto' || agent.mode === 'proxy'}
-              <!-- Routing strategy selector (auto mode) -->
+              {#if agent.mode === 'auto'}
               <div class="form-group">
                 <label class="label" for="{agent.id}-model">{i18n.t('agents.routing_strategy')}</label>
                 <select class="select select-sm" id="{agent.id}-model" bind:value={agentForms[agent.id].model_id}>
                   <option value="">{i18n.t('agents.select_routing_strategy')}</option>
-                  
+
                   <optgroup label={i18n.t('agents.builtin_system_routes')}>
                     <option value="auto">{i18n.t('agents.system_routes.auto')}</option>
                     <option value="balanced">{i18n.t('agents.system_routes.balanced')}</option>
@@ -335,44 +264,14 @@
               </p>
               {/if}
 
-              <!-- Action buttons -->
-              <div class="save-actions" style="display: flex; flex-direction: column; gap: 8px;">
-                <button 
-                  class="btn btn-primary btn-sm btn-full" 
+              <div class="save-actions">
+                <button
+                  class="btn btn-primary btn-sm btn-full"
                   onclick={() => handleSaveDetails(agent.id)}
                   disabled={savingId === agent.id}
                 >
                   {savingId === agent.id ? i18n.t('common.loading') : i18n.t('common.save')}
                 </button>
-
-                {#if agent.mode === 'proxy' && supportsProxyMode(agent.id)}
-                  <button 
-                    class="btn btn-sm btn-full" 
-                    style="border: 1px solid rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.08); color: #c084fc;"
-                    onclick={() => handleInstallProxy(agent.id)}
-                    disabled={installingProxyId === agent.id}
-                  >
-                    {installingProxyId === agent.id ? i18n.t('agents.installing_proxy') : i18n.t('agents.install_proxy')}
-                  </button>
-                  {#if proxyLaunchByAgent[agent.id]}
-                    <div class="proxy-launch">
-                      <span class="label">{i18n.t('agents.proxy_launch_hint')}</span>
-                      <code>{proxyLaunchByAgent[agent.id]}</code>
-                    </div>
-                  {/if}
-                {/if}
-                
-                {#if agent.id === 'claude-code'}
-                  <button 
-                    class="btn btn-sm btn-full" 
-                    style="border: 1px solid rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); color: #f87171;"
-                    onclick={handleHijackClaude}
-                    disabled={hijacking}
-                  >
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    {hijacking ? i18n.t('agents.injecting_launching') : i18n.t('agents.hijack_launch_claude')}
-                  </button>
-                {/if}
               </div>
             </div>
           {/if}
@@ -381,7 +280,6 @@
     {/each}
   </div>
 
-  <!-- Detailed setup guides -->
   <div style="margin-top: 40px;">
     <Card padding="28px">
       <div class="guide-section">
@@ -391,69 +289,35 @@
           </svg>
           <span>{i18n.t('agents.integration_guide_title')}</span>
         </h3>
-        
+
         <div class="guides-tabs">
           <div class="guide-item">
-            <h4>1. Cursor (Override Endpoint)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_cursor').replace('{port}', (settings?.gateway_port ?? 3125).toString())}
-            </p>
+            <h4>1. Claude Code</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_claude_code')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>2. Claude Code (Automated JSON Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_claude_code')}
-            </p>
+            <h4>2. Codex</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_codex')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>3. Codex (Automated TOML Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_codex')}
-            </p>
+            <h4>3. OpenCode</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_opencode')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>4. OpenCode (Automated JSON Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_opencode')}
-            </p>
+            <h4>4. Hermes Agent</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_hermes')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>5. Antigravity (Automated JSON Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_antigravity')}
-            </p>
+            <h4>5. Kilo Code</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_kilocode')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>6. Hermes Agent (Automated YAML Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_hermes')}
-            </p>
+            <h4>6. OpenClaw</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_openclaw')}</p>
           </div>
-
           <div class="guide-item">
-            <h4>7. Kilo Code (Automated JSON Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_kilocode')}
-            </p>
-          </div>
-
-          <div class="guide-item">
-            <h4>8. OpenClaw (Automated CLI Config)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_openclaw')}
-            </p>
-          </div>
-
-          <div class="guide-item">
-            <h4>9. Pi (Automated JSON Write)</h4>
-            <p class="guide-desc">
-              {i18n.t('agents.guide_pi')}
-            </p>
+            <h4>7. Pi</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_pi')}</p>
           </div>
         </div>
       </div>
@@ -525,39 +389,6 @@
     padding: 3px;
     margin-bottom: 20px;
     gap: 2px;
-  }
-
-  .mode-segment-4 .segment-btn {
-    font-size: 11px;
-    padding: 6px 2px;
-  }
-
-  .segment-btn-proxy.active {
-    background: rgba(168, 85, 247, 0.15);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.25);
-  }
-
-  .badge-proxy {
-    background: rgba(168, 85, 247, 0.12);
-    color: #c084fc;
-    border: 1px solid rgba(168, 85, 247, 0.25);
-  }
-
-  .proxy-launch {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 10px 12px;
-    background: rgba(168, 85, 247, 0.06);
-    border: 1px dashed rgba(168, 85, 247, 0.25);
-    border-radius: var(--radius-sm);
-  }
-
-  .proxy-launch code {
-    font-size: 11px;
-    word-break: break-all;
-    color: #e9d5ff;
   }
 
   .segment-btn {

@@ -1,0 +1,40 @@
+---
+import { chapters } from '../data/chapters';
+
+interface Props {
+  activeChapter?: string;
+  activeSection?: string;
+}
+
+const { activeChapter, activeSection } = Astro.props;
+---
+
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <a href="/">
+      <h1>CAB 软件开发规范</h1>
+    </a>
+    <p>V 模型 · 章节化交付文档</p>
+  </div>
+
+  {
+    chapters.map((chapter) => (
+      <div class="chapter-block">
+        <span class="chapter-title">{chapter.title}</span>
+        {chapter.sections.map((section) => {
+          const href = `/docs/${chapter.id}/${section.slug}`;
+          const isActive =
+            activeChapter === chapter.id && activeSection === section.slug;
+          return (
+            <a
+              class:list={['section-link', { active: isActive }]}
+              href={href}
+            >
+              {section.title}
+            </a>
+          );
+        })}
+      </div>
+    ))
+  }
+</aside>

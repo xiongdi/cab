@@ -1,0 +1,42 @@
+---
+import DocsLayout from '../layouts/DocsLayout.astro';
+import { chapters, findChapter } from '../data/chapters';
+---
+
+<DocsLayout title="首页" description="CAB 项目软件开发规范文档体系">
+  <section class="hero">
+    <h1>软件开发规范</h1>
+    <p>
+      本站点依据
+      <a href="https://zh.wikipedia.org/wiki/V%E6%A8%A1%E5%9E%8B_(%E8%BB%9F%E9%AB%94%E9%96%8B%E7%99%BC)" target="_blank" rel="noopener noreferrer">V 模型</a>
+      组织：左侧项目定义、底部实现、右侧确认；测试计划应在相应设计阶段早期制定。
+    </p>
+  </section>
+
+  <section class="chapter-grid">
+    {
+      chapters.map((chapter) => (
+        <article class="chapter-card">
+          <h2>{chapter.title}</h2>
+          <p>
+            {chapter.phase === 'definition' && '项目定义阶段（左侧）'}
+            {chapter.phase === 'implementation' && '实现阶段（V 底）'}
+            {chapter.phase === 'validation' && '确认阶段（右侧）'}
+            {chapter.phase === 'meta' && '文档元信息'}
+            {chapter.validationOf && ` → 对应 ${findChapter(chapter.validationOf)?.title ?? chapter.validationOf}`}
+            {' · '}{chapter.sections.length} 个小节
+          </p>
+          <ul>
+            {chapter.sections.map((section) => (
+              <li>
+                <a href={`/docs/${chapter.id}/${section.slug}`}>
+                  {section.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))
+    }
+  </section>
+</DocsLayout>

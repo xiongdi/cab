@@ -4,6 +4,7 @@ pub mod error;
 pub mod model_scores;
 pub mod provider_defaults;
 pub mod routing;
+pub mod subscription_quota;
 pub mod types;
 
 pub use benchmark_catalog::{
@@ -25,5 +26,9 @@ pub use provider_defaults::{
 };
 pub use routing::{
     BALANCED_INPUT_OUTPUT_RATIO, RequestProfile, RoutingStrategy, build_request_profile,
-    effective_token_cost, rank_models,
+    effective_routing_cost, effective_token_cost, rank_models,
 };
+pub use subscription_quota::{
+    DEFAULT_QUOTA_RESET_SECS, extract_retry_after, is_key_rate_limited, resolve_quota_reset_at,
+};
+pub use types::{ordered_api_keys, provider_has_subscribed_key, select_preferred_api_key};

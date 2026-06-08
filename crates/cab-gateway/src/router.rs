@@ -1,10 +1,18 @@
+use std::collections::HashSet;
+
 use cab_core::types::{Model, Provider, ProviderEndpoint};
-use cab_core::{RequestProfile, RoutingStrategy, build_request_profile, rank_models};
+use cab_core::types::ApiKeyConfig;
+use cab_core::{
+    RequestProfile, RoutingStrategy, build_request_profile, provider_has_subscribed_key,
+    rank_models, select_preferred_api_key,
+};
 
 /// A resolved route target with provider details.
 #[derive(Debug, Clone)]
 pub struct ResolvedRoute {
     pub model: Model,
+    pub provider_id: String,
+    pub api_keys: Vec<ApiKeyConfig>,
     pub endpoint_candidates: Vec<ProviderEndpoint>,
     pub provider_api_key: String,
     pub model_protocol: String,
@@ -16,11 +24,28 @@ pub struct ResolvedRoute {
 #[derive(Debug, Clone)]
 pub struct ResolvedModel {
     pub model: Model,
+    pub provider_id: String,
     pub endpoint_candidates: Vec<ProviderEndpoint>,
+    pub api_keys: Vec<ApiKeyConfig>,
     pub provider_api_key: String,
     pub model_protocol: String,
     pub provider_name: String,
     pub provider_routing: Vec<String>,
+}
+
+impl ResolvedRoute {
+    pub fn as_primary_model(&self) -> ResolvedModel {
+        ResolvedModel {
+            model: self.model.clone(),
+            provider_id: self.provider_id.clone(),
+            api_keys: self.api_keys.clone(),
+            endpoint_candidates: self.endpoint_candidates.clone(),
+            provider_api_key: self.provider_api_key.clone(),
+            model_protocol: self.model_protocol.clone(),
+            provider_name: self.provider_name.clone(),
+            provider_routing: self.provider_routing.clone(),
+        }
+    }
 }
 
 /// Filter and sort endpoints: native protocol first, then fall back to others for conversion.
@@ -118,6 +143,8 @@ pub async fn resolve_route(
             }
             return Ok(ResolvedRoute {
                 model: resolved.model,
+                provider_id: resolved.provider_id,
+                api_keys: resolved.api_keys,
                 endpoint_candidates: resolved.endpoint_candidates,
                 provider_api_key: resolved.provider_api_key,
                 model_protocol: resolved.model_protocol,
@@ -144,6 +171,8 @@ pub async fn resolve_route(
         if let Some(resolved) = resolve_model_by_name(pool, &model_name).await? {
             return Ok(ResolvedRoute {
                 model: resolved.model,
+                provider_id: resolved.provider_id,
+                api_keys: resolved.api_keys,
                 endpoint_candidates: resolved.endpoint_candidates,
                 provider_api_key: resolved.provider_api_key,
                 model_protocol: resolved.model_protocol,
@@ -181,8 +210,28 @@ async fn resolve_by_strategy(
         return Ok(None);
     }
 
-    let ranked = rank_models(&enabled, parsed, profile);
+    let subscribed_provider_ids = subscribed_provider_ids(pool).await?;
+    let ranked = rank_models(
+        &enabled,
+        parsed,
+        profile,
+        Some(&subscribed_provider_ids),
+    );
     resolve_ranked_models(pool, ranked, 3).await
+}
+
+async fn subscribed_provider_ids(
+    pool: &cab_db::InMemoryStore,
+) -> Result<HashSet<String>, cab_core::CabError> {
+    let all_providers = cab_db::provider::list_catalog(pool)
+        .await
+        .map_err(cab_core::CabError::Database)?;
+
+    Ok(all_providers
+        .into_iter()
+        .filter(|p| provider_has_subscribed_key(&p.api_keys))
+        .map(|p| p.id)
+        .collect())
 }
 
 async fn enabled_routable_models(
@@ -232,6 +281,8 @@ async fn resolve_ranked_models(
 
     Ok(Some(ResolvedRoute {
         model: primary.model,
+        provider_id: primary.provider_id,
+        api_keys: primary.api_keys,
         endpoint_candidates: primary.endpoint_candidates,
         provider_api_key: primary.provider_api_key,
         model_protocol: primary.model_protocol,
@@ -278,6 +329,8 @@ async fn resolve_route_by_id(
             }
             return Ok(Some(ResolvedRoute {
                 model: resolved.model,
+                provider_id: resolved.provider_id,
+                api_keys: resolved.api_keys,
                 endpoint_candidates: resolved.endpoint_candidates,
                 provider_api_key: resolved.provider_api_key,
                 model_protocol: resolved.model_protocol,
@@ -319,11 +372,18 @@ async fn resolve_model(
     Ok(Some(ResolvedModel {
         model_protocol: model.protocol.clone(),
         model: model.clone(),
+        provider_id: provider.id.clone(),
+        api_keys: provider.api_keys.clone(),
         endpoint_candidates: pick_endpoints_for_protocol(&provider, &model.protocol),
-        provider_api_key: provider.api_key,
+        provider_api_key: active_provider_api_key(&provider),
         provider_name: provider.name,
         provider_routing,
     }))
+}
+
+fn active_provider_api_key(provider: &Provider) -> String {
+    select_preferred_api_key(&provider.api_keys)
+        .unwrap_or_else(|| provider.api_key.clone())
 }
 
 async fn resolve_model_by_name(
@@ -354,8 +414,10 @@ async fn resolve_model_by_name(
     Ok(Some(ResolvedModel {
         model_protocol: model.protocol.clone(),
         model: model.clone(),
+        provider_id: provider.id.clone(),
+        api_keys: provider.api_keys.clone(),
         endpoint_candidates: pick_endpoints_for_protocol(&provider, &model.protocol),
-        provider_api_key: provider.api_key,
+        provider_api_key: active_provider_api_key(&provider),
         provider_name: provider.name,
         provider_routing,
     }))

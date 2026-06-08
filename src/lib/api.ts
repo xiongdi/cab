@@ -207,19 +207,7 @@ export const api = {
       request<Agent>(`/agents/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data)
-      }),
-    hijackClaude: () =>
-      request<{ success: boolean; message: string; hook_path?: string }>('/agents/hijack-claude', {
-        method: 'POST'
-      }),
-    installProxy: (id: string) =>
-      request<{
-        success: boolean;
-        agent: string;
-        wrapper: string;
-        launch_example: string;
-        note: string;
-      }>(`/agents/${id}/install-proxy`, { method: 'POST' })
+      })
   }
 };
 

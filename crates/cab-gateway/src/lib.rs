@@ -1,6 +1,5 @@
 #![allow(clippy::all, dead_code)]
 pub mod anthropic;
-pub mod cloudcode;
 pub mod fallback;
 pub mod gemini;
 pub mod openai;

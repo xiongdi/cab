@@ -2,7 +2,7 @@ use axum::body::Body;
 use axum::http::{HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
-use cab_core::CabError;
+use cab_core::{CabError, extract_retry_after};
 use futures::TryStreamExt;
 use reqwest::Client;
 
@@ -68,6 +68,7 @@ pub async fn proxy_request(
     let status = upstream_resp.status();
 
     if !status.is_success() {
+        let retry_after = extract_retry_after(upstream_resp.headers());
         let body_text = upstream_resp
             .text()
             .await
@@ -75,6 +76,7 @@ pub async fn proxy_request(
         return Err(CabError::ProviderError {
             status: status.as_u16(),
             body: body_text,
+            retry_after,
         });
     }
 

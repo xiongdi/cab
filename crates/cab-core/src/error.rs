@@ -17,7 +17,11 @@ pub enum CabError {
     Proxy(String),
 
     #[error("Provider error (status {status}): {body}")]
-    ProviderError { status: u16, body: String },
+    ProviderError {
+        status: u16,
+        body: String,
+        retry_after: Option<chrono::DateTime<chrono::Utc>>,
+    },
 
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
@@ -30,7 +34,11 @@ impl IntoResponse for CabError {
             CabError::Database(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             CabError::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             CabError::Proxy(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
-            CabError::ProviderError { status, body } => {
+            CabError::ProviderError {
+                status,
+                body,
+                retry_after: _,
+            } => {
                 let code = StatusCode::from_u16(*status).unwrap_or(StatusCode::BAD_GATEWAY);
                 (code, body.clone())
             }

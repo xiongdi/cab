@@ -1,0 +1,35 @@
+---
+export interface TocHeading {
+  depth: number;
+  slug: string;
+  text: string;
+}
+
+interface Props {
+  headings?: TocHeading[];
+}
+
+const { headings = [] } = Astro.props;
+const toc = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+---
+
+<aside class="toc-sidebar">
+  <div class="toc-inner">
+    <p class="toc-title">本页目录</p>
+    {
+      toc.length > 0 ? (
+        <nav class="toc-nav" aria-label="本页目录">
+          <ul>
+            {toc.map((heading) => (
+              <li class:list={[`depth-${heading.depth}`]}>
+                <a href={`#${heading.slug}`}>{heading.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      ) : (
+        <p class="toc-empty">暂无章节锚点</p>
+      )
+    }
+  </div>
+</aside>

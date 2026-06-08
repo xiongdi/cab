@@ -15,12 +15,8 @@ tracing-subscriber = { workspace = true }
 tower-http = { workspace = true }
 axum = { workspace = true }
 axum-server = { workspace = true }
-tokio-rustls = "0.26"
-quinn = "0.11"
-h3 = "0.0.8"
-h3-quinn = "0.0.10"
-rustls = "0.23"
-rustls-pemfile = "2"
-rustls-pki-types = "1"
-bytes = { workspace = true }
+
+[dev-dependencies]
+http-body-util = "0.1"
+serde_json = { workspace = true }
 tower = { workspace = true }

@@ -36,6 +36,9 @@ jobs:
       - name: Run Tests
         run: cargo test --workspace
 
+      - name: v0.1 UAT smoke (UT/IT/ST)
+        run: ./scripts/verify-v0.1.sh
+
   frontend-checks:
     name: Frontend Checks
     runs-on: ubuntu-latest

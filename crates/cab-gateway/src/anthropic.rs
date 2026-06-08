@@ -9,7 +9,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::fallback::{ProxyRequest, execute_with_fallback};
-use crate::router::{ResolvedModel, pick_endpoints_for_protocol, resolve_route};
+use crate::router::{pick_endpoints_for_protocol, resolve_route};
 use crate::state::GatewayState;
 
 /// POST /v1/messages
@@ -55,14 +55,9 @@ pub async fn handle_messages(
 
     let endpoint_candidates = pick_endpoints_for_protocol(&provider, "anthropic");
 
-    let primary = ResolvedModel {
-        model: resolved.model.clone(),
-        endpoint_candidates,
-        provider_api_key: resolved.provider_api_key.clone(),
-        model_protocol: "anthropic".to_string(),
-        provider_name: resolved.provider_name.clone(),
-        provider_routing: resolved.provider_routing.clone(),
-    };
+    let mut primary = resolved.as_primary_model();
+    primary.endpoint_candidates = endpoint_candidates;
+    primary.model_protocol = "anthropic".to_string();
 
     // Anthropic path is /v1/messages
     let proxy_req = ProxyRequest {
@@ -75,6 +70,7 @@ pub async fn handle_messages(
 
     let result = execute_with_fallback(
         &state.client,
+        &state.pool,
         &primary,
         &resolved.fallback_models,
         &proxy_req,

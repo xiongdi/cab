@@ -2,7 +2,9 @@ use crate::InMemoryStore;
 use cab_core::provider_defaults::{
     load_provider_defaults, resolve_provider_default_protocol, resolve_provider_endpoints,
 };
-use cab_core::types::{CreateProvider, Provider, ProviderEndpoint, Settings, UpdateProvider};
+use cab_core::types::{
+    select_preferred_api_key, CreateProvider, Provider, ProviderEndpoint, Settings, UpdateProvider,
+};
 use uuid::Uuid;
 
 pub async fn list(store: &InMemoryStore) -> Result<Vec<Provider>, String> {
@@ -154,11 +156,7 @@ pub async fn apply_provider_config(
         }
         if let Some(api_keys) = &user.api_keys {
             provider.api_keys = api_keys.clone();
-            provider.api_key = api_keys
-                .iter()
-                .find(|k| k.enabled && !k.key.trim().is_empty())
-                .map(|k| k.key.clone())
-                .unwrap_or_default();
+            provider.api_key = select_preferred_api_key(api_keys).unwrap_or_default();
         } else if let Some(api_key) = &user.api_key {
             provider.api_key = api_key.clone();
         }
@@ -248,6 +246,7 @@ pub async fn update(
         }
         if let Some(ref key_configs) = input.api_keys {
             p.api_keys = key_configs.clone();
+            p.api_key = select_preferred_api_key(key_configs).unwrap_or_default();
         }
         if let Some(ref api) = input.api {
             p.api = Some(api.clone());
@@ -274,4 +273,78 @@ pub async fn update(
 pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     Ok(inner.providers.remove(id).is_some())
+}
+
+fn apply_quota_reset_to_keys(
+    api_keys: &mut [cab_core::types::ApiKeyConfig],
+    key: &str,
+    reset_at: Option<String>,
+) -> bool {
+    let mut changed = false;
+    for entry in api_keys.iter_mut() {
+        if entry.key == key {
+            entry.quota_reset_at = reset_at.clone();
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Record when a subscription key's quota recovers after a 429.
+pub async fn mark_api_key_quota_reset(
+    store: &InMemoryStore,
+    provider_id: &str,
+    key: &str,
+    reset_at: chrono::DateTime<chrono::Utc>,
+) -> Result<(), String> {
+    let reset_at_str = reset_at.to_rfc3339();
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+
+    if let Some(provider) = inner.providers.get_mut(provider_id) {
+        apply_quota_reset_to_keys(&mut provider.api_keys, key, Some(reset_at_str.clone()));
+        provider.api_key = select_preferred_api_key(&provider.api_keys).unwrap_or_default();
+        provider.updated_at = chrono::Utc::now().to_rfc3339();
+    }
+
+    if let Some(user) = inner.settings.providers.get_mut(provider_id) {
+        if let Some(api_keys) = &mut user.api_keys {
+            apply_quota_reset_to_keys(api_keys, key, Some(reset_at_str));
+        }
+    }
+
+    let settings = inner.settings.clone();
+    drop(inner);
+    crate::settings::save_to_disk(&settings)
+}
+
+/// Clear a recovered quota window after a successful upstream call.
+pub async fn clear_api_key_quota_reset(
+    store: &InMemoryStore,
+    provider_id: &str,
+    key: &str,
+) -> Result<(), String> {
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    let mut changed = false;
+
+    if let Some(provider) = inner.providers.get_mut(provider_id) {
+        if apply_quota_reset_to_keys(&mut provider.api_keys, key, None) {
+            provider.api_key = select_preferred_api_key(&provider.api_keys).unwrap_or_default();
+            provider.updated_at = chrono::Utc::now().to_rfc3339();
+            changed = true;
+        }
+    }
+
+    if let Some(user) = inner.settings.providers.get_mut(provider_id) {
+        if let Some(api_keys) = &mut user.api_keys {
+            changed |= apply_quota_reset_to_keys(api_keys, key, None);
+        }
+    }
+
+    if !changed {
+        return Ok(());
+    }
+
+    let settings = inner.settings.clone();
+    drop(inner);
+    crate::settings::save_to_disk(&settings)
 }
