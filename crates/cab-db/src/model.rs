@@ -21,10 +21,7 @@ pub async fn get_by_name(store: &InMemoryStore, name: &str) -> Result<Option<Mod
 
 pub async fn create(store: &InMemoryStore, input: &CreateModel) -> Result<Model, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
-    let id = input
-        .name
-        .to_lowercase()
-        .replace([' ', '/'], "-");
+    let id = input.name.to_lowercase().replace([' ', '/'], "-");
     let now = chrono::Utc::now().to_rfc3339();
     let model = Model {
         id: id.clone(),

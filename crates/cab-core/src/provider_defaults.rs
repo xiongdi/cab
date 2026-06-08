@@ -79,7 +79,11 @@ pub fn resolve_provider_endpoints(
         .map(|entry| templates_to_endpoints(&entry.endpoints))
         .unwrap_or_default();
 
-    if let Some(endpoints) = settings.providers.get(provider_id).and_then(|u| u.endpoints.as_ref()) {
+    if let Some(endpoints) = settings
+        .providers
+        .get(provider_id)
+        .and_then(|u| u.endpoints.as_ref())
+    {
         return merge_endpoints(endpoints, &bundled);
     }
 
@@ -113,7 +117,9 @@ pub fn resolve_provider_default_protocol(
     defaults: &ProviderDefaultsCatalog,
     settings: &Settings,
 ) -> String {
-    if let Some(primary) = settings.providers.get(provider_id)
+    if let Some(primary) = settings
+        .providers
+        .get(provider_id)
         .and_then(|u| u.endpoints.as_ref())
         .and_then(|es| es.iter().max_by_key(|e| e.priority))
     {
