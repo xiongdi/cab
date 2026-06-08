@@ -2,13 +2,15 @@ name: Build Tauri App
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-tauri:
     name: Build (${{ matrix.platform }}${{ matrix.args != '' && ' - ' || '' }}${{ matrix.args }})
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +84,13 @@ jobs:
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tagName: v__VERSION__
+          releaseName: 'CAB v__VERSION__'
+          releaseDraft: true
+          prerelease: false
           args: ${{ matrix.args }}
 
       - name: Upload Build Artifacts
