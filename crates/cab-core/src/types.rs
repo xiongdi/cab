@@ -34,9 +34,9 @@ impl ApiKeyConfig {
 
 /// True when the provider has at least one enabled subscribed key not in quota recovery.
 pub fn provider_has_subscribed_key(api_keys: &[ApiKeyConfig]) -> bool {
-    api_keys
-        .iter()
-        .any(|k| k.is_usable() && k.subscribed && !crate::subscription_quota::is_key_rate_limited(k))
+    api_keys.iter().any(|k| {
+        k.is_usable() && k.subscribed && !crate::subscription_quota::is_key_rate_limited(k)
+    })
 }
 
 /// Prefer subscribed keys, then any other enabled key; skip keys still rate-limited.
@@ -54,7 +54,9 @@ pub fn ordered_api_keys(api_keys: &[ApiKeyConfig]) -> Vec<String> {
         }
     }
     for key in api_keys {
-        if key.is_usable() && !key.subscribed && !crate::subscription_quota::is_key_rate_limited(key)
+        if key.is_usable()
+            && !key.subscribed
+            && !crate::subscription_quota::is_key_rate_limited(key)
         {
             keys.push(key.key.clone());
         }

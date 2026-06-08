@@ -3,7 +3,7 @@ use cab_core::provider_defaults::{
     load_provider_defaults, resolve_provider_default_protocol, resolve_provider_endpoints,
 };
 use cab_core::types::{
-    select_preferred_api_key, CreateProvider, Provider, ProviderEndpoint, Settings, UpdateProvider,
+    CreateProvider, Provider, ProviderEndpoint, Settings, UpdateProvider, select_preferred_api_key,
 };
 use uuid::Uuid;
 
@@ -306,10 +306,10 @@ pub async fn mark_api_key_quota_reset(
         provider.updated_at = chrono::Utc::now().to_rfc3339();
     }
 
-    if let Some(user) = inner.settings.providers.get_mut(provider_id) {
-        if let Some(api_keys) = &mut user.api_keys {
-            apply_quota_reset_to_keys(api_keys, key, Some(reset_at_str));
-        }
+    if let Some(user) = inner.settings.providers.get_mut(provider_id)
+        && let Some(api_keys) = &mut user.api_keys
+    {
+        apply_quota_reset_to_keys(api_keys, key, Some(reset_at_str));
     }
 
     let settings = inner.settings.clone();
@@ -326,18 +326,18 @@ pub async fn clear_api_key_quota_reset(
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     let mut changed = false;
 
-    if let Some(provider) = inner.providers.get_mut(provider_id) {
-        if apply_quota_reset_to_keys(&mut provider.api_keys, key, None) {
-            provider.api_key = select_preferred_api_key(&provider.api_keys).unwrap_or_default();
-            provider.updated_at = chrono::Utc::now().to_rfc3339();
-            changed = true;
-        }
+    if let Some(provider) = inner.providers.get_mut(provider_id)
+        && apply_quota_reset_to_keys(&mut provider.api_keys, key, None)
+    {
+        provider.api_key = select_preferred_api_key(&provider.api_keys).unwrap_or_default();
+        provider.updated_at = chrono::Utc::now().to_rfc3339();
+        changed = true;
     }
 
-    if let Some(user) = inner.settings.providers.get_mut(provider_id) {
-        if let Some(api_keys) = &mut user.api_keys {
-            changed |= apply_quota_reset_to_keys(api_keys, key, None);
-        }
+    if let Some(user) = inner.settings.providers.get_mut(provider_id)
+        && let Some(api_keys) = &mut user.api_keys
+    {
+        changed |= apply_quota_reset_to_keys(api_keys, key, None);
     }
 
     if !changed {

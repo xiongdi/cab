@@ -157,7 +157,9 @@ async fn it_update_legacy_proxy_mode_returns_native() {
                 .method("PUT")
                 .uri("/api/agents/claude-code")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::json!({ "mode": "proxy" }).to_string()))
+                .body(Body::from(
+                    serde_json::json!({ "mode": "proxy" }).to_string(),
+                ))
                 .unwrap(),
         )
         .await

@@ -14,10 +14,7 @@ pub fn is_key_rate_limited(key: &crate::types::ApiKeyConfig) -> bool {
 }
 
 /// Resolve when a rate-limited key becomes usable again.
-pub fn resolve_quota_reset_at(
-    retry_after: Option<DateTime<Utc>>,
-    body: &str,
-) -> DateTime<Utc> {
+pub fn resolve_quota_reset_at(retry_after: Option<DateTime<Utc>>, body: &str) -> DateTime<Utc> {
     retry_after
         .or_else(|| parse_quota_reset_from_body(body))
         .unwrap_or_else(|| Utc::now() + chrono::Duration::seconds(DEFAULT_QUOTA_RESET_SECS))
@@ -31,10 +28,10 @@ pub fn extract_retry_after(headers: &axum::http::HeaderMap) -> Option<DateTime<U
         "ratelimit-reset",
         "x-rate-limit-reset",
     ] {
-        if let Some(value) = headers.get(name).and_then(|v| v.to_str().ok()) {
-            if let Some(dt) = parse_retry_after_value(value) {
-                return Some(dt);
-            }
+        if let Some(value) = headers.get(name).and_then(|v| v.to_str().ok())
+            && let Some(dt) = parse_retry_after_value(value)
+        {
+            return Some(dt);
         }
     }
     None
@@ -70,14 +67,17 @@ fn parse_retry_after_value(value: &str) -> Option<DateTime<Utc>> {
 fn parse_quota_reset_from_body(body: &str) -> Option<DateTime<Utc>> {
     let json: serde_json::Value = serde_json::from_str(body).ok()?;
     for key in ["retry_after", "retryAfter", "reset_at", "resetAt"] {
-        if let Some(value) = json.get(key).or_else(|| json.pointer(&format!("/error/{key}"))) {
+        if let Some(value) = json
+            .get(key)
+            .or_else(|| json.pointer(&format!("/error/{key}")))
+        {
             if let Some(secs) = value.as_u64() {
                 return Some(Utc::now() + chrono::Duration::seconds(secs as i64));
             }
-            if let Some(raw) = value.as_str() {
-                if let Some(dt) = parse_retry_after_value(raw) {
-                    return Some(dt);
-                }
+            if let Some(raw) = value.as_str()
+                && let Some(dt) = parse_retry_after_value(raw)
+            {
+                return Some(dt);
             }
         }
     }

@@ -1,11 +1,11 @@
 //! ST: Combined gateway + management API system scenarios for v0.1.0 scope.
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use axum::Router;
 use cab_api::api_router;
 use cab_db::InMemoryStore;
-use cab_gateway::{gateway_router, GatewayState};
+use cab_gateway::{GatewayState, gateway_router};
 use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
@@ -86,7 +86,11 @@ async fn st_management_and_gateway_share_agent_catalog() {
         .iter()
         .map(|a| a.get("mode").and_then(|v| v.as_str()).expect("mode"))
         .collect();
-    assert!(modes.iter().all(|m| matches!(*m, "native" | "auto" | "manual")));
+    assert!(
+        modes
+            .iter()
+            .all(|m| matches!(*m, "native" | "auto" | "manual"))
+    );
     assert!(!modes.contains(&"proxy"));
 }
 
@@ -106,8 +110,9 @@ async fn st_settings_endpoint_available_on_combined_router() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert!(body.get("gateway_port").and_then(|v| v.as_i64()).is_some());
-    assert!(body
-        .get("gateway_key")
-        .and_then(|v| v.as_str())
-        .is_some_and(|k| !k.is_empty()));
+    assert!(
+        body.get("gateway_key")
+            .and_then(|v| v.as_str())
+            .is_some_and(|k| !k.is_empty())
+    );
 }

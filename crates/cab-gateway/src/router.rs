@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use cab_core::types::{Model, Provider, ProviderEndpoint};
 use cab_core::types::ApiKeyConfig;
+use cab_core::types::{Model, Provider, ProviderEndpoint};
 use cab_core::{
     RequestProfile, RoutingStrategy, build_request_profile, provider_has_subscribed_key,
     rank_models, select_preferred_api_key,
@@ -211,12 +211,7 @@ async fn resolve_by_strategy(
     }
 
     let subscribed_provider_ids = subscribed_provider_ids(pool).await?;
-    let ranked = rank_models(
-        &enabled,
-        parsed,
-        profile,
-        Some(&subscribed_provider_ids),
-    );
+    let ranked = rank_models(&enabled, parsed, profile, Some(&subscribed_provider_ids));
     resolve_ranked_models(pool, ranked, 3).await
 }
 
@@ -382,8 +377,7 @@ async fn resolve_model(
 }
 
 fn active_provider_api_key(provider: &Provider) -> String {
-    select_preferred_api_key(&provider.api_keys)
-        .unwrap_or_else(|| provider.api_key.clone())
+    select_preferred_api_key(&provider.api_keys).unwrap_or_else(|| provider.api_key.clone())
 }
 
 async fn resolve_model_by_name(

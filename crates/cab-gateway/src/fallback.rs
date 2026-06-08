@@ -235,7 +235,8 @@ pub async fn execute_with_fallback(
                         && request.path_suffix == "chat/completions"
                     {
                         crate::protocol::openai_to_anthropic(&json_val)
-                    } else if endpoint.protocol == "gemini" && request.path_suffix == "chat/completions"
+                    } else if endpoint.protocol == "gemini"
+                        && request.path_suffix == "chat/completions"
                     {
                         crate::protocol::openai_to_gemini(&json_val)
                     } else if endpoint.protocol != "gemini" && is_gemini_path {
@@ -480,8 +481,7 @@ async fn convert_success_response(
                         crate::protocol::chat_to_responses(&openai_json, &resolved.model.name);
                     if request.stream {
                         let sse = crate::protocol::responses_to_sse_stream(&responses_json);
-                        let mut response =
-                            Response::from_parts(parts, axum::body::Body::from(sse));
+                        let mut response = Response::from_parts(parts, axum::body::Body::from(sse));
                         response.headers_mut().insert(
                             axum::http::header::CONTENT_TYPE,
                             "text/event-stream".parse().unwrap(),
@@ -492,7 +492,9 @@ async fn convert_success_response(
                             Ok(new_body_bytes) => {
                                 Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
                             }
-                            Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
+                            Err(_) => {
+                                Response::from_parts(parts, axum::body::Body::from(body_bytes))
+                            }
                         }
                     }
                 } else {

@@ -287,19 +287,8 @@ fn classify_request(
     let agent_is_coding = matches_agent_kind(
         &agent_lower,
         &[
-            "claude",
-            "codex",
-            "copilot",
-            "aider",
-            "cline",
-            "continue",
-            "gemini",
-            "hermes",
-            "kilo",
-            "openclaw",
-            "claw",
-            "pi",
-            "code",
+            "claude", "codex", "copilot", "aider", "cline", "continue", "gemini", "hermes", "kilo",
+            "openclaw", "claw", "pi", "code",
         ],
     );
 
@@ -514,7 +503,8 @@ mod tests {
     fn subscribed_provider_beats_expensive_payg_model() {
         let mut cheap = sample_model("cheap-payg", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
         cheap.provider_id = "payg".into();
-        let mut subscribed = sample_model("subscribed-flagship", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
+        let mut subscribed =
+            sample_model("subscribed-flagship", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
         subscribed.provider_id = "subscribed-vendor".into();
         let profile = RequestProfile {
             task: TaskKind::General,
