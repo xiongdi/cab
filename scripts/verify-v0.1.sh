@@ -22,11 +22,11 @@ echo "== UAT-4: Full workspace regression =="
 cargo test --workspace --quiet
 
 echo "== UAT-5: Frontend typecheck =="
-if command -v npm >/dev/null 2>&1 && [[ -f package.json ]]; then
+if command -v npm >/dev/null 2>&1 && [[ -f package.json && -x node_modules/.bin/svelte-check ]]; then
   npx svelte-kit sync >/dev/null 2>&1 || true
   npm run check --silent
 else
-  echo "skip: npm not available"
+  echo "skip: frontend dependencies not installed"
 fi
 
 echo ""
