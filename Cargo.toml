@@ -8,21 +8,21 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-tokio = { version = "1", features = ["full"] }
-axum = { version = "0.8", features = ["macros"] }
-axum-extra = { version = "0.10", features = ["typed-header"] }
-reqwest = { version = "0.12", features = ["json", "stream"] }
-uuid = { version = "1", features = ["v4", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
-thiserror = "2"
-anyhow = "1"
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
-toml = "0.8"
-futures = "0.3"
-bytes = "1"
-axum-server = { version = "0.7", features = ["tls-rustls"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+tokio = { version = "1.52.3", features = ["full"] }
+axum = { version = "0.8.9", features = ["macros"] }
+axum-extra = { version = "0.12.6", features = ["typed-header"] }
+reqwest = { version = "0.13.4", features = ["json", "stream"] }
+uuid = { version = "1.23.2", features = ["v4", "serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+thiserror = "2.0.18"
+anyhow = "1.0.102"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tower = "0.5.3"
+tower-http = { version = "0.6.11", features = ["cors", "trace", "fs"] }
+toml = "0.9.8"
+futures = "0.3.32"
+bytes = "1.11.1"
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
