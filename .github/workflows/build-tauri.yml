@@ -72,7 +72,6 @@ jobs:
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
-        id: tauri
         with:
           args: ${{ matrix.args }}
 
@@ -80,5 +79,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: cab-desktop-${{ matrix.platform }}-${{ matrix.target != '' && matrix.target || 'x86_64' }}
-          path: ${{ steps.tauri.outputs.bundle-path }}
+          path: src-tauri/target/**/release/bundle/**
           if-no-files-found: warn
