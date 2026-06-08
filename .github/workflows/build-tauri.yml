@@ -16,18 +16,28 @@ jobs:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
             target: 'universal-apple-darwin'
+            arch: 'universal'
+            path: 'target/universal-apple-darwin/release/bundle/**'
           - platform: 'windows-latest'
             args: ''
             target: ''
+            arch: 'x64'
+            path: 'target/release/bundle/**'
           - platform: 'windows-latest'
             args: '--target aarch64-pc-windows-msvc'
             target: 'aarch64-pc-windows-msvc'
+            arch: 'arm64'
+            path: 'target/aarch64-pc-windows-msvc/release/bundle/**'
           - platform: 'ubuntu-latest'
             args: ''
             target: ''
+            arch: 'x64'
+            path: 'target/release/bundle/**'
           - platform: 'ubuntu-24.04-arm'
             args: ''
             target: ''
+            arch: 'arm64'
+            path: 'target/release/bundle/**'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -78,6 +88,6 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: cab-desktop-${{ matrix.platform }}-${{ matrix.target != '' && matrix.target || 'x86_64' }}
-          path: target/**/release/bundle/**
+          name: cab-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ matrix.path }}
           if-no-files-found: warn
