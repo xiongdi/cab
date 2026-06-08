@@ -1,0 +1,19 @@
+# Rust
+target/
+
+# Node/Vite
+node_modules/
+.svelte-kit/
+build/
+
+# Local runtime artifacts
+.cab-server*.log
+cab-server*.log
+cab-vite*.log
+cab-tauri-shell*.log
+cab-tauri-dev*.log
+cab-tauri-start*.log
+cab-webview-shot.png
+
+# Tauri generated bindings (regenerated on every build)
+src-tauri/gen/

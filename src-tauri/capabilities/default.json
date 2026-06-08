@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability",
+  "windows": ["main"],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:3125",
+      "http://localhost:3125",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "allow-get-gateway-port"
+  ]
+}

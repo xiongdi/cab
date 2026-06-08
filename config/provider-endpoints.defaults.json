@@ -1,0 +1,930 @@
+{
+  "_comment": "Bundled default provider protocols/endpoints. Verified against official docs and models.dev. User overrides: ~/.cab/settings.json",
+  "providers": {
+    "ai21": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.ai21.com/studio/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "akashml": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://chatapi.akash.network/api/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "alibaba": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+          "label": "International",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "label": "China",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "amazon-bedrock": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-responses",
+          "url": "https://bedrock-mantle.us-east-1.api.aws/v1",
+          "label": "Mantle Responses",
+          "priority": 70,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://bedrock-mantle.us-east-1.api.aws/v1",
+          "label": "Mantle Chat",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
+          "label": "Runtime OpenAI",
+          "priority": 55,
+          "enabled": true
+        }
+      ]
+    },
+    "amazon-nova": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.nova.amazon.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "ambient": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.ambient.xyz/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "anthropic": {
+      "default_protocol": "anthropic",
+      "endpoints": [
+        {
+          "protocol": "anthropic",
+          "url": "https://api.anthropic.com",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "arcee-ai": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://conductor.arcee.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "avian": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.avian.io/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "azure": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
+          "label": "Azure OpenAI v1 (replace YOUR-RESOURCE)",
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
+          "label": "Azure Responses (replace YOUR-RESOURCE)",
+          "priority": 45,
+          "enabled": true
+        }
+      ]
+    },
+    "baidu": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://qianfan.baidubce.com/v2",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "baseten": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://inference.baseten.co/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "black-forest-labs": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.bfl.ai/v1",
+          "label": "FLUX API (image)",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "cerebras": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.cerebras.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "chutes": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://llm.chutes.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "clarifai": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.clarifai.com/v2/ext/openai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "cloudflare": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.cloudflare.com/client/v4/ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "cohere": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.cohere.ai/compatibility/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "crusoe": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.crusoe.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "deepinfra": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.deepinfra.com/v1/openai",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "deepseek": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.deepseek.com/v1",
+          "label": "OpenAI Chat",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://api.deepseek.com/anthropic",
+          "label": "Anthropic Messages",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "digitalocean": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://inference.do-ai.run/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "featherless": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.featherless.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "fireworks": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.fireworks.ai/inference/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "friendli": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.friendli.ai/serverless/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "gmicloud": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.gmi-serving.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "google-ai-studio": {
+      "default_protocol": "gemini",
+      "endpoints": [
+        {
+          "protocol": "gemini",
+          "url": "https://generativelanguage.googleapis.com/v1beta",
+          "label": "Native Gemini API",
+          "priority": 100,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://generativelanguage.googleapis.com/v1beta/openai",
+          "label": "OpenAI-compatible fallback",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "google-vertex": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://us-central1-aiplatform.googleapis.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "groq": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.groq.com/openai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "inception": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.inceptionlabs.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "inceptron": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.inceptron.io/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "inference-net": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.inference.net/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "inflection": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://layerapi.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "io-net": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.intelligence.io.solutions/api/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "liquid": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.liquid.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "minimax": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "OpenAI Chat (CN)",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://api.minimaxi.com/anthropic/v1",
+          "label": "Anthropic (CN)",
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "Responses API (CN)",
+          "priority": 70,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.minimax.io/v1",
+          "label": "OpenAI Chat (INTL)",
+          "priority": 55,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://api.minimax.io/anthropic/v1",
+          "label": "Anthropic (INTL)",
+          "priority": 45,
+          "enabled": true
+        }
+      ]
+    },
+    "minimax-cn": {
+      "default_protocol": "anthropic",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "OpenAI Chat",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://api.minimaxi.com/anthropic/v1",
+          "label": "Anthropic Messages",
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "Responses API",
+          "priority": 70,
+          "enabled": true
+        }
+      ]
+    },
+    "minimax-cn-coding-plan": {
+      "default_protocol": "anthropic",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "OpenAI Chat",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://api.minimaxi.com/anthropic/v1",
+          "label": "Anthropic Messages",
+          "priority": 50,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://api.minimaxi.com/v1",
+          "label": "Responses API",
+          "priority": 70,
+          "enabled": true
+        }
+      ]
+    },
+    "mistral": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.mistral.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "moonshotai": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.moonshot.ai/v1",
+          "label": "International",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.moonshot.cn/v1",
+          "label": "China",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "morph": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.morphllm.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "nebius": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.tokenfactory.nebius.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "nex-agi": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.nex-agi.cn/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "novita": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.novita.ai/v3/openai",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "nvidia": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://integrate.api.nvidia.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "open-inference": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://inference.net/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "openai": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.openai.com/v1",
+          "label": "Chat Completions",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://api.openai.com/v1",
+          "label": "Responses API",
+          "priority": 70,
+          "enabled": true
+        }
+      ]
+    },
+    "parasail": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.parasail.io/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "perplexity": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.perplexity.ai",
+          "label": "Sonar API",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-responses",
+          "url": "https://api.perplexity.ai/v1",
+          "label": "Agent API",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "phala": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.red-pill.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "poolside": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://inference.poolside.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "recraft": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://external.api.recraft.ai/v1",
+          "label": "Image API",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "reka": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.reka.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "sambanova": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.sambanova.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "seed": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://ark.cn-beijing.volces.com/api/v3",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "siliconflow": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.siliconflow.com/v1",
+          "label": "International",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.siliconflow.cn/v1",
+          "label": "China",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "stepfun": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.stepfun.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "streamlake": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.streamlake.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "switchpoint": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.switchpoint.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "together": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.together.xyz/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "upstage": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.upstage.ai/v1/solar",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "venice": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.venice.ai/api/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "wandb": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.inference.wandb.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "xai": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.x.ai/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "xiaomi": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.xiaomimimo.com/v1",
+          "label": "Default",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    },
+    "z-ai": {
+      "default_protocol": "anthropic",
+      "endpoints": [
+        {
+          "protocol": "anthropic",
+          "url": "https://api.z.ai/api/anthropic",
+          "label": "Anthropic",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "openai-chat",
+          "url": "https://api.z.ai/api/paas/v4",
+          "label": "OpenAI",
+          "priority": 50,
+          "enabled": true
+        }
+      ]
+    }
+  }
+}

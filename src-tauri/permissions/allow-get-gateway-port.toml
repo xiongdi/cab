@@ -1,0 +1,6 @@
+"$schema" = "schemas/schema.json"
+
+[[permission]]
+identifier = "allow-get-gateway-port"
+description = "Allows reading the CAB gateway port from the desktop shell."
+commands.allow = ["get_gateway_port"]
