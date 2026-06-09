@@ -1,3 +1,4 @@
+use cab_server::build_combined_router;
 use tracing_subscriber::EnvFilter;
 
 async fn log_request(
@@ -27,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let store_clone = store.clone();
     tokio::spawn(async move {
-        tracing::info!("Startup: Synchronizing models.dev provider/model catalog...");
+        tracing::info!("Startup: Synchronizing models.dev provider/catalog...");
         match cab_api::providers::sync_models_dev_catalog(&store_clone).await {
             Ok(count) => {
                 tracing::info!(
@@ -44,32 +45,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let gateway_state = cab_gateway::GatewayState::new(store.clone());
-    let gateway = cab_gateway::gateway_router(gateway_state);
-    let api = cab_api::api_router(store.clone());
-
     let build_dir = std::env::current_dir()
         .unwrap_or_else(|_| std::path::PathBuf::from("."))
         .join("build");
+
+    let core = build_combined_router(store.clone());
 
     let app = if build_dir.exists() {
         tracing::info!("Serving frontend assets from: {}", build_dir.display());
         let serve_dir = tower_http::services::ServeDir::new(&build_dir).fallback(
             tower_http::services::ServeFile::new(build_dir.join("index.html")),
         );
-        gateway
-            .merge(api)
-            .nest_service(
-                "/_app",
-                tower_http::services::ServeDir::new(build_dir.join("_app")),
-            )
-            .fallback_service(serve_dir)
+        core.nest_service(
+            "/_app",
+            tower_http::services::ServeDir::new(build_dir.join("_app")),
+        )
+        .fallback_service(serve_dir)
     } else {
         tracing::warn!(
             "Frontend build directory not found at {}. Run `npm run build` to build frontend.",
             build_dir.display()
         );
-        gateway.merge(api)
+        core
     }
     .layer(axum::middleware::from_fn(log_request))
     .layer(tower_http::trace::TraceLayer::new_for_http());

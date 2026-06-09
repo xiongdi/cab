@@ -2,13 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  rust-checks:
-    name: Rust Checks
+  backend-checks:
+    name: Backend Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,17 +27,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Check Formatting
+      - name: Check formatting (rustfmt)
         run: cargo fmt --all -- --check
 
-      - name: Run Clippy
+      - name: Static analysis (clippy)
         run: cargo clippy --workspace --all-targets -- -D warnings
 
-      - name: Run Tests
-        run: cargo test --workspace
-
-      - name: v0.1 UAT smoke (UT/IT/ST)
-        run: ./scripts/verify-v0.1.sh
+      - name: Tests (UT / IT / ST)
+        run: ./scripts/run-tests.sh
 
   frontend-checks:
     name: Frontend Checks
@@ -46,20 +43,26 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
+          cache: true
 
       - name: Install dependencies
-        run: npm ci
+        run: vp install
 
       - name: Sync SvelteKit
         run: npx svelte-kit sync
 
-      - name: Typecheck / Svelte Check
-        run: npm run check
+      - name: Format, lint, and type-check (Vite+)
+        run: vp check
 
-      - name: Build Frontend
-        run: npm run build
+      - name: Svelte static analysis
+        run: npx svelte-check --tsconfig ./tsconfig.json
+
+      - name: Unit tests
+        run: vp test
+
+      - name: Build
+        run: vp build

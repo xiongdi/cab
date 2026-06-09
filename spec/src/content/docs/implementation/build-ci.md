@@ -43,11 +43,11 @@ npm run tauri:build
 
 触发：`push` / `pull_request` → `main`
 
-| Job | 命令 |
-| --- | --- |
-| Rust Checks | `cargo fmt --check` |
-| | `cargo clippy --workspace --all-targets -- -D warnings` |
-| | `cargo test --workspace` |
+| Job             | 命令                                                             |
+| --------------- | ---------------------------------------------------------------- |
+| Rust Checks     | `cargo fmt --check`                                              |
+|                 | `cargo clippy --workspace --all-targets -- -D warnings`          |
+|                 | `cargo test --workspace`                                         |
 | Frontend Checks | `npm ci` → `svelte-kit sync` → `npm run check` → `npm run build` |
 
 ## 启动时行为

@@ -61,7 +61,7 @@
         log_retention_days: 30,
         gateway_status: 'running',
         gateway_key: '',
-        artificial_analysis_api_key: ''
+        artificial_analysis_api_key: '',
       };
       formPort = 3125;
       formRetention = 30;
@@ -83,7 +83,7 @@
         gateway_key: formKey,
         artificial_analysis_api_key: formArtificialAnalysisKey.trim() || null,
         providers: settings?.providers,
-        models: settings?.models
+        models: settings?.models,
       };
       settings = await api.settings.update(data);
       if (showSyncToast) {
@@ -132,9 +132,10 @@
       const res = await api.settings.syncCatalog();
       catalogSources = res.sources;
       const benchmarks =
-        res.sources.find(source => source.id === 'artificial-analysis')?.models ?? 0;
+        res.sources.find((source) => source.id === 'artificial-analysis')?.models ?? 0;
       toast.success(
-        i18n.t('settings.catalog_update_success')
+        i18n
+          .t('settings.catalog_update_success')
           .replace('{providers}', String(res.providers))
           .replace('{models}', String(res.applied_models))
           .replace('{benchmarks}', String(benchmarks))
@@ -149,13 +150,13 @@
   const statusColors: Record<string, string> = {
     running: 'var(--success)',
     stopped: 'var(--text-muted)',
-    error: 'var(--error)'
+    error: 'var(--error)',
   };
 
   const statusDotClass: Record<string, string> = {
     running: 'dot-active',
     stopped: 'dot-inactive',
-    error: 'dot-error'
+    error: 'dot-error',
   };
 </script>
 
@@ -176,18 +177,25 @@
           <span class="status-label">{i18n.t('common.status')}</span>
           <span class="status-value">
             <span class="dot {statusDotClass[settings?.gateway_status ?? 'running']}"></span>
-            <span style:color={statusColors[settings?.gateway_status ?? 'running']} style="text-transform:capitalize">
+            <span
+              style:color={statusColors[settings?.gateway_status ?? 'running']}
+              style="text-transform:capitalize"
+            >
               {i18n.t(`settings.${settings?.gateway_status ?? 'running'}`)}
             </span>
           </span>
         </div>
         <div class="status-row">
           <span class="status-label">{i18n.t('settings.port')}</span>
-          <span class="status-value mono">http://localhost:{settings?.gateway_port ?? formPort}</span>
+          <span class="status-value mono"
+            >http://localhost:{settings?.gateway_port ?? formPort}</span
+          >
         </div>
         <div class="status-row">
           <span class="status-label">{i18n.t('settings.api_base')}</span>
-          <span class="status-value mono">http://localhost:{settings?.gateway_port ?? formPort}/api</span>
+          <span class="status-value mono"
+            >http://localhost:{settings?.gateway_port ?? formPort}/api</span
+          >
         </div>
       </div>
     </Card>
@@ -195,36 +203,150 @@
     <!-- Configuration -->
     <Card>
       <h3 class="card-section-title">{i18n.t('settings.title')}</h3>
-      <form onsubmit={(e) => { e.preventDefault(); handleSave(); }}>
+      <form
+        onsubmit={(e) => {
+          e.preventDefault();
+          handleSave();
+        }}
+      >
         <div class="form-group">
           <label class="label" for="s-port">{i18n.t('settings.port')}</label>
-          <input class="input mono" id="s-port" type="number" bind:value={formPort} min="1024" max="65535" />
+          <input
+            class="input mono"
+            id="s-port"
+            type="number"
+            bind:value={formPort}
+            min="1024"
+            max="65535"
+          />
         </div>
         <div class="form-group">
           <label class="label" for="s-retention">{i18n.t('settings.retention')}</label>
-          <input class="input mono" id="s-retention" type="number" bind:value={formRetention} min="1" max="365" />
+          <input
+            class="input mono"
+            id="s-retention"
+            type="number"
+            bind:value={formRetention}
+            min="1"
+            max="365"
+          />
         </div>
         <div class="form-group">
           <label class="label" for="s-key">{i18n.t('settings.gateway_key')}</label>
           <div class="key-input-container">
-            <input class="input mono" id="s-key" type={showKey ? "text" : "password"} bind:value={formKey} placeholder="cab-token-..." />
-            <button type="button" class="btn btn-secondary btn-icon" onclick={() => showKey = !showKey} title={showKey ? i18n.t('settings.hide') : i18n.t('settings.show')}>
+            <input
+              class="input mono"
+              id="s-key"
+              type={showKey ? 'text' : 'password'}
+              bind:value={formKey}
+              placeholder="cab-token-..."
+            />
+            <button
+              type="button"
+              class="btn btn-secondary btn-icon"
+              onclick={() => (showKey = !showKey)}
+              title={showKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
+            >
               {#if showKey}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path
+                    d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
+                  /><path
+                    d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"
+                  /><line x1="2" y1="2" x2="22" y2="22" /></svg
+                >
               {:else}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                  /></svg
+                >
               {/if}
             </button>
-            <button type="button" class="btn btn-secondary" onclick={handleCopy} title={i18n.t('settings.copy_key')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick={handleCopy}
+              title={i18n.t('settings.copy_key')}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path
+                  d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
+                /></svg
+              >
               {i18n.t('settings.copy_key')}
             </button>
-            <button type="button" class="btn btn-secondary" onclick={handleRefreshKey} title={i18n.t('settings.refresh_key')}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M16 3h5v5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 21H3v-5"/></svg>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick={handleRefreshKey}
+              title={i18n.t('settings.refresh_key')}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path
+                  d="M16 3h5v5"
+                /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path
+                  d="M8 21H3v-5"
+                /></svg
+              >
               {i18n.t('settings.refresh_key')}
             </button>
-            <button type="button" class="btn btn-secondary" onclick={handleSync} title={i18n.t('settings.sync_key')} disabled={saving}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick={handleSync}
+              title={i18n.t('settings.sync_key')}
+              disabled={saving}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
+                  d="M3 3v5h5"
+                /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path
+                  d="M16 16h5v5"
+                /></svg
+              >
               {i18n.t('settings.sync_key')}
             </button>
           </div>
@@ -236,20 +358,48 @@
             <input
               class="input mono"
               id="s-aa-key"
-              type={showArtificialAnalysisKey ? "text" : "password"}
+              type={showArtificialAnalysisKey ? 'text' : 'password'}
               bind:value={formArtificialAnalysisKey}
               placeholder="AA API Key"
             />
             <button
               type="button"
               class="btn btn-secondary btn-icon"
-              onclick={() => showArtificialAnalysisKey = !showArtificialAnalysisKey}
+              onclick={() => (showArtificialAnalysisKey = !showArtificialAnalysisKey)}
               title={showArtificialAnalysisKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
             >
               {#if showArtificialAnalysisKey}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path
+                    d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
+                  /><path
+                    d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"
+                  /><line x1="2" y1="2" x2="22" y2="22" /></svg
+                >
               {:else}
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle
+                    cx="12"
+                    cy="12"
+                    r="3"
+                  /></svg
+                >
               {/if}
             </button>
           </div>
@@ -257,7 +407,16 @@
         </div>
         <div style="margin-top:20px">
           <button type="submit" class="btn btn-primary" disabled={saving}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M5 13l4 4L19 7" />
             </svg>
             {saving ? i18n.t('common.loading') : i18n.t('common.save')}
@@ -280,13 +439,25 @@
           onclick={handleCatalogSync}
           disabled={catalogSyncing || saving}
         >
-          <svg class:spin={catalogSyncing} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            class:spin={catalogSyncing}
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
             <path d="M3 3v5h5" />
             <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
             <path d="M16 16h5v5" />
           </svg>
-          {catalogSyncing ? i18n.t('settings.catalog_updating') : i18n.t('settings.catalog_update_btn')}
+          {catalogSyncing
+            ? i18n.t('settings.catalog_updating')
+            : i18n.t('settings.catalog_update_btn')}
         </button>
       </div>
 
@@ -300,7 +471,12 @@
           <div class="catalog-row">
             <div class="catalog-source">
               <strong>{source.name}</strong>
-              <a href={source.url} target="_blank" rel="noopener noreferrer" class="link-styled mono">{source.url}</a>
+              <a
+                href={source.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link-styled mono">{source.url}</a
+              >
             </div>
             <span class="catalog-records">{catalogRecordSummary(source)}</span>
             <span class="catalog-synced">{formatSyncedAt(source.synced_at)}</span>
@@ -506,7 +682,11 @@
   }
 
   @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

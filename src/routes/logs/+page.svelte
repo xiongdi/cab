@@ -21,30 +21,57 @@
   let filterStatus = $state('');
 
   const columns: Column[] = [
-    { key: 'timestamp', label: 'Timestamp', sortable: true, render: (v: string) => {
-      try {
-        const d = new Date(v);
-        return `<span class="mono" style="font-size:11px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span>`;
-      } catch { return v; }
-    }},
+    {
+      key: 'timestamp',
+      label: 'Timestamp',
+      sortable: true,
+      render: (v: string) => {
+        try {
+          const d = new Date(v);
+          return `<span class="mono" style="font-size:11px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span>`;
+        } catch {
+          return v;
+        }
+      },
+    },
     { key: 'agent', label: 'Agent', sortable: true },
     { key: 'provider', label: 'Provider', sortable: true },
-    { key: 'model', label: 'Model', sortable: true, render: (v: string) =>
-      `<span class="mono" style="font-size:12px">${v}</span>`
+    {
+      key: 'model',
+      label: 'Model',
+      sortable: true,
+      render: (v: string) => `<span class="mono" style="font-size:12px">${v}</span>`,
     },
-    { key: 'input_tokens', label: 'In', sortable: true, align: 'right' as const, render: (v: number) =>
-      `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`
+    {
+      key: 'input_tokens',
+      label: 'In',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
     },
-    { key: 'output_tokens', label: 'Out', sortable: true, align: 'right' as const, render: (v: number) =>
-      `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`
+    {
+      key: 'output_tokens',
+      label: 'Out',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
     },
-    { key: 'latency_ms', label: 'Latency', sortable: true, align: 'right' as const, render: (v: number) =>
-      `<span class="mono">${v}ms</span>`
+    {
+      key: 'latency_ms',
+      label: 'Latency',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number) => `<span class="mono">${v}ms</span>`,
     },
-    { key: 'status_code', label: 'Status', align: 'center' as const, render: (v: number) => {
-      const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
-      return `<span class="badge ${cls}">${v}</span>`;
-    }}
+    {
+      key: 'status_code',
+      label: 'Status',
+      align: 'center' as const,
+      render: (v: number) => {
+        const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
+        return `<span class="badge ${cls}">${v}</span>`;
+      },
+    },
   ];
 
   onMount(loadLogs);
@@ -68,7 +95,7 @@
     try {
       const filter: LogFilter = {
         page,
-        per_page: perPage
+        per_page: perPage,
       };
       if (filterAgent) filter.agent = filterAgent;
       if (filterProvider) filter.provider = filterProvider;
@@ -110,12 +137,20 @@
 
 <PageHeader title="Logs" description="Request history and audit trail">
   {#snippet children()}
-    <button
-      class="btn {autoRefresh ? 'btn-primary' : 'btn-secondary'}"
-      onclick={toggleAutoRefresh}
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+    <button class="btn {autoRefresh ? 'btn-primary' : 'btn-secondary'}" onclick={toggleAutoRefresh}>
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+        />
       </svg>
       {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh'}
     </button>
@@ -124,9 +159,27 @@
 
 <!-- Filter Bar -->
 <div class="filter-bar">
-  <input class="input filter-input" type="text" placeholder="Filter agent…" bind:value={filterAgent} onchange={applyFilters} />
-  <input class="input filter-input" type="text" placeholder="Filter provider…" bind:value={filterProvider} onchange={applyFilters} />
-  <input class="input filter-input" type="text" placeholder="Filter model…" bind:value={filterModel} onchange={applyFilters} />
+  <input
+    class="input filter-input"
+    type="text"
+    placeholder="Filter agent…"
+    bind:value={filterAgent}
+    onchange={applyFilters}
+  />
+  <input
+    class="input filter-input"
+    type="text"
+    placeholder="Filter provider…"
+    bind:value={filterProvider}
+    onchange={applyFilters}
+  />
+  <input
+    class="input filter-input"
+    type="text"
+    placeholder="Filter model…"
+    bind:value={filterModel}
+    onchange={applyFilters}
+  />
   <select class="select filter-input" bind:value={filterStatus} onchange={applyFilters}>
     <option value="">All status</option>
     <option value="2xx">2xx Success</option>
@@ -149,24 +202,49 @@
       </span>
       <div class="page-controls">
         <button class="btn btn-ghost btn-sm" disabled={page <= 1} onclick={() => goPage(page - 1)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M15 19l-7-7 7-7" />
           </svg>
           Previous
         </button>
         {#each Array(Math.min(totalPages, 7)) as _, i}
-          {@const p = totalPages <= 7 ? i + 1 : page <= 4 ? i + 1 : page >= totalPages - 3 ? totalPages - 6 + i : page - 3 + i}
-          <button
-            class="page-btn"
-            class:active={p === page}
-            onclick={() => goPage(p)}
-          >
+          {@const p =
+            totalPages <= 7
+              ? i + 1
+              : page <= 4
+                ? i + 1
+                : page >= totalPages - 3
+                  ? totalPages - 6 + i
+                  : page - 3 + i}
+          <button class="page-btn" class:active={p === page} onclick={() => goPage(p)}>
             {p}
           </button>
         {/each}
-        <button class="btn btn-ghost btn-sm" disabled={page >= totalPages} onclick={() => goPage(page + 1)}>
+        <button
+          class="btn btn-ghost btn-sm"
+          disabled={page >= totalPages}
+          onclick={() => goPage(page + 1)}
+        >
           Next
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M9 5l7 7-7 7" />
           </svg>
         </button>

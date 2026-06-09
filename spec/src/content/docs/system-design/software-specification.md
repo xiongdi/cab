@@ -27,7 +27,7 @@ Agent SDK → HTTP :{gateway_port}（默认 3125）→ cab-gateway
 
 - 输入：`RequestProfile`（任务类型 + 复杂度 + 估计 token）
 - 成本公式：`effective_token_cost = input×3 + output`（`BALANCED_INPUT_OUTPUT_RATIO`）
-- 订阅供应商：`effective_routing_cost = MIN_COST_EPSILON`
+- 订阅提供商：`effective_routing_cost = MIN_COST_EPSILON`
 - Auto 策略按复杂度动态提高最低能力门槛（`min_required_capability`）
 
 ### 数据持久化

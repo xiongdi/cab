@@ -560,17 +560,17 @@ mod tests {
                 enabled: true,
             },
             ProviderEndpoint {
-                id: "gemini".into(),
-                protocol: "gemini".into(),
-                url: "https://generativelanguage.googleapis.com/v1beta".into(),
+                id: "responses".into(),
+                protocol: "openai-responses".into(),
+                url: "https://example.com/v1".into(),
                 label: None,
                 priority: 50,
                 enabled: true,
             },
         ]);
-        let picked = pick_endpoints_for_protocol(&provider, "gemini");
+        let picked = pick_endpoints_for_protocol(&provider, "openai-responses");
         assert_eq!(picked.len(), 2);
-        assert_eq!(picked[0].id, "gemini");
+        assert_eq!(picked[0].id, "responses");
         assert_eq!(picked[1].id, "openai");
     }
 

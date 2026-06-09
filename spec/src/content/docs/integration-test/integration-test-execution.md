@@ -18,16 +18,16 @@ cargo test --workspace
 
 ## 执行清单
 
-| IT ID | 状态 | 证据 |
-| --- | --- | --- |
-| IT-01 订阅路由成本 | 自动 | `routing.rs` tests |
-| IT-02 Key 顺序与限额 | 自动 | `subscription_quota.rs` + types |
-| IT-03 resolve_route | 自动 | `router.rs` tests |
-| IT-04 端点选择 | 自动 | `router.rs` tests |
-| IT-05 协议转换 | 自动 | `protocol.rs` tests |
-| IT-06 catalog 解析 | 自动 | `providers.rs` tests |
-| IT-07 URL 规范化 | 自动 | `catalog_provider_urls.rs` tests |
-| IT-08 AA 合并 | 自动 | `benchmark_catalog.rs` tests |
+| IT ID                | 状态      | 证据                                        |
+| -------------------- | --------- | ------------------------------------------- |
+| IT-01 订阅路由成本   | 自动      | `routing.rs` tests                          |
+| IT-02 Key 顺序与限额 | 自动      | `subscription_quota.rs` + types             |
+| IT-03 resolve_route  | 自动      | `router.rs` tests                           |
+| IT-04 端点选择       | 自动      | `router.rs` tests                           |
+| IT-05 协议转换       | 自动      | `protocol.rs` tests                         |
+| IT-06 catalog 解析   | 自动      | `providers.rs` tests                        |
+| IT-07 URL 规范化     | 自动      | `catalog_provider_urls.rs` tests            |
+| IT-08 AA 合并        | 自动      | `benchmark_catalog.rs` tests                |
 | IT-09 Agent 配置写盘 | 手工/可选 | 更新 agent 后检查 `~/.claude/settings.json` |
 
 ## 手工联调（推荐）

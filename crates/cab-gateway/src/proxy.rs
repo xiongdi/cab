@@ -39,8 +39,6 @@ pub async fn proxy_request(
             } else {
                 req = req.header("anthropic-version", "2023-06-01");
             }
-        } else if protocol == "gemini" {
-            req = req.header("x-goog-api-key", api_key);
         } else {
             req = req.header("authorization", format!("Bearer {api_key}"));
         }

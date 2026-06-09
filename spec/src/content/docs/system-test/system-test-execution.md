@@ -29,18 +29,18 @@ cargo run -p cab-server
 
 ## 执行记录模板
 
-| ST ID | 描述 | 结果 | 备注 |
-| --- | --- | --- | --- |
-| ST-01 | 冷启动 catalog 同步 | Pass | 启动日志含 Synced N models |
-| ST-02 | 管理 API F-01～F-15 | Pass | 见 functional-requirements |
-| ST-03 | OpenAI chat | Pass/Skip | 需有效上游 Key |
-| ST-04 | Anthropic messages | Pass/Skip | 需有效上游 Key |
-| ST-05 | 策略路由差异 | Pass | 不同 body 选中不同模型 |
-| ST-06 | Fallback | Pass/Skip | 需可控失败 Key |
-| ST-07 | 设置持久化 | Pass | 改端口重启验证 |
-| ST-08 | Dashboard 一致 | Pass | stats vs logs |
-| ST-09 | 前端 build | Pass | CI frontend-checks |
-| ST-10 | Workspace 测试 | Pass | CI rust-checks |
+| ST ID | 描述                | 结果      | 备注                       |
+| ----- | ------------------- | --------- | -------------------------- |
+| ST-01 | 冷启动 catalog 同步 | Pass      | 启动日志含 Synced N models |
+| ST-02 | 管理 API F-01～F-15 | Pass      | 见 functional-requirements |
+| ST-03 | OpenAI chat         | Pass/Skip | 需有效上游 Key             |
+| ST-04 | Anthropic messages  | Pass/Skip | 需有效上游 Key             |
+| ST-05 | 策略路由差异        | Pass      | 不同 body 选中不同模型     |
+| ST-06 | Fallback            | Pass/Skip | 需可控失败 Key             |
+| ST-07 | 设置持久化          | Pass      | 改端口重启验证             |
+| ST-08 | Dashboard 一致      | Pass      | stats vs logs              |
+| ST-09 | 前端 build          | Pass      | CI frontend-checks         |
+| ST-10 | Workspace 测试      | Pass      | CI rust-checks             |
 
 ## 执行命令摘要
 

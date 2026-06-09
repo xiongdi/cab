@@ -7,23 +7,23 @@ order: 5
 
 ## 结论
 
-| 项 | 结果 |
-| --- | --- |
+| 项             | 结果                          |
+| -------------- | ----------------------------- |
 | 自动化集成测试 | `cargo test --workspace` 通过 |
-| 接口契约 | Gateway/API/DB 边界有对应用例 |
-| 跨场景 | INT-SC-01～07 可手工验证 |
+| 接口契约       | Gateway/API/DB 边界有对应用例 |
+| 跨场景         | INT-SC-01～07 可手工验证      |
 
 ## 风险项
 
-| 风险 | 等级 | 缓解 |
-| --- | --- | --- |
-| models.dev 离线 | Medium | 使用 catalog 缓存 |
-| 真实上游 Key 费用 | Low | 集成测用 mock/无效 Key 测路径 |
-| 本地端口冲突 | Low | 调整 `settings.gateway_port` |
+| 风险              | 等级   | 缓解                          |
+| ----------------- | ------ | ----------------------------- |
+| models.dev 离线   | Medium | 使用 catalog 缓存             |
+| 真实上游 Key 费用 | Low    | 集成测用 mock/无效 Key 测路径 |
+| 本地端口冲突      | Low    | 调整 `settings.gateway_port`  |
 
 ## 未覆盖项
 
-- 全量多供应商真实 Key 压测
+- 全量多提供商真实 Key 压测
 - 各 Agent 全量端到端（依赖用户本机 Agent 安装）
 
 ## 系统测试准入评估

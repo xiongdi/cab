@@ -53,7 +53,7 @@
     try {
       const [providersList, modelsList] = await Promise.all([
         api.providers.list(),
-        api.models.list()
+        api.models.list(),
       ]);
       providers = providersList;
       models = modelsList;
@@ -65,7 +65,7 @@
   });
 
   // derived provider map for fast lookup
-  const providerMap = $derived(new Map(providers.map(p => [p.id, p])));
+  const providerMap = $derived(new Map(providers.map((p) => [p.id, p])));
 
   // Helper to sort models by strategy (mirrors cab-core routing engine)
   const INPUT_OUTPUT_RATIO = 3;
@@ -76,7 +76,10 @@
     return Math.max(input * INPUT_OUTPUT_RATIO + output, 0.001);
   }
 
-  function primaryCapability(model: Model, task: 'coding' | 'math' | 'agentic' | 'general'): number {
+  function primaryCapability(
+    model: Model,
+    task: 'coding' | 'math' | 'agentic' | 'general'
+  ): number {
     if (task === 'coding') return model.coding_index;
     if (task === 'math') return model.math_index ?? model.overall_intelligence;
     if (task === 'agentic') return model.agentic_index;
@@ -85,25 +88,22 @@
 
   function resolveModelsForStrategy(strategy: string, list: Model[]) {
     // Find active provider IDs: enabled
-    const activeProviderIds = new Set(
-      providers
-        .filter(p => p.enabled)
-        .map(p => p.id)
-    );
+    const activeProviderIds = new Set(providers.filter((p) => p.enabled).map((p) => p.id));
 
     // Filter active and non-negative priced models
-    const enabled = list.filter(m => 
-      m.enabled && 
-      activeProviderIds.has(m.provider_id) && 
-      (m.input_cost ?? 0) >= 0 && 
-      (m.output_cost ?? 0) >= 0
+    const enabled = list.filter(
+      (m) =>
+        m.enabled &&
+        activeProviderIds.has(m.provider_id) &&
+        (m.input_cost ?? 0) >= 0 &&
+        (m.output_cost ?? 0) >= 0
     );
 
     if (enabled.length === 0) return [];
 
     const previewTask = strategy === 'auto' ? 'coding' : 'coding';
 
-    const mapped = enabled.map(m => {
+    const mapped = enabled.map((m) => {
       let score = 0;
       if (strategy === 'cheapest') {
         score = effectiveTokenCost(m);
@@ -112,8 +112,12 @@
       } else if (strategy === 'balanced') {
         score = primaryCapability(m, previewTask) / effectiveTokenCost(m);
       } else {
-        score = (m.coding_index * 0.55 + m.overall_intelligence * 0.22 + m.agentic_index * 0.13 + (m.math_index ?? 30) * 0.10)
-          / effectiveTokenCost(m);
+        score =
+          (m.coding_index * 0.55 +
+            m.overall_intelligence * 0.22 +
+            m.agentic_index * 0.13 +
+            (m.math_index ?? 30) * 0.1) /
+          effectiveTokenCost(m);
       }
       return { model: m, score };
     });
@@ -136,10 +140,7 @@
   }
 </script>
 
-<PageHeader
-  title={i18n.t('routes.title')}
-  description={i18n.t('routes.page_desc')}
-/>
+<PageHeader title={i18n.t('routes.title')} description={i18n.t('routes.page_desc')} />
 
 {#if loading}
   <div class="strategy-list">
@@ -151,7 +152,10 @@
   <div class="strategy-list">
     {#each STRATEGIES as s}
       {@const candidates = resolveModelsForStrategy(s.id, models)}
-      <div class="strategy-card-wrapper" style="--sc:{s.color}; --glow:{s.glow}; --sborder:{s.border}">
+      <div
+        class="strategy-card-wrapper"
+        style="--sc:{s.color}; --glow:{s.glow}; --sborder:{s.border}"
+      >
         <Card padding="24px">
           <div class="strategy-header">
             <div class="strategy-title">
@@ -236,12 +240,14 @@
                   <button
                     class="btn btn-ghost btn-xs"
                     style="color: var(--accent); font-weight: 600; font-size: 11px;"
-                    onclick={() => expandedStrategies[s.id] = !isExpanded}
+                    onclick={() => (expandedStrategies[s.id] = !isExpanded)}
                   >
                     {#if isExpanded}
                       {i18n.currentLang === 'zh' ? '收起候选模型' : 'Show Less'}
                     {:else}
-                      {i18n.currentLang === 'zh' ? `展开全部候选模型 (${candidates.length})` : `Show All Candidates (${candidates.length})`}
+                      {i18n.currentLang === 'zh'
+                        ? `展开全部候选模型 (${candidates.length})`
+                        : `Show All Candidates (${candidates.length})`}
                     {/if}
                   </button>
                 </div>
@@ -378,8 +384,6 @@
     margin-bottom: 8px;
   }
 
-
-
   /* Pool Block */
   .pool-block {
     display: flex;
@@ -426,8 +430,6 @@
     border-bottom: none;
   }
 
-
-
   .c-model-cell {
     display: flex;
     flex-direction: column;
@@ -451,7 +453,6 @@
     color: var(--accent);
     font-weight: 600;
   }
-
 
   .pb-empty {
     font-size: 12px;

@@ -12,18 +12,44 @@
   let error = $state('');
 
   const recentColumns: Column[] = [
-    { key: 'timestamp', label: 'Time', sortable: true, render: (v: string) => {
-      try { return new Date(v).toLocaleTimeString(); } catch { return v; }
-    }},
+    {
+      key: 'timestamp',
+      label: 'Time',
+      sortable: true,
+      render: (v: string) => {
+        try {
+          return new Date(v).toLocaleTimeString();
+        } catch {
+          return v;
+        }
+      },
+    },
     { key: 'agent', label: 'Agent', sortable: true },
     { key: 'provider', label: 'Provider', sortable: true },
     { key: 'model', label: 'Model', sortable: true },
-    { key: 'total_tokens', label: 'Tokens', sortable: true, align: 'right' as const, render: (v: number) => v?.toLocaleString() ?? '0' },
-    { key: 'latency_ms', label: 'Latency', sortable: true, align: 'right' as const, render: (v: number) => `${v}ms` },
-    { key: 'status_code', label: 'Status', align: 'center' as const, render: (v: number) => {
-      const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
-      return `<span class="badge ${cls}">${v}</span>`;
-    }}
+    {
+      key: 'total_tokens',
+      label: 'Tokens',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number) => v?.toLocaleString() ?? '0',
+    },
+    {
+      key: 'latency_ms',
+      label: 'Latency',
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number) => `${v}ms`,
+    },
+    {
+      key: 'status_code',
+      label: 'Status',
+      align: 'center' as const,
+      render: (v: number) => {
+        const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
+        return `<span class="badge ${cls}">${v}</span>`;
+      },
+    },
   ];
 
   onMount(async () => {
@@ -39,7 +65,7 @@
         active_models: 0,
         requests_by_provider: {},
         requests_by_model: {},
-        recent_requests: []
+        recent_requests: [],
       };
     } finally {
       loading = false;
@@ -106,7 +132,10 @@
               <div class="breakdown-bar-wrapper">
                 <div
                   class="breakdown-bar"
-                  style:width="{Math.max(4, (count / Math.max(...Object.values(stats.requests_by_provider))) * 100)}%"
+                  style:width="{Math.max(
+                    4,
+                    (count / Math.max(...Object.values(stats.requests_by_provider))) * 100
+                  )}%"
                 ></div>
               </div>
               <span class="breakdown-count">{formatNumber(count)}</span>
@@ -130,7 +159,10 @@
               <div class="breakdown-bar-wrapper">
                 <div
                   class="breakdown-bar bar-purple"
-                  style:width="{Math.max(4, (count / Math.max(...Object.values(stats.requests_by_model))) * 100)}%"
+                  style:width="{Math.max(
+                    4,
+                    (count / Math.max(...Object.values(stats.requests_by_model))) * 100
+                  )}%"
                 ></div>
               </div>
               <span class="breakdown-count">{formatNumber(count)}</span>
@@ -144,14 +176,29 @@
   <!-- Recent Requests -->
   <section class="recent-section">
     <h3 class="section-title">Recent Requests</h3>
-    <DataTable columns={recentColumns} data={stats.recent_requests} emptyMessage="No requests recorded yet" />
+    <DataTable
+      columns={recentColumns}
+      data={stats.recent_requests}
+      emptyMessage="No requests recorded yet"
+    />
   </section>
 {/if}
 
 {#if error}
   <div class="error-banner">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"
+      />
     </svg>
     {error}
   </div>

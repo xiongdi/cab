@@ -54,7 +54,6 @@ pub async fn handle_chat_completions(
         headers: headers.clone(),
         stream,
         path_suffix: "chat/completions".to_string(),
-        url_model: None,
     };
 
     let result = execute_with_fallback(
@@ -220,7 +219,6 @@ pub async fn handle_responses(
         headers: headers.clone(),
         stream,
         path_suffix: "responses".to_string(),
-        url_model: None,
     };
 
     let result = execute_with_fallback(

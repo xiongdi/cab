@@ -44,7 +44,7 @@ const BRAND_STYLES: Record<string, CatalogBrandStyle> = {
   vercel: { bg: '#111827', fg: '#ffffff' },
   cloudflare: { bg: '#f6821f', fg: '#ffffff' },
   upstage: { bg: '#2563eb', fg: '#ffffff' },
-  huggingface: { bg: '#ffd21e', fg: '#111827' }
+  huggingface: { bg: '#ffd21e', fg: '#111827' },
 };
 
 const PREFIX_RULES: Array<[string, string]> = [
@@ -64,7 +64,7 @@ const PREFIX_RULES: Array<[string, string]> = [
   ['llama', 'meta'],
   ['cohere', 'cohere'],
   ['xai', 'xai'],
-  ['grok', 'xai']
+  ['grok', 'xai'],
 ];
 
 function normalizeBrandKey(id: string): string {

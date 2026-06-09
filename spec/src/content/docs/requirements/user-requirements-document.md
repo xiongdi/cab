@@ -11,26 +11,25 @@ order: 2
 
 系统应透明拦截并转发以下 API：
 
-| 协议 | Gateway 路由 | 处理器 |
-| --- | --- | --- |
-| OpenAI Chat | `POST /v1/chat/completions` | `openai.rs` |
-| OpenAI Responses | `POST /v1/responses` | `openai.rs` |
-| Anthropic Messages | `POST /v1/messages` | `anthropic.rs` |
-| Gemini | `POST /v1beta/models/{*model_action}` | `gemini.rs` |
+| 协议               | Gateway 路由                | 处理器         |
+| ------------------ | --------------------------- | -------------- |
+| OpenAI Chat        | `POST /v1/chat/completions` | `openai.rs`    |
+| OpenAI Responses   | `POST /v1/responses`        | `openai.rs`    |
+| Anthropic Messages | `POST /v1/messages`         | `anthropic.rs` |
 
 ### REQ-CAB-002 路由策略
 
 用户可通过 Agent 模式或 Route 配置选择：`auto`、`balanced`、`cheapest`、`intelligent`（`RoutingStrategy::parse`）。
 
-### REQ-CAB-003 供应商与 Key 管理
+### REQ-CAB-003 提供商与 Key 管理
 
-- 供应商目录从 models.dev 同步，不可手动增删（`create_provider`/`delete_provider` 返回错误）
+- 提供商目录从 models.dev 同步，不可手动增删（`create_provider`/`delete_provider` 返回错误）
 - 用户可配置多 Key、启用/禁用、标记订阅（`providers/+page.svelte`）
-- 启用供应商须至少有一个已启用非空 Key（`update_provider` 校验）
+- 启用提供商须至少有一个已启用非空 Key（`update_provider` 校验）
 
 ### REQ-CAB-004 订阅 Key 优先
 
-- 路由成本：订阅供应商边际成本视为 `MIN_COST_EPSILON`（`effective_routing_cost`）
+- 路由成本：订阅提供商边际成本视为 `MIN_COST_EPSILON`（`effective_routing_cost`）
 - 429 时记录 `quota_reset_at` 并 fallback（`fallback.rs` + `mark_api_key_quota_reset`）
 
 ### REQ-CAB-005 请求日志

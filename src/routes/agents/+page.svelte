@@ -6,6 +6,7 @@
   import Card from '$lib/components/Card.svelte';
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { modeBadgeClass, normalizeLoadedMode } from '$lib/agents';
 
   let agents = $state<Agent[]>([]);
   let models = $state<Model[]>([]);
@@ -15,7 +16,9 @@
   let loading = $state(true);
   let savingId = $state<string | null>(null);
 
-  let agentForms = $state<Record<string, { model_id: string; api_key: string; endpoint: string }>>({});
+  let agentForms = $state<Record<string, { model_id: string; api_key: string; endpoint: string }>>(
+    {}
+  );
 
   function countManualModels(allModels: Model[], allProviders: Provider[]): number {
     const activeProviderIds = new Set(
@@ -24,12 +27,6 @@
         .map((p) => p.id)
     );
     return allModels.filter((m) => m.enabled && activeProviderIds.has(m.provider_id)).length;
-  }
-
-  function normalizeLoadedMode(mode: string): Agent['mode'] {
-    if (mode === 'config') return 'auto';
-    if (mode === 'proxy') return 'native';
-    return mode as Agent['mode'];
   }
 
   function modeLabel(mode: Agent['mode']): string {
@@ -44,19 +41,13 @@
     return i18n.t('agents.mode_manual_short');
   }
 
-  function modeBadgeClass(mode: Agent['mode']): string {
-    if (mode === 'native') return 'badge-neutral';
-    if (mode === 'auto') return 'badge-warning';
-    return 'badge-success';
-  }
-
   function getRouteDisplayName(id: string | null | undefined): string {
     if (!id) return '';
     if (id === 'auto') return i18n.t('routes.strategies.auto.label');
     if (id === 'balanced') return i18n.t('routes.strategies.balanced.label');
     if (id === 'intelligent') return i18n.t('routes.strategies.intelligent.label');
     if (id === 'price') return i18n.t('routes.strategies.cheapest.label');
-    return routes.find(r => r.id === id)?.name || id;
+    return routes.find((r) => r.id === id)?.name || id;
   }
 
   onMount(async () => {
@@ -67,24 +58,25 @@
         api.models.list(),
         api.providers.list(),
         api.routes.list(),
-        api.settings.get().catch(() => ({ gateway_port: 3125 } as Settings))
+        api.settings.get().catch(() => ({ gateway_port: 3125 }) as Settings),
       ]);
-      agents = rawAgents.map(a => ({
+      agents = rawAgents.map((a) => ({
         ...a,
-        mode: normalizeLoadedMode(a.mode)
+        mode: normalizeLoadedMode(a.mode),
       }));
-      models = rawModels.filter(m => m.enabled);
+      models = rawModels.filter((m) => m.enabled);
       providers = rawProviders;
       routes = rawRoutes;
       settings = rawSettings;
 
-      const initialForms: Record<string, { model_id: string; api_key: string; endpoint: string }> = {};
+      const initialForms: Record<string, { model_id: string; api_key: string; endpoint: string }> =
+        {};
       for (const a of rawAgents) {
         const normalizedMode = normalizeLoadedMode(a.mode);
         initialForms[a.id] = {
-          model_id: normalizedMode === 'manual' ? '' : (a.model_id || 'auto'),
+          model_id: normalizedMode === 'manual' ? '' : a.model_id || 'auto',
           api_key: a.api_key || '',
-          endpoint: a.endpoint || ''
+          endpoint: a.endpoint || '',
         };
       }
       agentForms = initialForms;
@@ -107,16 +99,17 @@
         agentForms[agent.id] = { ...agentForms[agent.id], model_id: 'auto' };
       }
       const updated = await api.agents.update(agent.id, updates);
-      const idx = agents.findIndex(a => a.id === agent.id);
+      const idx = agents.findIndex((a) => a.id === agent.id);
       if (idx !== -1) {
         agents[idx] = {
           ...updated,
           mode: normalizeLoadedMode(updated.mode),
-          model_name: getRouteDisplayName(updated.model_id) || undefined
+          model_name: getRouteDisplayName(updated.model_id) || undefined,
         };
       }
       toast.success(
-        i18n.t('agents.mode_switched')
+        i18n
+          .t('agents.mode_switched')
           .replace('{name}', agent.name)
           .replace('{mode}', modeShortLabel(mode))
       );
@@ -130,14 +123,14 @@
   async function handleSaveDetails(agentId: string) {
     const form = agentForms[agentId];
     if (!form) return;
-    const agent = agents.find(a => a.id === agentId);
+    const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
 
     savingId = agentId;
     try {
       const updates: UpdateAgent = {
         api_key: '',
-        endpoint: ''
+        endpoint: '',
       };
       if (agent.mode === 'auto') {
         updates.model_id = form.model_id || 'auto';
@@ -146,11 +139,11 @@
       }
 
       const updated = await api.agents.update(agentId, updates);
-      const idx = agents.findIndex(a => a.id === agentId);
+      const idx = agents.findIndex((a) => a.id === agentId);
       if (idx !== -1) {
         agents[idx] = {
           ...updated,
-          model_name: getRouteDisplayName(updated.model_id) || undefined
+          model_name: getRouteDisplayName(updated.model_id) || undefined,
         };
       }
       toast.success(i18n.t('agents.save_success'));
@@ -168,7 +161,7 @@
     hermes: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 9v8"/></svg>`,
     kilocode: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6"/><path d="M9 12h3"/><path d="M9 16h6"/><path d="M15 12l2 2-2 2"/></svg>`,
     openclaw: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l4 7-8 11L4 10l4-7z"/><path d="M8 3l4 18"/><path d="M16 3l-4 18"/><path d="M4 10h16"/></svg>`,
-    pi: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12"/><path d="M8 7v12"/><path d="M16 7v12"/><path d="M10 19h4"/><path d="M12 7c0-2 1-3 3-3h2"/><path d="M12 7c0-2-1-3-3-3H7"/></svg>`
+    pi: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12"/><path d="M8 7v12"/><path d="M16 7v12"/><path d="M10 19h4"/><path d="M12 7c0-2 1-3 3-3h2"/><path d="M12 7c0-2-1-3-3-3H7"/></svg>`,
   };
 </script>
 
@@ -186,7 +179,14 @@
       <Card padding="24px" hover={true} glow={agent.mode !== 'native'}>
         <div class="agent-card-content">
           <div class="agent-header">
-            <div class="agent-icon" style="background: {agent.mode === 'native' ? 'rgba(255,255,255,0.03)' : 'rgba(59,130,246,0.1)'}; color: {agent.mode === 'native' ? 'var(--text-secondary)' : '#60a5fa'}">
+            <div
+              class="agent-icon"
+              style="background: {agent.mode === 'native'
+                ? 'rgba(255,255,255,0.03)'
+                : 'rgba(59,130,246,0.1)'}; color: {agent.mode === 'native'
+                ? 'var(--text-secondary)'
+                : '#60a5fa'}"
+            >
               {@html agentIcons[agent.id] || agentIcons.codex}
             </div>
             <div class="agent-title-block">
@@ -237,31 +237,41 @@
           {#if agent.mode !== 'native' && agentForms[agent.id]}
             <div class="agent-inputs fade-in">
               {#if agent.mode === 'auto'}
-              <div class="form-group">
-                <label class="label" for="{agent.id}-model">{i18n.t('agents.routing_strategy')}</label>
-                <select class="select select-sm" id="{agent.id}-model" bind:value={agentForms[agent.id].model_id}>
-                  <option value="">{i18n.t('agents.select_routing_strategy')}</option>
+                <div class="form-group">
+                  <label class="label" for="{agent.id}-model"
+                    >{i18n.t('agents.routing_strategy')}</label
+                  >
+                  <select
+                    class="select select-sm"
+                    id="{agent.id}-model"
+                    bind:value={agentForms[agent.id].model_id}
+                  >
+                    <option value="">{i18n.t('agents.select_routing_strategy')}</option>
 
-                  <optgroup label={i18n.t('agents.builtin_system_routes')}>
-                    <option value="auto">{i18n.t('agents.system_routes.auto')}</option>
-                    <option value="balanced">{i18n.t('agents.system_routes.balanced')}</option>
-                    <option value="intelligent">{i18n.t('agents.system_routes.intelligent')}</option>
-                    <option value="price">{i18n.t('agents.system_routes.price')}</option>
-                  </optgroup>
-
-                  {#if routes.length > 0}
-                    <optgroup label={i18n.t('agents.custom_routing_rules')}>
-                      {#each routes as r}
-                        <option value={r.id}>⚡ {r.name} ({r.agent_pattern})</option>
-                      {/each}
+                    <optgroup label={i18n.t('agents.builtin_system_routes')}>
+                      <option value="auto">{i18n.t('agents.system_routes.auto')}</option>
+                      <option value="balanced">{i18n.t('agents.system_routes.balanced')}</option>
+                      <option value="intelligent"
+                        >{i18n.t('agents.system_routes.intelligent')}</option
+                      >
+                      <option value="price">{i18n.t('agents.system_routes.price')}</option>
                     </optgroup>
-                  {/if}
-                </select>
-              </div>
+
+                    {#if routes.length > 0}
+                      <optgroup label={i18n.t('agents.custom_routing_rules')}>
+                        {#each routes as r}
+                          <option value={r.id}>⚡ {r.name} ({r.agent_pattern})</option>
+                        {/each}
+                      </optgroup>
+                    {/if}
+                  </select>
+                </div>
               {:else}
-              <p class="manual-hint">
-                {i18n.t('agents.manual_hint').replace('{count}', countManualModels(models, providers).toString())}
-              </p>
+                <p class="manual-hint">
+                  {i18n
+                    .t('agents.manual_hint')
+                    .replace('{count}', countManualModels(models, providers).toString())}
+                </p>
               {/if}
 
               <div class="save-actions">
@@ -284,8 +294,17 @@
     <Card padding="28px">
       <div class="guide-section">
         <h3 class="guide-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--accent)"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
           </svg>
           <span>{i18n.t('agents.integration_guide_title')}</span>
         </h3>

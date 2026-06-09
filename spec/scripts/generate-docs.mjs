@@ -17,33 +17,33 @@ const chapters = [
         slug: 'v-model-overview',
         title: 'V 模型概述',
         description: '介绍 V 模型左右两臂、底部实现与确认阶段的对应关系',
-        body: sectionPrefaceVModel()
+        body: sectionPrefaceVModel(),
       },
       {
         slug: 'document-system',
         title: '文档体系与追溯',
         description: '说明各章交付物如何支撑定义—实现—确认闭环',
-        body: sectionPrefaceDocSystem()
+        body: sectionPrefaceDocSystem(),
       },
       {
         slug: 'glossary',
         title: '术语与缩写',
         description: '统一 verification、validation、URD、规格书等术语',
-        body: sectionPrefaceGlossary()
+        body: sectionPrefaceGlossary(),
       },
       {
         slug: 'references',
         title: '引用标准',
         description: '参考 Wikipedia V 模型、IEEE、ISO 及行业规范',
-        body: sectionPrefaceReferences()
+        body: sectionPrefaceReferences(),
       },
       {
         slug: 'roles',
         title: '角色与职责',
         description: '产品、架构、开发、测试、用户在 V 模型中的分工',
-        body: sectionPrefaceRoles()
-      }
-    ]
+        body: sectionPrefaceRoles(),
+      },
+    ],
   },
   {
     id: 'requirements',
@@ -56,36 +56,36 @@ const chapters = [
         title: '用户需要分析',
         description: '通过访谈与调研分析用户需要，明确理想系统目标',
         validates: 'acceptance/uat-execution',
-        body: sectionRequirementsUserNeeds()
+        body: sectionRequirementsUserNeeds(),
       },
       {
         slug: 'user-requirements-document',
         title: '用户需求文件',
         description: '编制用户需求文件（URD），作为验收测试的源头依据',
         validates: 'acceptance/acceptance-criteria',
-        body: sectionRequirementsURD()
+        body: sectionRequirementsURD(),
       },
       {
         slug: 'functional-requirements',
         title: '功能需求整理',
         description: '整理可验证的系统功能需求，不约束具体实现方式',
         validates: 'acceptance/scenario-validation',
-        body: sectionRequirementsFunctional()
+        body: sectionRequirementsFunctional(),
       },
       {
         slug: 'uat-plan',
         title: '用户验收测试计划',
         description: '在需求阶段早期制定 UAT 计划，与需求条目一一对应',
         validates: 'acceptance/uat-execution',
-        body: sectionRequirementsUATPlan()
+        body: sectionRequirementsUATPlan(),
       },
       {
         slug: 'requirements-baseline',
         title: '需求评审与基线',
         description: '评审、签发需求基线，建立向下游设计与测试的追溯',
-        body: sectionRequirementsBaseline()
-      }
-    ]
+        body: sectionRequirementsBaseline(),
+      },
+    ],
   },
   {
     id: 'system-design',
@@ -98,37 +98,37 @@ const chapters = [
         title: '软件规格说明书',
         description: '输出开发蓝图：架构、菜单、数据结构等高层设计',
         validates: 'system-test/system-test-execution',
-        body: sectionSystemDesignSpec()
+        body: sectionSystemDesignSpec(),
       },
       {
         slug: 'architecture-and-ui',
         title: '系统架构与界面结构',
         description: '描述大致系统架构、指令菜单结构与主要交互',
         validates: 'system-test/functional-verification',
-        body: sectionSystemDesignArchUI()
+        body: sectionSystemDesignArchUI(),
       },
       {
         slug: 'business-scenarios',
         title: '业务场景与样例',
         description: '业务场景、样例视窗与报表，帮助理解系统行为',
         validates: 'system-test/scenario-coverage',
-        body: sectionSystemDesignScenarios()
+        body: sectionSystemDesignScenarios(),
       },
       {
         slug: 'entity-data-dictionary',
         title: '实体图与数据字典',
         description: '实体图、数据字典等技术文件，支撑数据一致性验证',
         validates: 'system-test/data-validation',
-        body: sectionSystemDesignEntity()
+        body: sectionSystemDesignEntity(),
       },
       {
         slug: 'system-test-plan',
         title: '系统测试计划',
         description: '在系统设计阶段规划系统测试范围、环境与通过准则',
         validates: 'system-test/system-test-execution',
-        body: sectionSystemDesignTestPlan()
-      }
-    ]
+        body: sectionSystemDesignTestPlan(),
+      },
+    ],
   },
   {
     id: 'architecture',
@@ -141,37 +141,37 @@ const chapters = [
         title: '架构视图与边界',
         description: '上下文、容器、组件视图，明确子系统边界',
         validates: 'integration-test/integration-scope',
-        body: sectionArchitectureViews()
+        body: sectionArchitectureViews(),
       },
       {
         slug: 'subsystem-decomposition',
         title: '子系统划分',
         description: '将系统拆分为可集成的子系统/服务单元',
         validates: 'integration-test/component-integration',
-        body: sectionArchitectureSubsystem()
+        body: sectionArchitectureSubsystem(),
       },
       {
         slug: 'integration-strategy',
         title: '集成策略',
         description: '大爆炸、自顶向下、自底向上或持续集成策略',
         validates: 'integration-test/integration-approach',
-        body: sectionArchitectureIntegrationStrategy()
+        body: sectionArchitectureIntegrationStrategy(),
       },
       {
         slug: 'interface-contracts',
         title: '接口与通信契约',
         description: '子系统间协议、消息格式、时序与错误约定',
         validates: 'integration-test/interface-testing',
-        body: sectionArchitectureInterfaces()
+        body: sectionArchitectureInterfaces(),
       },
       {
         slug: 'integration-test-plan',
         title: '集成测试计划',
         description: '在架构阶段规划集成测试项与通过标准',
         validates: 'integration-test/integration-test-execution',
-        body: sectionArchitectureTestPlan()
-      }
-    ]
+        body: sectionArchitectureTestPlan(),
+      },
+    ],
   },
   {
     id: 'modules',
@@ -184,37 +184,37 @@ const chapters = [
         title: '模组拆解',
         description: '低阶设计：将系统拆解为可编码的最小交付单元',
         validates: 'unit-test/unit-scope',
-        body: sectionModulesDecomposition()
+        body: sectionModulesDecomposition(),
       },
       {
         slug: 'logic-pseudocode',
         title: '逻辑细节与伪代码',
         description: '模组内部逻辑、算法与伪代码，指导程序设计',
         validates: 'unit-test/logic-verification',
-        body: sectionModulesLogic()
+        body: sectionModulesLogic(),
       },
       {
         slug: 'database-tables',
         title: '数据库表设计',
         description: '表结构、字段型别、长度、约束与索引',
         validates: 'unit-test/data-layer-testing',
-        body: sectionModulesDatabase()
+        body: sectionModulesDatabase(),
       },
       {
         slug: 'api-dependencies-io',
         title: '接口、依赖与输入输出',
         description: 'API 细节、相依性、错误消息、模组 I/O 列表',
         validates: 'unit-test/interface-unit-testing',
-        body: sectionModulesAPI()
+        body: sectionModulesAPI(),
       },
       {
         slug: 'unit-test-plan',
         title: '单元测试计划',
         description: '在模组设计阶段规划单元测试，消除代码/单元级错误',
         validates: 'unit-test/unit-test-execution',
-        body: sectionModulesUnitTestPlan()
-      }
-    ]
+        body: sectionModulesUnitTestPlan(),
+      },
+    ],
   },
   {
     id: 'implementation',
@@ -225,33 +225,33 @@ const chapters = [
         slug: 'implementation-baseline',
         title: '实现依据与顺序',
         description: '依据模组设计/程序规格书开展编码与集成顺序',
-        body: sectionImplementationBaseline()
+        body: sectionImplementationBaseline(),
       },
       {
         slug: 'coding-standards',
         title: '编码规范',
         description: '命名、格式、异常处理、日志与可测试性约定',
-        body: sectionImplementationCoding()
+        body: sectionImplementationCoding(),
       },
       {
         slug: 'build-ci',
         title: '构建与持续集成',
         description: '编译、打包、静态检查与 CI 流水线',
-        body: sectionImplementationCI()
+        body: sectionImplementationCI(),
       },
       {
         slug: 'configuration',
         title: '配置与密钥管理',
         description: '环境配置、特性开关与密钥安全存储',
-        body: sectionImplementationConfig()
+        body: sectionImplementationConfig(),
       },
       {
         slug: 'code-review',
         title: '代码审查',
         description: '对照低阶设计进行审查，作为单元测试前门禁',
-        body: sectionImplementationReview()
-      }
-    ]
+        body: sectionImplementationReview(),
+      },
+    ],
   },
   {
     id: 'unit-test',
@@ -262,33 +262,33 @@ const chapters = [
         slug: 'unit-test-execution',
         title: '单元测试计划执行',
         description: '执行模组设计阶段制定的单元测试计划',
-        body: sectionUnitTestExecution()
+        body: sectionUnitTestExecution(),
       },
       {
         slug: 'isolation-testing',
         title: '隔离测试',
         description: '验证最小程序体在与其他程序隔离时能否正常运作',
-        body: sectionUnitTestIsolation()
+        body: sectionUnitTestIsolation(),
       },
       {
         slug: 'test-cases',
         title: '测试用例设计与执行',
         description: '覆盖正常、边界、异常路径，关联模组 I/O',
-        body: sectionUnitTestCases()
+        body: sectionUnitTestCases(),
       },
       {
         slug: 'defect-handling',
         title: '缺陷处理',
         description: '记录、分级、修复与回归验证单元级缺陷',
-        body: sectionUnitTestDefects()
+        body: sectionUnitTestDefects(),
       },
       {
         slug: 'unit-test-report',
         title: '单元测试报告',
         description: '通过率、覆盖率、遗留缺陷与对集成测试的输入',
-        body: sectionUnitTestReport()
-      }
-    ]
+        body: sectionUnitTestReport(),
+      },
+    ],
   },
   {
     id: 'integration-test',
@@ -299,33 +299,33 @@ const chapters = [
         slug: 'integration-test-execution',
         title: '集成测试计划执行',
         description: '执行架构设计阶段制定的集成测试计划',
-        body: sectionIntegrationExecution()
+        body: sectionIntegrationExecution(),
       },
       {
         slug: 'interface-testing',
         title: '接口联调验证',
         description: '验证子系统/模组间接口契约与时序',
-        body: sectionIntegrationInterface()
+        body: sectionIntegrationInterface(),
       },
       {
         slug: 'integration-scenarios',
         title: '集成场景测试',
         description: '跨组件业务流程、事务与一致性场景',
-        body: sectionIntegrationScenarios()
+        body: sectionIntegrationScenarios(),
       },
       {
         slug: 'defect-handling',
         title: '缺陷处理',
         description: '集成缺陷定位、修复与回归策略',
-        body: sectionIntegrationDefects()
+        body: sectionIntegrationDefects(),
       },
       {
         slug: 'integration-test-report',
         title: '集成测试报告',
         description: '集成结论、风险项与系统测试准入评估',
-        body: sectionIntegrationReport()
-      }
-    ]
+        body: sectionIntegrationReport(),
+      },
+    ],
   },
   {
     id: 'system-test',
@@ -336,33 +336,33 @@ const chapters = [
         slug: 'system-test-execution',
         title: '系统测试计划执行',
         description: '执行系统设计阶段制定的系统测试计划',
-        body: sectionSystemTestExecution()
+        body: sectionSystemTestExecution(),
       },
       {
         slug: 'functional-verification',
         title: '功能验证',
         description: '端到端验证软件规格说明书中的功能与界面行为',
-        body: sectionSystemTestFunctional()
+        body: sectionSystemTestFunctional(),
       },
       {
         slug: 'nonfunctional-verification',
         title: '非功能验证',
         description: '性能、安全、可用性、兼容性等质量属性',
-        body: sectionSystemTestNonfunctional()
+        body: sectionSystemTestNonfunctional(),
       },
       {
         slug: 'defect-handling',
         title: '缺陷处理',
         description: '系统级缺陷闭环与发布风险评估',
-        body: sectionSystemTestDefects()
+        body: sectionSystemTestDefects(),
       },
       {
         slug: 'system-test-report',
         title: '系统测试报告',
         description: '系统测试结论与验收测试准入建议',
-        body: sectionSystemTestReport()
-      }
-    ]
+        body: sectionSystemTestReport(),
+      },
+    ],
   },
   {
     id: 'acceptance',
@@ -373,33 +373,33 @@ const chapters = [
         slug: 'uat-execution',
         title: '用户验收测试执行',
         description: '由企业用户执行需求阶段制定的 UAT 计划',
-        body: sectionAcceptanceUAT()
+        body: sectionAcceptanceUAT(),
       },
       {
         slug: 'user-environment',
         title: '用户环境验证',
         description: '在用户环境下模拟实际产品运行条件',
-        body: sectionAcceptanceEnvironment()
+        body: sectionAcceptanceEnvironment(),
       },
       {
         slug: 'real-data-validation',
         title: '真实数据验证',
         description: '使用实际数据进行验收，确认可投产使用',
-        body: sectionAcceptanceRealData()
+        body: sectionAcceptanceRealData(),
       },
       {
         slug: 'acceptance-criteria',
         title: '验收结论与签字',
         description: '确认系统符合客户需求并满足验收标准',
-        body: sectionAcceptanceCriteria()
+        body: sectionAcceptanceCriteria(),
       },
       {
         slug: 'release-handover',
         title: '投产与移交',
         description: '上线步骤、运维移交与交付物清单',
-        body: sectionAcceptanceRelease()
-      }
-    ]
+        body: sectionAcceptanceRelease(),
+      },
+    ],
   },
   {
     id: 'appendix',
@@ -410,34 +410,34 @@ const chapters = [
         slug: 'v-model-mapping',
         title: 'V 模型对应关系表',
         description: '定义阶段交付物与确认阶段测试的完整映射',
-        body: sectionAppendixMapping()
+        body: sectionAppendixMapping(),
       },
       {
         slug: 'templates',
         title: '文档模板清单',
         description: 'URD、规格书、低阶设计、各阶段测试计划模板',
-        body: sectionAppendixTemplates()
+        body: sectionAppendixTemplates(),
       },
       {
         slug: 'changelog',
         title: '变更记录',
         description: '基线变更历史与影响分析',
-        body: sectionAppendixChangelog()
+        body: sectionAppendixChangelog(),
       },
       {
         slug: 'bibliography',
         title: '参考资料',
         description: 'Wikipedia V 模型、Pressman、Beizer 等文献',
-        body: sectionAppendixBibliography()
+        body: sectionAppendixBibliography(),
       },
       {
         slug: 'approval',
         title: '审批记录',
         description: '各阶段评审与签发留痕',
-        body: sectionAppendixApproval()
-      }
-    ]
-  }
+        body: sectionAppendixApproval(),
+      },
+    ],
+  },
 ];
 
 // ── Article body generators ─────────────────────────────────────
@@ -516,7 +516,7 @@ V 模型将软件生命周期分为：
 ${checklist([
   '团队理解 V 模型左右对应关系',
   '明确各章在定义/实现/确认中的位置',
-  '确认测试计划编制时点不滞后于设计阶段'
+  '确认测试计划编制时点不滞后于设计阶段',
 ])}
 
 ${cabPlaceholder()}`;
@@ -543,7 +543,7 @@ function sectionPrefaceDocSystem() {
 ${checklist([
   '建立双向追溯矩阵',
   '变更时同步更新对侧测试文档',
-  '基线化后变更走变更记录流程（见附录）'
+  '基线化后变更走变更记录流程（见附录）',
 ])}
 
 ${cabPlaceholder()}`;
@@ -624,14 +624,10 @@ function sectionRequirementsUserNeeds() {
 ${deliverablesTable([
   ['用户需要调研记录', '访谈纪要、问卷统计', '产品/BA'],
   ['干系人清单', '角色、利益、影响力', '产品/BA'],
-  ['场景草图', '高层业务流程（非界面细节）', '产品/BA']
+  ['场景草图', '高层业务流程（非界面细节）', '产品/BA'],
 ])}
 
-${checklist([
-  '覆盖主要用户角色',
-  '需要表述可测试、可观察',
-  '已识别验收测试关键场景来源'
-])}
+${checklist(['覆盖主要用户角色', '需要表述可测试、可观察', '已识别验收测试关键场景来源'])}
 
 ${cabPlaceholder()}`;
 }
@@ -660,11 +656,7 @@ function sectionRequirementsURD() {
 - 每条需求应**可验证**，便于导出 UAT 用例
 - 与《用户验收测试计划》保持双向引用
 
-${checklist([
-  '每条需求有唯一 ID',
-  '需求无歧义、无矛盾',
-  'URD 经评审并基线化'
-])}
+${checklist(['每条需求有唯一 ID', '需求无歧义、无矛盾', 'URD 经评审并基线化'])}
 
 ${cabPlaceholder()}`;
 }
@@ -691,11 +683,7 @@ function sectionRequirementsFunctional() {
 
 功能需求**不得**规定：具体 API 路径、类名、数据库 schema、框架选型——这些属于后续系统设计/模组设计。
 
-${checklist([
-  '功能需求覆盖 URD 全部场景',
-  '验收条件可直接映射 UAT 用例',
-  '非功能需求已单独列出'
-])}
+${checklist(['功能需求覆盖 URD 全部场景', '验收条件可直接映射 UAT 用例', '非功能需求已单独列出'])}
 
 ${cabPlaceholder()}`;
 }
@@ -722,11 +710,7 @@ function sectionRequirementsUATPlan() {
 - UAT 验证「系统是否符合客户需求且可在实际环境使用」
 - 用例来源于 URD/功能需求，不得凭空增补未基线需求
 
-${checklist([
-  '每个 Must 级需求至少一条 UAT 用例',
-  '用户代表已评审计划',
-  '与 URD 追溯矩阵已建立'
-])}
+${checklist(['每个 Must 级需求至少一条 UAT 用例', '用户代表已评审计划', '与 URD 追溯矩阵已建立'])}
 
 ${cabPlaceholder()}`;
 }
@@ -748,11 +732,7 @@ function sectionRequirementsBaseline() {
 
 任何需求变更须：变更申请 → 影响分析（设计/测试） → 更新追溯矩阵 → 重新签发（见附录变更记录）
 
-${checklist([
-  '评审会议纪要已归档',
-  '基线版本号已标记',
-  '下游设计负责人已签收'
-])}
+${checklist(['评审会议纪要已归档', '基线版本号已标记', '下游设计负责人已签收'])}
 
 ${cabPlaceholder()}`;
 }
@@ -780,11 +760,7 @@ function sectionSystemDesignSpec() {
 - 面向系统分析与开发团队，可含界面与报表说明
 - 仍属高层设计，具体模组逻辑放在模组设计章
 
-${checklist([
-  '规格书覆盖全部基线功能需求',
-  '已引用实体图与数据字典',
-  '系统测试计划已同步起草'
-])}
+${checklist(['规格书覆盖全部基线功能需求', '已引用实体图与数据字典', '系统测试计划已同步起草'])}
 
 ${cabPlaceholder()}`;
 }
@@ -804,11 +780,7 @@ function sectionSystemDesignArchUI() {
 - 关键界面线框或说明（非高保真也可）
 - 与架构设计章的衔接点
 
-${checklist([
-  '架构图与菜单树一致',
-  '界面结构覆盖主要用户任务',
-  '系统测试可据此设计界面遍历用例'
-])}
+${checklist(['架构图与菜单树一致', '界面结构覆盖主要用户任务', '系统测试可据此设计界面遍历用例'])}
 
 ${cabPlaceholder()}`;
 }
@@ -833,11 +805,7 @@ function sectionSystemDesignScenarios() {
 | 样例界面 | 截图或草图引用 |
 | 样例报表 | 输出样例 |
 
-${checklist([
-  '场景与 URD 需求可追溯',
-  '覆盖关键异常与边界',
-  '系统测试场景用例可据此导出'
-])}
+${checklist(['场景与 URD 需求可追溯', '覆盖关键异常与边界', '系统测试场景用例可据此导出'])}
 
 ${cabPlaceholder()}`;
 }
@@ -865,11 +833,7 @@ function sectionSystemDesignEntity() {
 - 模组设计章将细化为物理表结构
 - 系统测试须验证数据完整性、一致性
 
-${checklist([
-  '实体与需求领域名词一致',
-  '数据字典无遗漏关键属性',
-  '系统测试含数据校验用例'
-])}
+${checklist(['实体与需求领域名词一致', '数据字典无遗漏关键属性', '系统测试含数据校验用例'])}
 
 ${cabPlaceholder()}`;
 }
@@ -894,7 +858,7 @@ function sectionSystemDesignTestPlan() {
 ${checklist([
   '计划覆盖规格书全部章节',
   '与验收测试边界清晰（ST vs UAT）',
-  '系统测试执行章可直接沿用本计划'
+  '系统测试执行章可直接沿用本计划',
 ])}
 
 ${cabPlaceholder()}`;
@@ -935,7 +899,7 @@ function sectionArchitectureSubsystem() {
 
 ${deliverablesTable([
   ['子系统清单', '名称、职责、依赖', '架构师'],
-  ['依赖矩阵', '子系统间调用关系', '架构师']
+  ['依赖矩阵', '子系统间调用关系', '架构师'],
 ])}
 
 ${cabPlaceholder()}`;
@@ -1066,7 +1030,7 @@ function sectionModulesAPI() {
 ${checklist([
   '每个公开函数/接口有 I/O 表',
   '错误码与消息成对列出',
-  '单元测试可覆盖每个 I/O 与错误分支'
+  '单元测试可覆盖每个 I/O 与错误分支',
 ])}
 
 ${cabPlaceholder()}`;
@@ -1438,7 +1402,7 @@ ${deliverablesTable([
   ['可执行程序/镜像', '版本号、构建号', '开发'],
   ['用户文档', '手册、FAQ', '产品'],
   ['运维文档', '监控、告警、备份', '运维'],
-  ['基线文档包', 'URD至测试报告', 'PM']
+  ['基线文档包', 'URD至测试报告', 'PM'],
 ])}
 
 ${cabPlaceholder()}`;

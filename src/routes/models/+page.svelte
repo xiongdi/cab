@@ -70,7 +70,7 @@
   function parseBenchmarks(value: unknown): BenchmarkRow[] {
     if (!Array.isArray(value)) return [];
     return value
-      .map(item => {
+      .map((item) => {
         if (!item || typeof item !== 'object') return null;
         const row = item as Record<string, unknown>;
         const name = String(row.name ?? '—');
@@ -81,7 +81,7 @@
           score,
           metric: String(row.metric ?? '—'),
           date: String(row.date ?? '—'),
-          source: typeof row.source === 'string' ? row.source : undefined
+          source: typeof row.source === 'string' ? row.source : undefined,
         } as BenchmarkRow;
       })
       .filter((row): row is BenchmarkRow => row !== null);
@@ -90,14 +90,14 @@
   function parseWeights(value: unknown): WeightRow[] {
     if (!Array.isArray(value)) return [];
     return value
-      .map(item => {
+      .map((item) => {
         if (!item || typeof item !== 'object') return null;
         const row = item as Record<string, unknown>;
         const url = typeof row.url === 'string' ? row.url : '';
         if (!url) return null;
         return {
           label: String(row.label ?? url),
-          url
+          url,
         };
       })
       .filter((row): row is WeightRow => row !== null);
@@ -110,7 +110,7 @@
       { label: i18n.t('models.tool_call'), enabled: !!data.tool_call },
       { label: i18n.t('models.temperature'), enabled: !!data.temperature },
       { label: i18n.t('models.attachment'), enabled: !!data.attachment },
-      { label: i18n.t('models.open_weights'), enabled: !!data.open_weights }
+      { label: i18n.t('models.open_weights'), enabled: !!data.open_weights },
     ];
   }
 
@@ -119,7 +119,7 @@
     const modalities = value as Record<string, unknown>;
     return {
       input: Array.isArray(modalities.input) ? modalities.input.map(String) : [],
-      output: Array.isArray(modalities.output) ? modalities.output.map(String) : []
+      output: Array.isArray(modalities.output) ? modalities.output.map(String) : [],
     };
   }
 
@@ -139,7 +139,7 @@
       livecodebench: 'LiveCodeBench',
       scicode: 'SciCode',
       gpqa: 'GPQA',
-      hle: 'HLE'
+      hle: 'HLE',
     };
     return Object.entries(evalLabels)
       .map(([key, label]) => {
@@ -152,7 +152,7 @@
 
   let rows = $derived.by(() => {
     const query = searchQuery.trim().toLowerCase();
-    let result = entries.filter(entry => {
+    let result = entries.filter((entry) => {
       if (statusFilter === 'enabled' && !entry.enabled) return false;
       if (statusFilter === 'disabled' && entry.enabled) return false;
       if (!query) return true;
@@ -197,7 +197,7 @@
     if (!options?.silent) loading = true;
     try {
       entries = await api.models.listCatalog();
-      if (expandedCatalogId && !entries.some(e => e.catalog_id === expandedCatalogId)) {
+      if (expandedCatalogId && !entries.some((e) => e.catalog_id === expandedCatalogId)) {
         expandedCatalogId = null;
       }
     } catch (e) {
@@ -241,7 +241,8 @@
       const eps = await api.models.endpoints(catalogId);
       endpointCache = { ...endpointCache, [catalogId]: eps };
       toast.success(
-        i18n.t('models.endpoint_toggle_success')
+        i18n
+          .t('models.endpoint_toggle_success')
           .replace('{name}', ep.provider_name)
           .replace('{status}', !ep.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled'))
       );
@@ -258,14 +259,15 @@
     const nextEnabled = !entry.enabled;
     try {
       await api.models.update(entry.id, { enabled: nextEnabled });
-      entries = entries.map(e =>
+      entries = entries.map((e) =>
         e.catalog_id === entry.catalog_id
           ? { ...e, enabled: nextEnabled, settings: { ...e.settings, enabled: nextEnabled } }
           : e
       );
       const statusText = nextEnabled ? i18n.t('common.enabled') : i18n.t('common.disabled');
       toast.success(
-        i18n.t('models.toggle_success')
+        i18n
+          .t('models.toggle_success')
           .replace('{name}', displayName(entry))
           .replace('{status}', statusText)
       );
@@ -283,22 +285,52 @@
   <section class="model-toolbar">
     <div class="toolbar-col">
       <div class="search-wrap">
-        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          class="search-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
-        <input class="input search-input" type="text" placeholder={i18n.t('models.search_placeholder')} bind:value={searchQuery} />
+        <input
+          class="input search-input"
+          type="text"
+          placeholder={i18n.t('models.search_placeholder')}
+          bind:value={searchQuery}
+        />
       </div>
     </div>
     <div class="toolbar-col">
       <div class="filter-segment" role="group">
-        <button type="button" class="segment-btn" class:active={statusFilter === 'all'} onclick={() => (statusFilter = 'all')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'all'}
+          onclick={() => (statusFilter = 'all')}
+        >
           {i18n.t('models.filter_all_status')}
         </button>
-        <button type="button" class="segment-btn" class:active={statusFilter === 'enabled'} onclick={() => (statusFilter = 'enabled')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'enabled'}
+          onclick={() => (statusFilter = 'enabled')}
+        >
           {i18n.t('models.filter_enabled')}
         </button>
-        <button type="button" class="segment-btn" class:active={statusFilter === 'disabled'} onclick={() => (statusFilter = 'disabled')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'disabled'}
+          onclick={() => (statusFilter = 'disabled')}
+        >
           {i18n.t('models.filter_disabled')}
         </button>
       </div>
@@ -312,15 +344,57 @@
     <div class="model-table">
       <div class="model-grid header-row">
         <div class="cell cell-logo"></div>
-        <div class="cell cell-name sortable" class:active-sort={sortKey === 'name'} onclick={() => setSort('name')}>{i18n.t('models.col_name')}</div>
-        <div class="cell cell-id sortable" class:active-sort={sortKey === 'id'} onclick={() => setSort('id')}>{i18n.t('models.col_id')}</div>
-        <div class="cell cell-family sortable" class:active-sort={sortKey === 'family'} onclick={() => setSort('family')}>{i18n.t('models.col_family')}</div>
-        <div class="cell cell-context sortable" class:active-sort={sortKey === 'context'} onclick={() => setSort('context')}>{i18n.t('models.col_context')}</div>
+        <div
+          class="cell cell-name sortable"
+          class:active-sort={sortKey === 'name'}
+          onclick={() => setSort('name')}
+        >
+          {i18n.t('models.col_name')}
+        </div>
+        <div
+          class="cell cell-id sortable"
+          class:active-sort={sortKey === 'id'}
+          onclick={() => setSort('id')}
+        >
+          {i18n.t('models.col_id')}
+        </div>
+        <div
+          class="cell cell-family sortable"
+          class:active-sort={sortKey === 'family'}
+          onclick={() => setSort('family')}
+        >
+          {i18n.t('models.col_family')}
+        </div>
+        <div
+          class="cell cell-context sortable"
+          class:active-sort={sortKey === 'context'}
+          onclick={() => setSort('context')}
+        >
+          {i18n.t('models.col_context')}
+        </div>
         <div class="cell cell-output">{i18n.t('models.col_output')}</div>
-        <div class="cell cell-knowledge sortable" class:active-sort={sortKey === 'knowledge'} onclick={() => setSort('knowledge')}>{i18n.t('models.col_knowledge')}</div>
-        <div class="cell cell-release sortable" class:active-sort={sortKey === 'release_date'} onclick={() => setSort('release_date')}>{i18n.t('models.col_release')}</div>
+        <div
+          class="cell cell-knowledge sortable"
+          class:active-sort={sortKey === 'knowledge'}
+          onclick={() => setSort('knowledge')}
+        >
+          {i18n.t('models.col_knowledge')}
+        </div>
+        <div
+          class="cell cell-release sortable"
+          class:active-sort={sortKey === 'release_date'}
+          onclick={() => setSort('release_date')}
+        >
+          {i18n.t('models.col_release')}
+        </div>
         <div class="cell cell-capabilities">{i18n.t('models.col_capabilities')}</div>
-        <div class="cell cell-enabled sortable" class:active-sort={sortKey === 'enabled'} onclick={() => setSort('enabled')}>{i18n.t('models.col_enabled')}</div>
+        <div
+          class="cell cell-enabled sortable"
+          class:active-sort={sortKey === 'enabled'}
+          onclick={() => setSort('enabled')}
+        >
+          {i18n.t('models.col_enabled')}
+        </div>
         <div class="cell cell-chevron" aria-hidden="true"></div>
       </div>
 
@@ -334,7 +408,12 @@
           >
             <div class="cell cell-logo">
               {#if modelLabId(entry.catalog_id)}
-                <CatalogLogo id={modelLabId(entry.catalog_id)!} kind="lab" size={22} alt={displayName(entry)} />
+                <CatalogLogo
+                  id={modelLabId(entry.catalog_id)!}
+                  kind="lab"
+                  size={22}
+                  alt={displayName(entry)}
+                />
               {/if}
             </div>
             <div class="cell cell-name">
@@ -365,7 +444,17 @@
               </span>
             </div>
             <div class="cell cell-chevron">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform: rotate({expandedCatalogId === entry.catalog_id ? 180 : 0}deg); transition: transform 0.2s;">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                style="transform: rotate({expandedCatalogId === entry.catalog_id
+                  ? 180
+                  : 0}deg); transition: transform 0.2s;"
+              >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
@@ -420,11 +509,15 @@
                     <div class="limit-cards">
                       <div class="limit-card">
                         <span class="limit-label">{i18n.t('models.col_context')}</span>
-                        <span class="limit-value mono">{formatTokens(limitField(entry, 'context'))}</span>
+                        <span class="limit-value mono"
+                          >{formatTokens(limitField(entry, 'context'))}</span
+                        >
                       </div>
                       <div class="limit-card">
                         <span class="limit-label">{i18n.t('models.col_output')}</span>
-                        <span class="limit-value mono">{formatTokens(limitField(entry, 'output'))}</span>
+                        <span class="limit-value mono"
+                          >{formatTokens(limitField(entry, 'output'))}</span
+                        >
                       </div>
                     </div>
                   </div>
@@ -433,7 +526,11 @@
                     <h5>{i18n.t('models.detail_capabilities')}</h5>
                     <div class="cap-grid">
                       {#each capabilityItems(entry) as cap}
-                        <span class="cap-pill" class:on={cap.enabled}>{cap.label} · {cap.enabled ? i18n.t('models.detail_yes') : i18n.t('models.detail_no')}</span>
+                        <span class="cap-pill" class:on={cap.enabled}
+                          >{cap.label} · {cap.enabled
+                            ? i18n.t('models.detail_yes')
+                            : i18n.t('models.detail_no')}</span
+                        >
                       {/each}
                     </div>
                   </div>
@@ -484,7 +581,12 @@
                               <tr>
                                 <td>
                                   {#if bench.source}
-                                    <a href={bench.source} target="_blank" rel="noopener noreferrer" class="detail-link">{bench.name}</a>
+                                    <a
+                                      href={bench.source}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      class="detail-link">{bench.name}</a
+                                    >
                                   {:else}
                                     {bench.name}
                                   {/if}
@@ -505,7 +607,12 @@
                       <h5>{i18n.t('models.weights')}</h5>
                       <div class="link-list">
                         {#each weights as weight}
-                          <a href={weight.url} target="_blank" rel="noopener noreferrer" class="detail-link">{weight.label} ↗</a>
+                          <a
+                            href={weight.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="detail-link">{weight.label} ↗</a
+                          >
                         {/each}
                       </div>
                     </div>
@@ -529,7 +636,11 @@
                     </div>
                     <div class="spec-item">
                       <span class="spec-label">{i18n.t('models.aa_creator')}</span>
-                      <span class="spec-value">{entry.artificial_analysis.creator_name || entry.artificial_analysis.creator_slug || '—'}</span>
+                      <span class="spec-value"
+                        >{entry.artificial_analysis.creator_name ||
+                          entry.artificial_analysis.creator_slug ||
+                          '—'}</span
+                      >
                     </div>
                   </div>
                   {#if aaScoreRows(entry).length > 0}
@@ -568,7 +679,12 @@
                         <div class="gateway-card-head">
                           <div class="gateway-title">
                             {#if ep.provider_tag}
-                              <CatalogLogo id={ep.provider_tag} kind="provider" size={20} alt={ep.provider_name} />
+                              <CatalogLogo
+                                id={ep.provider_tag}
+                                kind="provider"
+                                size={20}
+                                alt={ep.provider_name}
+                              />
                             {/if}
                             <span class="gateway-name">{ep.provider_name}</span>
                           </div>
@@ -582,7 +698,9 @@
                           </button>
                         </div>
                         <div class="gateway-health" class:ok={ep.status === 0}>
-                          {ep.status === 0 ? i18n.t('models.endpoint_online') : i18n.t('models.endpoint_degraded')}
+                          {ep.status === 0
+                            ? i18n.t('models.endpoint_online')
+                            : i18n.t('models.endpoint_degraded')}
                         </div>
                         <div class="gateway-pricing mono">
                           <span>In {formatEndpointCost(ep.input_cost)}</span>
@@ -738,7 +856,9 @@
 
   .model-grid {
     display: grid;
-    grid-template-columns: 40px minmax(140px, 1.2fr) minmax(140px, 1fr) 90px 72px 72px 88px 92px minmax(120px, 0.9fr) 72px 28px;
+    grid-template-columns:
+      40px minmax(140px, 1.2fr) minmax(140px, 1fr)
+      90px 72px 72px 88px 92px minmax(120px, 0.9fr) 72px 28px;
     align-items: center;
     gap: 8px;
     width: 100%;

@@ -65,7 +65,6 @@ pub async fn handle_messages(
         headers: headers.clone(),
         stream,
         path_suffix: "v1/messages".to_string(),
-        url_model: None,
     };
 
     let result = execute_with_fallback(

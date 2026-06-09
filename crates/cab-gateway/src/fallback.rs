@@ -11,12 +11,6 @@ pub struct ProxyRequest {
     pub headers: axum::http::HeaderMap,
     pub stream: bool,
     pub path_suffix: String,
-    /// Model id embedded in upstream URL (Gemini native API).
-    pub url_model: Option<String>,
-}
-
-fn is_gemini_path(path_suffix: &str) -> bool {
-    path_suffix.contains("generateContent")
 }
 
 fn is_messages_path(path_suffix: &str) -> bool {
@@ -45,11 +39,7 @@ fn target_model_name(resolved: &ResolvedModel, fallback: &str) -> String {
         })
 }
 
-fn build_upstream_url(
-    endpoint: &cab_core::types::ProviderEndpoint,
-    request: &ProxyRequest,
-    resolved: &ResolvedModel,
-) -> String {
+fn build_upstream_url(endpoint: &cab_core::types::ProviderEndpoint) -> String {
     let base = endpoint.url.trim_end_matches('/').to_string();
     match endpoint.protocol.as_str() {
         "anthropic" => {
@@ -68,26 +58,6 @@ fn build_upstream_url(
                 format!("{base}/responses")
             } else {
                 format!("{base}/v1/responses")
-            }
-        }
-        "gemini" => {
-            let model_name = request
-                .url_model
-                .as_deref()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| target_model_name(resolved, &resolved.model.name));
-            let action = if request.stream || request.path_suffix.contains("streamGenerateContent")
-            {
-                "streamGenerateContent?alt=sse"
-            } else {
-                "generateContent"
-            };
-            if base.contains(":generateContent") || base.contains(":streamGenerateContent") {
-                base
-            } else if base.ends_with("/models") {
-                format!("{base}/{model_name}:{action}")
-            } else {
-                format!("{base}/models/{model_name}:{action}")
             }
         }
         _ => {
@@ -211,7 +181,7 @@ pub async fn execute_with_fallback(
             let mut endpoint_error = None;
 
             for endpoint in &resolved.endpoint_candidates {
-                let upstream_url = build_upstream_url(endpoint, request, resolved);
+                let upstream_url = build_upstream_url(endpoint);
 
                 tracing::info!(
                     "Trying model {} via {} [{}] at {}",
@@ -223,11 +193,8 @@ pub async fn execute_with_fallback(
 
                 let is_messages_path = is_messages_path(&request.path_suffix);
                 let is_responses_path = is_responses_path(&request.path_suffix);
-                let is_gemini_path = is_gemini_path(&request.path_suffix);
                 let needs_responses_shim =
                     endpoint.protocol != "openai-responses" && is_responses_path;
-                let needs_gemini_stream_shim =
-                    endpoint.protocol != "gemini" && is_gemini_path && request.stream;
 
                 let mut rewritten_body = request.body.clone();
                 if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&request.body) {
@@ -235,12 +202,6 @@ pub async fn execute_with_fallback(
                         && request.path_suffix == "chat/completions"
                     {
                         crate::protocol::openai_to_anthropic(&json_val)
-                    } else if endpoint.protocol == "gemini"
-                        && request.path_suffix == "chat/completions"
-                    {
-                        crate::protocol::openai_to_gemini(&json_val)
-                    } else if endpoint.protocol != "gemini" && is_gemini_path {
-                        crate::protocol::gemini_to_openai_chat_request(&json_val)
                     } else if endpoint.protocol != "anthropic" && is_messages_path {
                         crate::protocol::anthropic_to_openai_chat_request(&json_val)
                     } else if endpoint.protocol != "openai-responses" && is_responses_path {
@@ -251,14 +212,11 @@ pub async fn execute_with_fallback(
 
                     if let Some(obj) = converted_val.as_object_mut() {
                         let target_model_name = target_model_name(resolved, &resolved.model.name);
-
-                        if !(endpoint.protocol == "gemini" && is_gemini_path) {
-                            obj.insert(
-                                "model".to_string(),
-                                serde_json::Value::String(target_model_name),
-                            );
-                        }
-                        if needs_responses_shim || needs_gemini_stream_shim {
+                        obj.insert(
+                            "model".to_string(),
+                            serde_json::Value::String(target_model_name),
+                        );
+                        if needs_responses_shim {
                             obj.insert("stream".to_string(), serde_json::Value::Bool(false));
                         }
                     }
@@ -267,7 +225,7 @@ pub async fn execute_with_fallback(
                     }
                 }
 
-                let upstream_stream = if needs_responses_shim || needs_gemini_stream_shim {
+                let upstream_stream = if needs_responses_shim {
                     false
                 } else {
                     request.stream
@@ -382,7 +340,6 @@ async fn convert_success_response(
 ) -> Response {
     let is_messages_path = is_messages_path(&request.path_suffix);
     let is_responses_path = is_responses_path(&request.path_suffix);
-    let is_gemini_path = is_gemini_path(&request.path_suffix);
 
     if endpoint.protocol == "anthropic"
         && request.path_suffix == "chat/completions"
@@ -416,49 +373,6 @@ async fn convert_success_response(
                     let anthropic_json =
                         crate::protocol::openai_chat_to_anthropic_messages(&openai_json);
                     match serde_json::to_vec(&anthropic_json) {
-                        Ok(new_body_bytes) => {
-                            Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
-                        }
-                        Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
-                    }
-                } else {
-                    Response::from_parts(parts, axum::body::Body::from(body_bytes))
-                }
-            }
-            Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
-        };
-    }
-
-    if endpoint.protocol == "gemini" && request.path_suffix == "chat/completions" && !request.stream
-    {
-        let (parts, body) = response.into_parts();
-        return match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-            Ok(body_bytes) => {
-                if let Ok(gemini_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    let openai_json =
-                        crate::protocol::gemini_to_openai(&gemini_json, &resolved.model.name);
-                    match serde_json::to_vec(&openai_json) {
-                        Ok(new_body_bytes) => {
-                            Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
-                        }
-                        Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
-                    }
-                } else {
-                    Response::from_parts(parts, axum::body::Body::from(body_bytes))
-                }
-            }
-            Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
-        };
-    }
-
-    if endpoint.protocol != "gemini" && is_gemini_path && !request.stream {
-        let (parts, body) = response.into_parts();
-        return match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-            Ok(body_bytes) => {
-                if let Ok(openai_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    let gemini_json =
-                        crate::protocol::openai_chat_to_gemini(&openai_json, &resolved.model.name);
-                    match serde_json::to_vec(&gemini_json) {
                         Ok(new_body_bytes) => {
                             Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
                         }

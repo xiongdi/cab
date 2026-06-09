@@ -10,10 +10,11 @@ order: 3
 **触发**：Codex（或其他已支持 Agent）发送 `POST /v1/chat/completions`，`model` 为 `auto` 或 Agent 配置为 auto 模式。
 
 **主路径**：
+
 1. `extract_agent` 从 Header 识别 agent（如 `codex`）
 2. `build_request_profile` 分析 messages 文本 → `TaskKind::Coding`
 3. `rank_models` 在已启用模型中按能力/成本排序
-4. 转发至最高分模型供应商
+4. 转发至最高分模型提供商
 
 **源码**：`openai.rs` → `router.rs::resolve_by_strategy`
 
@@ -22,6 +23,7 @@ order: 3
 **触发**：订阅 Key 收到 HTTP 429。
 
 **路径**：
+
 1. `proxy.rs` 解析 `Retry-After` → `CabError::ProviderError { retry_after }`
 2. `mark_api_key_quota_reset` 写入 `quota_reset_at` 到 settings
 3. `ordered_api_keys` 跳过限额内 Key，尝试按量 Key
@@ -34,6 +36,7 @@ order: 3
 **触发**：用户在 Agents 页将 `claude-code` 设为 `auto`。
 
 **路径**：
+
 1. `PUT /api/agents/claude-code` → `apply_agent_config`
 2. 写入 `~/.claude/settings.json` 指向 `http://127.0.0.1:{gateway_port}`
 3. Claude Code 请求经 Gateway 路由

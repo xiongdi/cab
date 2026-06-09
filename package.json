@@ -1,13 +1,16 @@
 {
   "name": "cab",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "check": "vp check && svelte-check --tsconfig ./tsconfig.json",
+    "format": "vp fmt .",
+    "format:check": "vp fmt --check .",
+    "test:unit": "vp test",
     "tauri": "tauri",
     "tauri:dev": "npm run tauri -- dev",
     "tauri:start": "npm run build && npm run tauri -- dev --no-dev-server"
@@ -25,6 +28,11 @@
     "svelte": "^5",
     "svelte-check": "^4",
     "typescript": "^6",
-    "vite": "^8"
-  }
+    "vite-plus": "^0.1.24"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@latest",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  },
+  "packageManager": "npm@11.16.0"
 }

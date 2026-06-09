@@ -11,8 +11,5 @@
       "http://localhost:5173"
     ]
   },
-  "permissions": [
-    "core:default",
-    "allow-get-gateway-port"
-  ]
+  "permissions": ["core:default", "allow-get-gateway-port"]
 }

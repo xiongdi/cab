@@ -7,7 +7,7 @@
     kind = 'provider',
     size = 20,
     alt = '',
-    class: className = ''
+    class: className = '',
   }: {
     id: string;
     kind?: CatalogLogoKind;
@@ -85,8 +85,8 @@
     <span
       class="catalog-logo-fallback"
       style:font-size="{Math.max(10, Math.round(size * 0.42))}px"
-      aria-hidden={alt ? undefined : true}
-    >{initial}</span>
+      aria-hidden={alt ? undefined : true}>{initial}</span
+    >
   {:else}
     <span class="catalog-logo-spinner" aria-hidden="true"></span>
   {/if}

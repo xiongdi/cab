@@ -1,7 +1,7 @@
 <script lang="ts">
   let {
     status,
-    label
+    label,
   }: {
     status: 'active' | 'inactive' | 'error' | 'warning';
     label?: string;
@@ -11,14 +11,14 @@
     active: { class: 'badge-success', text: 'Active' },
     inactive: { class: 'badge-neutral', text: 'Inactive' },
     error: { class: 'badge-error', text: 'Error' },
-    warning: { class: 'badge-warning', text: 'Warning' }
+    warning: { class: 'badge-warning', text: 'Warning' },
   };
 
   const dotClass: Record<string, string> = {
     active: 'dot-active',
     inactive: 'dot-inactive',
     error: 'dot-error',
-    warning: 'dot-active'
+    warning: 'dot-active',
   };
 </script>
 

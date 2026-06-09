@@ -4,7 +4,7 @@
     value,
     label,
     trend,
-    color = 'default'
+    color = 'default',
   }: {
     icon: string;
     value: string | number;
@@ -18,7 +18,7 @@
     blue: 'rgba(59, 130, 246, 0.12)',
     green: 'rgba(34, 197, 94, 0.12)',
     purple: 'rgba(139, 92, 246, 0.12)',
-    amber: 'rgba(245, 158, 11, 0.12)'
+    amber: 'rgba(245, 158, 11, 0.12)',
   };
 
   const iconColorMap: Record<string, string> = {
@@ -26,13 +26,22 @@
     blue: '#60a5fa',
     green: '#4ade80',
     purple: '#a78bfa',
-    amber: '#fbbf24'
+    amber: '#fbbf24',
   };
 </script>
 
 <div class="stat-card">
   <div class="stat-icon" style:background={colorMap[color]} style:color={iconColorMap[color]}>
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.75"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
       <path d={icon} />
     </svg>
   </div>
@@ -68,12 +77,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.06),
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
   }
 
   .stat-card:hover {

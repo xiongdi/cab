@@ -17,7 +17,7 @@
     ontoggleStatus,
     expandedRow,
     isRowExpanded,
-    onRowClick
+    onRowClick,
   }: {
     columns: Column[];
     data: any[];
@@ -47,12 +47,12 @@
 
   // Reset currentPage reactively when any filter changes
   $effect(() => {
-    searchQuery;
-    selectedProvider;
-    selectedProtocol;
-    selectedStatus;
-    selectedContext;
-    selectedPrice;
+    void searchQuery;
+    void selectedProvider;
+    void selectedProtocol;
+    void selectedStatus;
+    void selectedContext;
+    void selectedPrice;
     currentPage = 1;
   });
 
@@ -87,46 +87,52 @@
   // Tokenized fuzzy matching function
   function tokenMatchRow(row: any, query: string): boolean {
     if (!query) return true;
-    const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
+    const tokens = query
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 0);
     if (tokens.length === 0) return true;
-    
+
     // EVERY token must match AT LEAST ONE field in the row
-    return tokens.every(token => {
-      return columns.some(col => {
-        const val = row[col.key];
-        if (val == null) return false;
-        return String(val).toLowerCase().includes(token);
-      }) || (row.name && String(row.name).toLowerCase().includes(token))
-         || (row.id && String(row.id).toLowerCase().includes(token))
-         || (row.display_name && String(row.display_name).toLowerCase().includes(token))
-         || (row.provider_name && String(row.provider_name).toLowerCase().includes(token));
+    return tokens.every((token) => {
+      return (
+        columns.some((col) => {
+          const val = row[col.key];
+          if (val == null) return false;
+          return String(val).toLowerCase().includes(token);
+        }) ||
+        (row.name && String(row.name).toLowerCase().includes(token)) ||
+        (row.id && String(row.id).toLowerCase().includes(token)) ||
+        (row.display_name && String(row.display_name).toLowerCase().includes(token)) ||
+        (row.provider_name && String(row.provider_name).toLowerCase().includes(token))
+      );
     });
   }
 
   // Advanced reactive filtering logic
   let filteredData = $derived.by(() => {
-    return data.filter(row => {
+    return data.filter((row) => {
       // 1. Text Search matching (tokenized fuzzy)
       if (!tokenMatchRow(row, searchQuery)) return false;
-      
+
       // 2. Provider Filter
       if (selectedProvider !== 'all') {
         const p = row.provider_name || row.provider || row.provider_id;
         if (p !== selectedProvider) return false;
       }
-      
+
       // 3. Protocol Filter
       if (selectedProtocol !== 'all') {
         if (row.protocol !== selectedProtocol) return false;
       }
-      
+
       // 4. Status Filter
       if (selectedStatus !== 'all') {
         const isActive = row.enabled === 1 || row.enabled === true;
         const wantActive = selectedStatus === 'active';
         if (isActive !== wantActive) return false;
       }
-      
+
       // 5. Context Limit Filter
       if (selectedContext !== 'all') {
         const len = row.context_length || 0;
@@ -138,12 +144,12 @@
       // 6. Price Range Filter (input_cost per 1M tokens)
       if (selectedPrice !== 'all') {
         const cost = row.input_cost ?? 0;
-        if (selectedPrice === 'free'   && cost > 0)    return false;
-        if (selectedPrice === 'budget' && (cost <= 0 || cost > 1))  return false;
-        if (selectedPrice === 'mid'    && (cost <= 1 || cost > 10)) return false;
+        if (selectedPrice === 'free' && cost > 0) return false;
+        if (selectedPrice === 'budget' && (cost <= 0 || cost > 1)) return false;
+        if (selectedPrice === 'mid' && (cost <= 1 || cost > 10)) return false;
         if (selectedPrice === 'premium' && cost <= 10) return false;
       }
-      
+
       return true;
     });
   });
@@ -156,7 +162,7 @@
       const bVal = b[sortKey];
       if (aVal == null) return 1;
       if (bVal == null) return -1;
-      
+
       if (typeof aVal === 'string') {
         return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       } else {
@@ -203,7 +209,17 @@
   {#if showSearch && data.length > 0}
     <div class="search-bar-container fade-in">
       <div class="search-input-wrapper">
-        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          class="search-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
@@ -214,8 +230,22 @@
           bind:value={searchQuery}
         />
         {#if searchQuery}
-          <button class="clear-btn" onclick={() => searchQuery = ''} aria-label="Clear search" type="button">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <button
+            class="clear-btn"
+            onclick={() => (searchQuery = '')}
+            aria-label="Clear search"
+            type="button"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
@@ -235,7 +265,7 @@
         {/if}
 
         <!-- Protocol Filter Dropdown -->
-        {#if columns.some(c => c.key === 'protocol')}
+        {#if columns.some((c) => c.key === 'protocol')}
           <select class="select filter-select" bind:value={selectedProtocol}>
             <option value="all">All Protocols</option>
             <option value="openai">OpenAI Protocol</option>
@@ -244,7 +274,7 @@
         {/if}
 
         <!-- Context Limit Range Filter Dropdown -->
-        {#if columns.some(c => c.key === 'context_length')}
+        {#if columns.some((c) => c.key === 'context_length')}
           <select class="select filter-select" bind:value={selectedContext}>
             <option value="all">Any Context</option>
             <option value="8k">≥ 8K</option>
@@ -254,7 +284,7 @@
         {/if}
 
         <!-- Price Range Filter -->
-        {#if columns.some(c => c.key === 'input_cost')}
+        {#if columns.some((c) => c.key === 'input_cost')}
           <select class="select filter-select" bind:value={selectedPrice}>
             <option value="all">Any Price</option>
             <option value="free">Free / $0</option>
@@ -277,61 +307,69 @@
     {#if searchQuery || selectedProvider !== 'all' || selectedProtocol !== 'all' || selectedStatus !== 'all' || selectedContext !== 'all'}
       <div class="active-filters-chips fade-in">
         <span class="chips-label text-muted">Filters:</span>
-        
+
         {#if searchQuery}
           <div class="filter-chip">
             <span class="chip-key">Query:</span>
             <span class="chip-val">{searchQuery}</span>
-            <button class="chip-remove" onclick={() => searchQuery = ''}>✕</button>
+            <button class="chip-remove" onclick={() => (searchQuery = '')}>✕</button>
           </div>
         {/if}
-        
+
         {#if selectedProvider !== 'all'}
           <div class="filter-chip">
             <span class="chip-key">Provider:</span>
             <span class="chip-val">{selectedProvider}</span>
-            <button class="chip-remove" onclick={() => selectedProvider = 'all'}>✕</button>
+            <button class="chip-remove" onclick={() => (selectedProvider = 'all')}>✕</button>
           </div>
         {/if}
-        
+
         {#if selectedProtocol !== 'all'}
           <div class="filter-chip">
             <span class="chip-key">Protocol:</span>
             <span class="chip-val">{selectedProtocol}</span>
-            <button class="chip-remove" onclick={() => selectedProtocol = 'all'}>✕</button>
+            <button class="chip-remove" onclick={() => (selectedProtocol = 'all')}>✕</button>
           </div>
         {/if}
-        
+
         {#if selectedContext !== 'all'}
           <div class="filter-chip">
             <span class="chip-key">Context:</span>
             <span class="chip-val">≥ {selectedContext.toUpperCase()}</span>
-            <button class="chip-remove" onclick={() => selectedContext = 'all'}>✕</button>
+            <button class="chip-remove" onclick={() => (selectedContext = 'all')}>✕</button>
           </div>
         {/if}
 
         {#if selectedPrice !== 'all'}
           <div class="filter-chip">
             <span class="chip-key">Price:</span>
-            <span class="chip-val">{selectedPrice === 'free' ? 'Free' : selectedPrice === 'budget' ? '<$1/M' : selectedPrice === 'mid' ? '$1–$10/M' : '>$10/M'}</span>
-            <button class="chip-remove" onclick={() => selectedPrice = 'all'}>✕</button>
+            <span class="chip-val"
+              >{selectedPrice === 'free'
+                ? 'Free'
+                : selectedPrice === 'budget'
+                  ? '<$1/M'
+                  : selectedPrice === 'mid'
+                    ? '$1–$10/M'
+                    : '>$10/M'}</span
+            >
+            <button class="chip-remove" onclick={() => (selectedPrice = 'all')}>✕</button>
           </div>
         {/if}
-        
+
         {#if selectedStatus !== 'all'}
           <div class="filter-chip">
             <span class="chip-key">Status:</span>
             <span class="chip-val">{selectedStatus === 'active' ? 'Active' : 'Inactive'}</span>
-            <button class="chip-remove" onclick={() => selectedStatus = 'all'}>✕</button>
+            <button class="chip-remove" onclick={() => (selectedStatus = 'all')}>✕</button>
           </div>
         {/if}
-        
+
         <button class="btn btn-ghost btn-sm clear-all-btn" onclick={clearAllFilters} type="button">
           Clear All
         </button>
 
         <div style="flex-grow:1"></div>
-        
+
         <div class="search-results-count mono">
           Found {filteredData.length} of {data.length}
         </div>
@@ -356,7 +394,17 @@
                 <span class="th-content">
                   {col.label}
                   {#if col.sortable && sortKey === col.key}
-                    <svg class="sort-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <svg
+                      class="sort-icon"
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
                       {#if sortDir === 'asc'}
                         <path d="M18 15l-6-6-6 6" />
                       {:else}
@@ -389,7 +437,12 @@
               {#each columns as col}
                 <td style:text-align={col.align ?? 'left'}>
                   {#if (col.key === 'enabled' || col.key === 'effective_enabled') && ontoggleStatus}
-                    <label class="toggle" style="transform: scale(0.85); display: inline-block;" onclick={(e) => e.stopPropagation()} role="presentation">
+                    <label
+                      class="toggle"
+                      style="transform: scale(0.85); display: inline-block;"
+                      onclick={(e) => e.stopPropagation()}
+                      role="presentation"
+                    >
                       <input
                         type="checkbox"
                         checked={row[col.key]}
@@ -412,7 +465,10 @@
             </tr>
             {#if expandedRow && isRowExpanded && isRowExpanded(row)}
               <tr class="expanded-row-tr">
-                <td colspan={columns.length + (rowActions ? 1 : 0)} style="padding: 0; border-top: none;">
+                <td
+                  colspan={columns.length + (rowActions ? 1 : 0)}
+                  style="padding: 0; border-top: none;"
+                >
                   {@render expandedRow(row)}
                 </td>
               </tr>
@@ -426,18 +482,27 @@
     {#if pageSize > 0 && totalPages > 1}
       <div class="pagination-container fade-in">
         <div class="pagination-info">
-          Showing <span class="mono" style="color:var(--text-primary); font-weight: 500;">{Math.min(filteredData.length, (currentPage - 1) * pageSize + 1)}-{Math.min(filteredData.length, currentPage * pageSize)}</span> of <span class="mono" style="color:var(--text-primary); font-weight: 500;">{filteredData.length}</span>
+          Showing <span class="mono" style="color:var(--text-primary); font-weight: 500;"
+            >{Math.min(filteredData.length, (currentPage - 1) * pageSize + 1)}-{Math.min(
+              filteredData.length,
+              currentPage * pageSize
+            )}</span
+          >
+          of
+          <span class="mono" style="color:var(--text-primary); font-weight: 500;"
+            >{filteredData.length}</span
+          >
         </div>
         <div class="pagination-buttons">
           <button
             class="btn btn-secondary btn-sm"
             disabled={currentPage === 1}
-            onclick={() => currentPage = Math.max(1, currentPage - 1)}
+            onclick={() => (currentPage = Math.max(1, currentPage - 1))}
             type="button"
           >
             Previous
           </button>
-          
+
           <div class="pagination-pages">
             {#each getVisiblePages(currentPage, totalPages) as page}
               {#if page === -1}
@@ -446,7 +511,7 @@
                 <button
                   class="btn btn-sm page-num-btn"
                   class:active-page={currentPage === page}
-                  onclick={() => currentPage = page}
+                  onclick={() => (currentPage = page)}
                   type="button"
                 >
                   {page}
@@ -454,11 +519,11 @@
               {/if}
             {/each}
           </div>
-          
+
           <button
             class="btn btn-secondary btn-sm"
             disabled={currentPage === totalPages}
-            onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+            onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
             type="button"
           >
             Next
@@ -719,7 +784,9 @@
     display: inline-flex;
     align-items: center;
     border-radius: var(--radius-sm);
-    transition: transform 0.1s ease, opacity 0.2s;
+    transition:
+      transform 0.1s ease,
+      opacity 0.2s;
   }
   .status-toggle-btn:hover {
     opacity: 0.85;
@@ -729,5 +796,3 @@
     transform: scale(0.98);
   }
 </style>
-
-

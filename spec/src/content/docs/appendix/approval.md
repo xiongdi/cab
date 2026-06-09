@@ -7,12 +7,12 @@ order: 3
 
 ## 需求基线（维基未单列，记入审批）
 
-| 类型 | 位置 |
-| --- | --- |
-| 功能需求 | `requirements/functional-requirements` |
-| URD | `requirements/user-requirements-document` |
-| UAT 计划 | `requirements/uat-plan` |
-| 变更 | `appendix/changelog` |
+| 类型     | 位置                                      |
+| -------- | ----------------------------------------- |
+| 功能需求 | `requirements/functional-requirements`    |
+| URD      | `requirements/user-requirements-document` |
+| UAT 计划 | `requirements/uat-plan`                   |
+| 变更     | `appendix/changelog`                      |
 
 评审检查：每条 REQ 可测试；Gateway/API 路由表无遗漏；`settings.json` 字段变更保持 `serde(default)` 兼容。
 
@@ -22,17 +22,17 @@ order: 3
 
 ## 阶段审批表
 
-| 阶段 | 交付物 | 评审焦点 | 状态 | 签发人 | 日期 |
-| --- | --- | --- | --- | --- | --- |
-| 需求分析 | requirements/* | URD、UAT 计划可追溯 | 待签发 | | |
-| 系统设计 | system-design/* | 与需求一致、ST 计划完整 | 待签发 | | |
-| 架构设计 | architecture/* | 子系统边界、接口契约 | 待签发 | | |
-| 模组设计 | modules/* | 可编码、UT 计划覆盖 | 待签发 | | |
-| 代码实现 | 源码 + implementation/* | 对照低阶设计 | 持续 | | |
-| 单元测试 | unit-test/* | workspace 测试绿 | 持续 | | |
-| 集成测试 | integration-test/* | CI 通过 | 持续 | | |
-| 系统测试 | system-test/* | ST 用例执行 | 待签发 | | |
-| 验收测试 | acceptance/* | UAT Pass | 待签发 | | |
+| 阶段     | 交付物                   | 评审焦点                | 状态   | 签发人 | 日期 |
+| -------- | ------------------------ | ----------------------- | ------ | ------ | ---- |
+| 需求分析 | requirements/\*          | URD、UAT 计划可追溯     | 待签发 |        |      |
+| 系统设计 | system-design/\*         | 与需求一致、ST 计划完整 | 待签发 |        |      |
+| 架构设计 | architecture/\*          | 子系统边界、接口契约    | 待签发 |        |      |
+| 模组设计 | modules/\*               | 可编码、UT 计划覆盖     | 待签发 |        |      |
+| 代码实现 | 源码 + implementation/\* | 对照低阶设计            | 持续   |        |      |
+| 单元测试 | unit-test/\*             | workspace 测试绿        | 持续   |        |      |
+| 集成测试 | integration-test/\*      | CI 通过                 | 持续   |        |      |
+| 系统测试 | system-test/\*           | ST 用例执行             | 待签发 |        |      |
+| 验收测试 | acceptance/\*            | UAT Pass                | 待签发 |        |      |
 
 ## 评审检查项（通用）
 

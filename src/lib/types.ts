@@ -14,7 +14,7 @@ export interface ApiKeyConfig {
 
 export interface ProviderEndpoint {
   id: string;
-  protocol: 'openai-chat' | 'anthropic' | 'openai-responses' | 'gemini';
+  protocol: 'openai-chat' | 'anthropic' | 'openai-responses';
   url: string;
   label: string | null;
   priority: number;

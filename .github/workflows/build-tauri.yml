@@ -46,14 +46,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
+          cache: true
 
       - name: Install dependencies
-        run: npm ci
+        run: vp install
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -80,7 +80,7 @@ jobs:
       - name: Build Frontend
         run: |
           npx svelte-kit sync
-          npm run build
+          vp build
 
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0

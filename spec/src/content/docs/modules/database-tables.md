@@ -9,69 +9,69 @@ CAB **不使用关系型数据库**。本节将 `StoreData` 与 `settings.json` 
 
 ## 逻辑表：providers
 
-| 字段 | 类型 | 约束 |
-| --- | --- | --- |
-| id | string | PK |
-| name | string | |
-| endpoints | ProviderEndpoint[] | |
-| api_keys | ApiKeyConfig[] | |
-| api_key | string | 派生首选 Key |
-| enabled | bool | |
-| catalog_models | string[] | |
+| 字段           | 类型               | 约束         |
+| -------------- | ------------------ | ------------ |
+| id             | string             | PK           |
+| name           | string             |              |
+| endpoints      | ProviderEndpoint[] |              |
+| api_keys       | ApiKeyConfig[]     |              |
+| api_key        | string             | 派生首选 Key |
+| enabled        | bool               |              |
+| catalog_models | string[]           |              |
 
 索引：`HashMap<id, Provider>`
 
 ## 逻辑表：models
 
-| 字段 | 类型 | 约束 |
-| --- | --- | --- |
-| id | string | PK（规范化 name） |
-| name | string | canonical slug |
-| provider_id | string | FK → providers.id |
-| protocol | string | openai-chat / anthropic / gemini |
-| input_cost / output_cost | f64? | |
-| coding_index 等 | f64 | AA 或启发式 |
-| enabled | bool | |
+| 字段                     | 类型   | 约束                                       |
+| ------------------------ | ------ | ------------------------------------------ |
+| id                       | string | PK（规范化 name）                          |
+| name                     | string | canonical slug                             |
+| provider_id              | string | FK → providers.id                          |
+| protocol                 | string | openai-chat / anthropic / openai-responses |
+| input_cost / output_cost | f64?   |                                            |
+| coding_index 等          | f64    | AA 或启发式                                |
+| enabled                  | bool   |                                            |
 
 ## 逻辑表：model_endpoints
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| key | string | PK，通常为 `provider_id:model_name` |
-| provider_id | string | |
-| model_id | string | |
-| input_cost / output_cost | f64? | 端点级定价覆盖 |
+| 字段                     | 类型   | 说明                                |
+| ------------------------ | ------ | ----------------------------------- |
+| key                      | string | PK，通常为 `provider_id:model_name` |
+| provider_id              | string |                                     |
+| model_id                 | string |                                     |
+| input_cost / output_cost | f64?   | 端点级定价覆盖                      |
 
 ## 逻辑表：routes
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | string | PK |
-| name | string | |
-| agent_pattern | string | 匹配 Agent 标识 |
-| routing_strategy | string | auto/balanced/cheapest/intelligent |
-| primary_model_id | string? | |
-| fallback_model_ids | string[] | |
+| 字段               | 类型     | 说明                               |
+| ------------------ | -------- | ---------------------------------- |
+| id                 | string   | PK                                 |
+| name               | string   |                                    |
+| agent_pattern      | string   | 匹配 Agent 标识                    |
+| routing_strategy   | string   | auto/balanced/cheapest/intelligent |
+| primary_model_id   | string?  |                                    |
+| fallback_model_ids | string[] |                                    |
 
 ## 逻辑表：agents
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | string | PK，7 个内置 |
-| mode | string | native / auto / manual |
-| model_id | string? | manual 模式 |
-| api_key / endpoint | string | 透传配置 |
+| 字段               | 类型    | 说明                   |
+| ------------------ | ------- | ---------------------- |
+| id                 | string  | PK，7 个内置           |
+| mode               | string  | native / auto / manual |
+| model_id           | string? | manual 模式            |
+| api_key / endpoint | string  | 透传配置               |
 
 ## 逻辑表：request_logs
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| id | uuid | |
-| agent / provider / model | string | |
-| input_tokens / output_tokens | i64 | |
-| latency_ms | i64 | |
-| status_code | i32 | |
-| created_at | string | RFC3339 |
+| 字段                         | 类型   | 说明    |
+| ---------------------------- | ------ | ------- |
+| id                           | uuid   |         |
+| agent / provider / model     | string |         |
+| input_tokens / output_tokens | i64    |         |
+| latency_ms                   | i64    |         |
+| status_code                  | i32    |         |
+| created_at                   | string | RFC3339 |
 
 存储：`Vec<RequestLog>`，按时间追加；保留天数 `settings.log_retention_days`（默认 30）。
 

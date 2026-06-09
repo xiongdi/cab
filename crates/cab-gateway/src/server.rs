@@ -5,9 +5,9 @@ use axum::{
 use std::sync::Arc;
 
 use crate::state::GatewayState;
-use crate::{anthropic, gemini, openai};
+use crate::{anthropic, openai};
 
-/// Build the gateway router mounted at `/v1` and `/v1beta`.
+/// Build the gateway router mounted at `/v1`.
 pub fn gateway_router(state: GatewayState) -> Router {
     let shared = Arc::new(state);
 
@@ -19,9 +19,5 @@ pub fn gateway_router(state: GatewayState) -> Router {
         .route("/v1/responses", post(openai::handle_responses))
         .route("/v1/messages", post(anthropic::handle_messages))
         .route("/v1/models", get(openai::handle_list_models))
-        .route(
-            "/v1beta/models/{*model_action}",
-            post(gemini::handle_model_action),
-        )
         .with_state(shared)
 }

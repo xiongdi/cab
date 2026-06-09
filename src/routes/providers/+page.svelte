@@ -25,18 +25,18 @@
   let expandedProviderId = $state<string | null>(null);
 
   let providerRows = $derived<ProviderRow[]>(
-    providers.map(provider => {
+    providers.map((provider) => {
       const draftKeys = keyListDrafts[provider.id] || [];
       return {
         ...provider,
-        has_key: draftKeys.some(k => k.key.trim().length > 0)
+        has_key: draftKeys.some((k) => k.key.trim().length > 0),
       };
     })
   );
 
   let rows = $derived.by(() => {
     const query = searchQuery.trim().toLowerCase();
-    let result = providerRows.filter(provider => {
+    let result = providerRows.filter((provider) => {
       if (keyFilter === 'configured' && !provider.has_key) return false;
       if (keyFilter === 'missing' && provider.has_key) return false;
       if (statusFilter === 'enabled' && !enabledDrafts[provider.id]) return false;
@@ -44,8 +44,7 @@
 
       if (!query) return true;
       return (
-        provider.name.toLowerCase().includes(query) ||
-        provider.id.toLowerCase().includes(query)
+        provider.name.toLowerCase().includes(query) || provider.id.toLowerCase().includes(query)
       );
     });
 
@@ -54,7 +53,8 @@
       const right = b[sortKey];
       const order = sortDir === 'asc' ? 1 : -1;
       if (typeof left === 'number' && typeof right === 'number') return (left - right) * order;
-      if (typeof left === 'boolean' && typeof right === 'boolean') return (Number(left) - Number(right)) * order;
+      if (typeof left === 'boolean' && typeof right === 'boolean')
+        return (Number(left) - Number(right)) * order;
       return String(left ?? '').localeCompare(String(right ?? '')) * order;
     });
 
@@ -96,23 +96,21 @@
     try {
       const [rawProviders, rawModels] = await Promise.all([
         api.providers.list(),
-        api.models.list()
+        api.models.list(),
       ]);
       providers = rawProviders;
       rebuildProviderModelNames(rawModels);
-      enabledDrafts = Object.fromEntries(rawProviders.map(p => [p.id, p.enabled]));
+      enabledDrafts = Object.fromEntries(rawProviders.map((p) => [p.id, p.enabled]));
       keyListDrafts = Object.fromEntries(
-        rawProviders.map(p => [
+        rawProviders.map((p) => [
           p.id,
-          p.api_keys
-            ? p.api_keys.map(k => ({ ...k, subscribed: k.subscribed ?? false }))
-            : []
+          p.api_keys ? p.api_keys.map((k) => ({ ...k, subscribed: k.subscribed ?? false })) : [],
         ])
       );
       endpointDrafts = Object.fromEntries(
-        rawProviders.map(p => [p.id, p.endpoints ? p.endpoints.map(e => ({ ...e })) : []])
+        rawProviders.map((p) => [p.id, p.endpoints ? p.endpoints.map((e) => ({ ...e })) : []])
       );
-      if (expandedProviderId && !rawProviders.some(p => p.id === expandedProviderId)) {
+      if (expandedProviderId && !rawProviders.some((p) => p.id === expandedProviderId)) {
         expandedProviderId = null;
       }
     } catch (e) {
@@ -139,11 +137,11 @@
 
   function endpointProtocols(providerId: string): string[] {
     const eps = endpointDrafts[providerId] || [];
-    return [...new Set(eps.map(ep => ep.protocol))].sort();
+    return [...new Set(eps.map((ep) => ep.protocol))].sort();
   }
 
   function keyCount(providerId: string): number {
-    return (keyListDrafts[providerId] || []).filter(k => k.key.trim().length > 0).length;
+    return (keyListDrafts[providerId] || []).filter((k) => k.key.trim().length > 0).length;
   }
 
   function isKeyRateLimited(keyConfig: ApiKeyConfig): boolean {
@@ -181,7 +179,7 @@
     const newEnabled = !currentEnabled;
 
     const draftKeys = keyListDrafts[provider.id] || [];
-    const hasEnabledKey = draftKeys.some(k => k.enabled && k.key.trim().length > 0);
+    const hasEnabledKey = draftKeys.some((k) => k.enabled && k.key.trim().length > 0);
 
     if (newEnabled && !hasEnabledKey) {
       toast.error(i18n.t('providers.enable_requires_key'));
@@ -202,8 +200,8 @@
   async function autoSaveKeys(provider: ProviderRow) {
     const draftKeys = keyListDrafts[provider.id] || [];
     const enabled = enabledDrafts[provider.id] ?? false;
-    const keysToSave = draftKeys.filter(k => k.key.trim().length > 0);
-    const hasEnabledKey = keysToSave.some(k => k.enabled);
+    const keysToSave = draftKeys.filter((k) => k.key.trim().length > 0);
+    const hasEnabledKey = keysToSave.some((k) => k.enabled);
 
     if (enabled && !hasEnabledKey) {
       toast.error(i18n.t('providers.enabled_requires_key'));
@@ -236,7 +234,7 @@
       url: '',
       label: null,
       priority: 50,
-      enabled: true
+      enabled: true,
     });
   }
 
@@ -275,35 +273,80 @@
   <section class="provider-toolbar">
     <div class="toolbar-col">
       <div class="search-wrap">
-        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          class="search-icon"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
         </svg>
-        <input class="input search-input" type="text" placeholder={i18n.t('providers.search_placeholder')} bind:value={searchQuery} />
+        <input
+          class="input search-input"
+          type="text"
+          placeholder={i18n.t('providers.search_placeholder')}
+          bind:value={searchQuery}
+        />
       </div>
     </div>
     <div class="toolbar-col">
       <div class="filter-segment" role="group" aria-label={i18n.t('providers.filter_key_group')}>
-        <button type="button" class="segment-btn" class:active={keyFilter === 'all'} onclick={() => (keyFilter = 'all')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={keyFilter === 'all'}
+          onclick={() => (keyFilter = 'all')}
+        >
           {i18n.t('providers.filter_all_keys')}
         </button>
-        <button type="button" class="segment-btn" class:active={keyFilter === 'configured'} onclick={() => (keyFilter = 'configured')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={keyFilter === 'configured'}
+          onclick={() => (keyFilter = 'configured')}
+        >
           {i18n.t('providers.filter_has_key')}
         </button>
-        <button type="button" class="segment-btn" class:active={keyFilter === 'missing'} onclick={() => (keyFilter = 'missing')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={keyFilter === 'missing'}
+          onclick={() => (keyFilter = 'missing')}
+        >
           {i18n.t('providers.filter_no_key')}
         </button>
       </div>
     </div>
     <div class="toolbar-col">
       <div class="filter-segment" role="group" aria-label={i18n.t('providers.filter_status_group')}>
-        <button type="button" class="segment-btn" class:active={statusFilter === 'all'} onclick={() => (statusFilter = 'all')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'all'}
+          onclick={() => (statusFilter = 'all')}
+        >
           {i18n.t('providers.filter_all_status')}
         </button>
-        <button type="button" class="segment-btn" class:active={statusFilter === 'enabled'} onclick={() => (statusFilter = 'enabled')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'enabled'}
+          onclick={() => (statusFilter = 'enabled')}
+        >
           {i18n.t('providers.filter_enabled')}
         </button>
-        <button type="button" class="segment-btn" class:active={statusFilter === 'disabled'} onclick={() => (statusFilter = 'disabled')}>
+        <button
+          type="button"
+          class="segment-btn"
+          class:active={statusFilter === 'disabled'}
+          onclick={() => (statusFilter = 'disabled')}
+        >
           {i18n.t('providers.filter_disabled')}
         </button>
       </div>
@@ -314,12 +357,36 @@
     <div class="provider-table">
       <div class="provider-grid header-row">
         <div class="cell cell-logo">{i18n.t('providers.col_logo')}</div>
-        <div class="cell cell-name sortable" class:active-sort={sortKey === 'name'} onclick={() => setSort('name')}>{i18n.t('providers.col_name')}</div>
-        <div class="cell cell-id sortable" class:active-sort={sortKey === 'id'} onclick={() => setSort('id')}>{i18n.t('providers.col_id')}</div>
-        <div class="cell cell-models sortable" class:active-sort={sortKey === 'model_count'} onclick={() => setSort('model_count')}>{i18n.t('providers.col_models')}</div>
+        <div
+          class="cell cell-name sortable"
+          class:active-sort={sortKey === 'name'}
+          onclick={() => setSort('name')}
+        >
+          {i18n.t('providers.col_name')}
+        </div>
+        <div
+          class="cell cell-id sortable"
+          class:active-sort={sortKey === 'id'}
+          onclick={() => setSort('id')}
+        >
+          {i18n.t('providers.col_id')}
+        </div>
+        <div
+          class="cell cell-models sortable"
+          class:active-sort={sortKey === 'model_count'}
+          onclick={() => setSort('model_count')}
+        >
+          {i18n.t('providers.col_models')}
+        </div>
         <div class="cell cell-endpoints">{i18n.t('providers.col_endpoints')}</div>
         <div class="cell cell-keys">{i18n.t('providers.col_keys')}</div>
-        <div class="cell cell-status sortable" class:active-sort={sortKey === 'enabled'} onclick={() => setSort('enabled')}>{i18n.t('providers.col_status')}</div>
+        <div
+          class="cell cell-status sortable"
+          class:active-sort={sortKey === 'enabled'}
+          onclick={() => setSort('enabled')}
+        >
+          {i18n.t('providers.col_status')}
+        </div>
         <div class="cell cell-chevron" aria-hidden="true"></div>
       </div>
 
@@ -363,7 +430,17 @@
               </span>
             </div>
             <div class="cell cell-chevron">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="transform: rotate({expandedProviderId === provider.id ? 180 : 0}deg); transition: transform 0.2s;">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                style="transform: rotate({expandedProviderId === provider.id
+                  ? 180
+                  : 0}deg); transition: transform 0.2s;"
+              >
                 <polyline points="6 9 12 15 18 9" />
               </svg>
             </div>
@@ -383,7 +460,12 @@
                 <div class="detail-field">
                   <span class="detail-label">{i18n.t('providers.detail_doc')}</span>
                   {#if provider.doc}
-                    <a href={provider.doc} target="_blank" rel="noopener noreferrer" class="detail-link">{provider.doc}</a>
+                    <a
+                      href={provider.doc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="detail-link">{provider.doc}</a
+                    >
                   {:else}
                     <span class="detail-value muted">—</span>
                   {/if}
@@ -405,7 +487,11 @@
               <section class="detail-section">
                 <div class="detail-section-head">
                   <h4>{i18n.t('providers.detail_models')}</h4>
-                  <span class="muted text-xs">{i18n.t('providers.models_total').replace('{count}', String(provider.model_count ?? 0))}</span>
+                  <span class="muted text-xs"
+                    >{i18n
+                      .t('providers.models_total')
+                      .replace('{count}', String(provider.model_count ?? 0))}</span
+                  >
                 </div>
                 {#if modelsForProvider(provider).length > 0}
                   <div class="model-name-list">
@@ -421,7 +507,11 @@
               <section class="detail-section">
                 <div class="detail-section-head">
                   <h4>{i18n.t('providers.detail_endpoints')}</h4>
-                  <button type="button" class="btn btn-xs btn-accent" onclick={() => addEndpoint(provider.id)}>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-accent"
+                    onclick={() => addEndpoint(provider.id)}
+                  >
                     + {i18n.t('providers.add_endpoint')}
                   </button>
                 </div>
@@ -438,7 +528,6 @@
                         >
                           <option value="openai-chat">openai-chat</option>
                           <option value="anthropic">anthropic</option>
-                          <option value="gemini">gemini</option>
                           <option value="openai-responses">openai-responses</option>
                         </select>
                         <input
@@ -465,13 +554,34 @@
                           bind:value={ep.priority}
                           onblur={() => autoSaveEndpoints(provider)}
                         />
-                        <label class="toggle ep-enabled-toggle" title={ep.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled')}>
-                          <input type="checkbox" bind:checked={ep.enabled} onchange={() => autoSaveEndpoints(provider)} />
+                        <label
+                          class="toggle ep-enabled-toggle"
+                          title={ep.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled')}
+                        >
+                          <input
+                            type="checkbox"
+                            bind:checked={ep.enabled}
+                            onchange={() => autoSaveEndpoints(provider)}
+                          />
                           <span class="toggle-slider"></span>
                         </label>
-                        <button type="button" class="btn-icon-delete" onclick={() => removeEndpoint(provider, index)} title={i18n.t('common.delete')}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <button
+                          type="button"
+                          class="btn-icon-delete"
+                          onclick={() => removeEndpoint(provider, index)}
+                          title={i18n.t('common.delete')}
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path
+                              d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                            />
                           </svg>
                         </button>
                       </div>
@@ -483,7 +593,11 @@
               <section class="detail-section">
                 <div class="detail-section-head">
                   <h4>{i18n.t('providers.detail_keys')}</h4>
-                  <button type="button" class="btn btn-xs btn-neutral" onclick={() => addKey(provider.id)}>
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-neutral"
+                    onclick={() => addKey(provider.id)}
+                  >
                     + {i18n.t('providers.add_key')}
                   </button>
                 </div>
@@ -500,8 +614,17 @@
                           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
                         }}
                       />
-                      <label class="toggle key-toggle" title={keyConfig.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled')}>
-                        <input type="checkbox" bind:checked={keyConfig.enabled} onchange={() => autoSaveKeys(provider)} />
+                      <label
+                        class="toggle key-toggle"
+                        title={keyConfig.enabled
+                          ? i18n.t('common.enabled')
+                          : i18n.t('common.disabled')}
+                      >
+                        <input
+                          type="checkbox"
+                          bind:checked={keyConfig.enabled}
+                          onchange={() => autoSaveKeys(provider)}
+                        />
                         <span class="toggle-slider"></span>
                       </label>
                       <label
@@ -521,9 +644,23 @@
                           {i18n.t('providers.key_quota_limited')}
                         </span>
                       {/if}
-                      <button type="button" class="btn-icon-delete" onclick={() => removeKey(provider, index)} title={i18n.t('providers.delete_key')}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <button
+                        type="button"
+                        class="btn-icon-delete"
+                        onclick={() => removeKey(provider, index)}
+                        title={i18n.t('providers.delete_key')}
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                          />
                         </svg>
                       </button>
                     </div>
@@ -548,7 +685,9 @@
                     <span class="toggle-slider"></span>
                   </label>
                   <span class="status-badge" class:enabled={enabledDrafts[provider.id]}>
-                    {enabledDrafts[provider.id] ? i18n.t('common.enabled') : i18n.t('common.disabled')}
+                    {enabledDrafts[provider.id]
+                      ? i18n.t('common.enabled')
+                      : i18n.t('common.disabled')}
                   </span>
                 </div>
               </section>

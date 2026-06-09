@@ -14,22 +14,24 @@ To build and run CAB locally, you need the following prerequisites installed on 
 ### Build and Run Steps
 
 1. **Clone the repository**:
+
    ```bash
    git clone git@github.com:xiongdi/cab.git
    cd cab
    ```
 
 2. **Install frontend dependencies**:
+
    ```bash
    npm install
    ```
 
 3. **Run in development mode**:
-   * **Run Tauri App (Desktop GUI)**:
+   - **Run Tauri App (Desktop GUI)**:
      ```bash
      npm run tauri:dev
      ```
-   * **Run Server Mode Only (Backend API & Proxy)**:
+   - **Run Server Mode Only (Backend API & Proxy)**:
      ```bash
      cargo run -p cab-server
      ```
@@ -44,26 +46,31 @@ To build and run CAB locally, you need the following prerequisites installed on 
 
 ### Code Quality and Guidelines
 
-* **Rust Formatting**: We use standard Rust formatting. Check with:
+- **Rust Formatting**: We use standard Rust formatting. Check with:
+
   ```bash
   cargo fmt --all -- --check
   ```
+
   Fix formatting automatically with:
+
   ```bash
   cargo fmt --all
   ```
 
-* **Rust Linting**: Run Clippy to catch common errors and patterns:
+- **Rust Linting**: Run Clippy to catch common errors and patterns:
+
   ```bash
   cargo clippy --workspace --all-targets -- -D warnings
   ```
 
-* **Frontend Checking**: Ensure TypeScript and Svelte code compiles correctly:
+- **Frontend Checking**: Ensure TypeScript and Svelte code compiles correctly:
+
   ```bash
   npm run check
   ```
 
-* **Testing**: Run Rust tests to ensure no regressions:
+- **Testing**: Run Rust tests to ensure no regressions:
   ```bash
   cargo test --workspace
   ```

@@ -6,7 +6,7 @@
     title = '',
     width = '480px',
     children,
-    onclose
+    onclose,
   }: {
     open: boolean;
     title?: string;
@@ -43,7 +43,16 @@
       <div class="modal-header">
         <h2 class="modal-title">{title}</h2>
         <button class="modal-close" onclick={handleBackdrop} aria-label="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
@@ -75,7 +84,9 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    box-shadow: var(--shadow-lg), 0 0 60px rgba(0, 0, 0, 0.4);
+    box-shadow:
+      var(--shadow-lg),
+      0 0 60px rgba(0, 0, 0, 0.4);
     animation: modalSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
   }
@@ -119,8 +130,12 @@
   }
 
   @keyframes overlayFadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
 
   @keyframes modalSlideIn {

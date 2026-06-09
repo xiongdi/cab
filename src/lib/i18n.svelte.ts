@@ -24,7 +24,7 @@ class I18nManager {
     const dict = translations[this.currentLang];
     const parts = key.split('.');
     let current: any = dict;
-    
+
     for (const part of parts) {
       if (current && typeof current === 'object' && part in current) {
         current = current[part];
@@ -32,7 +32,7 @@ class I18nManager {
         return key;
       }
     }
-    
+
     return typeof current === 'string' ? current : key;
   }
 }

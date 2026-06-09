@@ -7,13 +7,12 @@ order: 3
 
 ## Gateway 对外契约
 
-| 方法 | 路径 | Handler | 协议 |
-| --- | --- | --- | --- |
-| POST | `/v1/chat/completions` | `openai::handle_chat_completions` | OpenAI Chat |
-| POST | `/v1/responses` | `openai::handle_responses` | OpenAI Responses |
-| POST | `/v1/messages` | `anthropic::handle_messages` | Anthropic Messages |
-| GET | `/v1/models` | `openai::handle_list_models` | OpenAI Models |
-| POST | `/v1beta/models/{*model_action}` | `gemini::handle_model_action` | Gemini |
+| 方法 | 路径                   | Handler                           | 协议               |
+| ---- | ---------------------- | --------------------------------- | ------------------ |
+| POST | `/v1/chat/completions` | `openai::handle_chat_completions` | OpenAI Chat        |
+| POST | `/v1/responses`        | `openai::handle_responses`        | OpenAI Responses   |
+| POST | `/v1/messages`         | `anthropic::handle_messages`      | Anthropic Messages |
+| GET  | `/v1/models`           | `openai::handle_list_models`      | OpenAI Models      |
 
 **认证**：请求头 `Authorization: Bearer {gateway_key}`（`settings.gateway_key`）。
 

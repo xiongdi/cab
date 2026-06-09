@@ -21,9 +21,8 @@ import type {
   CatalogStatusResponse,
   SyncCatalogResponse,
   Agent,
-  UpdateAgent
+  UpdateAgent,
 } from './types';
-
 
 let resolvedPort: number | null = null;
 
@@ -74,9 +73,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const res = await fetch(`${apiBase}${path}`, {
       headers: {
         'Content-Type': 'application/json',
-        Accept: 'application/json'
+        Accept: 'application/json',
       },
-      ...options
+      ...options,
     });
 
     if (!res.ok) {
@@ -93,9 +92,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   } catch (err) {
     if (err instanceof ApiError) throw err;
     throw new ApiError(
-      err instanceof TypeError
-        ? 'Cannot connect to CAB gateway. Is it running?'
-        : String(err),
+      err instanceof TypeError ? 'Cannot connect to CAB gateway. Is it running?' : String(err),
       0
     );
   }
@@ -104,7 +101,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 export const api = {
   // ── Dashboard ─────────────────────────────────────────────
   dashboard: {
-    getStats: () => request<DashboardStats>('/dashboard/stats')
+    getStats: () => request<DashboardStats>('/dashboard/stats'),
   },
 
   // ── Providers ─────────────────────────────────────────────
@@ -116,8 +113,8 @@ export const api = {
     update: (id: string, data: UpdateProvider) =>
       request<Provider>(`/providers/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
-      })
+        body: JSON.stringify(data),
+      }),
   },
 
   // ── Models ────────────────────────────────────────────────
@@ -134,16 +131,15 @@ export const api = {
     updateEndpoint: (id: string, enabled: boolean) =>
       request<ModelEndpoint>('/model-endpoints', {
         method: 'PUT',
-        body: JSON.stringify({ id, enabled })
+        body: JSON.stringify({ id, enabled }),
       }),
 
     update: (id: string, data: UpdateModel) =>
       request<Model>(`/models/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
-      })
+        body: JSON.stringify(data),
+      }),
   },
-
 
   // ── Routes ────────────────────────────────────────────────
   routes: {
@@ -154,17 +150,16 @@ export const api = {
     create: (data: CreateRoute) =>
       request<Route>('/routes', {
         method: 'POST',
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       }),
 
     update: (id: string, data: UpdateRoute) =>
       request<Route>(`/routes/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       }),
 
-    delete: (id: string) =>
-      request<void>(`/routes/${id}`, { method: 'DELETE' })
+    delete: (id: string) => request<void>(`/routes/${id}`, { method: 'DELETE' }),
   },
 
   // ── Logs ──────────────────────────────────────────────────
@@ -180,7 +175,7 @@ export const api = {
       }
       const qs = params.toString();
       return request<PaginatedLogs>(`/logs${qs ? `?${qs}` : ''}`);
-    }
+    },
   },
 
   // ── Settings ──────────────────────────────────────────────
@@ -190,13 +185,12 @@ export const api = {
     update: (data: UpdateSettings) =>
       request<Settings>('/settings', {
         method: 'PUT',
-        body: JSON.stringify(data)
+        body: JSON.stringify(data),
       }),
 
     getCatalogStatus: () => request<CatalogStatusResponse>('/settings/catalog-status'),
 
-    syncCatalog: () =>
-      request<SyncCatalogResponse>('/settings/sync-catalog', { method: 'POST' })
+    syncCatalog: () => request<SyncCatalogResponse>('/settings/sync-catalog', { method: 'POST' }),
   },
 
   // ── Agents ────────────────────────────────────────────────
@@ -206,9 +200,9 @@ export const api = {
     update: (id: string, data: UpdateAgent) =>
       request<Agent>(`/agents/${id}`, {
         method: 'PUT',
-        body: JSON.stringify(data)
-      })
-  }
+        body: JSON.stringify(data),
+      }),
+  },
 };
 
 export { ApiError };

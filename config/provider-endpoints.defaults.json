@@ -349,20 +349,13 @@
       ]
     },
     "google-ai-studio": {
-      "default_protocol": "gemini",
+      "default_protocol": "openai-chat",
       "endpoints": [
-        {
-          "protocol": "gemini",
-          "url": "https://generativelanguage.googleapis.com/v1beta",
-          "label": "Native Gemini API",
-          "priority": 100,
-          "enabled": true
-        },
         {
           "protocol": "openai-chat",
           "url": "https://generativelanguage.googleapis.com/v1beta/openai",
-          "label": "OpenAI-compatible fallback",
-          "priority": 50,
+          "label": "OpenAI-compatible",
+          "priority": 100,
           "enabled": true
         }
       ]

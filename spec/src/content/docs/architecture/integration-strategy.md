@@ -33,10 +33,10 @@ SvelteKit 静态资源（build/）
 
 ## CI 流水线（`.github/workflows/ci.yml`）
 
-| Job | 步骤 |
-| --- | --- |
-| rust-checks | `cargo fmt --check` → `cargo clippy -D warnings` → `cargo test --workspace` |
-| frontend-checks | `npm ci` → `svelte-kit sync` → `npm run check` → `npm run build` |
+| Job             | 步骤                                                                        |
+| --------------- | --------------------------------------------------------------------------- |
+| rust-checks     | `cargo fmt --check` → `cargo clippy -D warnings` → `cargo test --workspace` |
+| frontend-checks | `npm ci` → `svelte-kit sync` → `npm run check` → `npm run build`            |
 
 ## 本地集成验证
 
@@ -48,8 +48,8 @@ cargo run -p cab-server   # 合并 gateway + api + 静态前端
 
 ## 风险与缓解
 
-| 风险 | 缓解 |
-| --- | --- |
-| 内存 store 与磁盘 settings 不一致 | `update_settings` 同步写盘 |
-| 协议转换错误 | `protocol.rs` 单元测试 + Gateway 集成用例 |
-| 端口配置错误 | 启动日志明确监听地址 |
+| 风险                              | 缓解                                      |
+| --------------------------------- | ----------------------------------------- |
+| 内存 store 与磁盘 settings 不一致 | `update_settings` 同步写盘                |
+| 协议转换错误                      | `protocol.rs` 单元测试 + Gateway 集成用例 |
+| 端口配置错误                      | 启动日志明确监听地址                      |

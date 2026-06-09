@@ -240,9 +240,6 @@ fn protocol_for_models_dev_provider(provider: &ModelsDevProvider) -> String {
         .to_ascii_lowercase();
     if npm.contains("anthropic") || api.contains("anthropic") {
         "anthropic".to_string()
-    } else if npm.contains("google") || api.contains("google") || api.contains("generativelanguage")
-    {
-        "gemini".to_string()
     } else {
         "openai-chat".to_string()
     }

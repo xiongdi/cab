@@ -5,7 +5,7 @@
     padding = '20px',
     hover = false,
     glow = false,
-    children
+    children,
   }: {
     padding?: string;
     hover?: boolean;
@@ -14,12 +14,7 @@
   } = $props();
 </script>
 
-<div
-  class="card"
-  class:card-hover={hover}
-  class:card-glow={glow}
-  style:padding={padding}
->
+<div class="card" class:card-hover={hover} class:card-glow={glow} style:padding>
   {@render children()}
 </div>
 

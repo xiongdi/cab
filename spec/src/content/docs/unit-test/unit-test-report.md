@@ -7,12 +7,12 @@ order: 5
 
 ## 摘要
 
-| 项 | 值 |
-| --- | --- |
-| 执行方式 | `cargo test --workspace` |
-| 自动化 | 是（CI rust-checks job） |
+| 项         | 值                             |
+| ---------- | ------------------------------ |
+| 执行方式   | `cargo test --workspace`       |
+| 自动化     | 是（CI rust-checks job）       |
 | 主要 crate | cab-core, cab-gateway, cab-api |
-| 当前状态 | 与 main 分支 CI 一致即为通过 |
+| 当前状态   | 与 main 分支 CI 一致即为通过   |
 
 ## 覆盖率说明
 
@@ -25,12 +25,12 @@ CAB 未强制行覆盖率工具；以 **行为覆盖** 为准：
 
 ## 模组通过率
 
-| Crate | 测试模块数 | 备注 |
-| --- | --- | --- |
-| cab-core | 5+ | routing、quota、benchmark 等 |
-| cab-gateway | 2+ | router、protocol |
-| cab-api | 3+ | providers、urls、hook |
-| cab-db | 随集成验证 | 以 store 操作为主 |
+| Crate       | 测试模块数 | 备注                         |
+| ----------- | ---------- | ---------------------------- |
+| cab-core    | 5+         | routing、quota、benchmark 等 |
+| cab-gateway | 2+         | router、protocol             |
+| cab-api     | 3+         | providers、urls、hook        |
+| cab-db      | 随集成验证 | 以 store 操作为主            |
 
 ## 遗留缺陷
 

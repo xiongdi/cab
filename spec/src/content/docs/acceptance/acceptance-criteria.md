@@ -7,14 +7,14 @@ order: 4
 
 ## 验收标准（源自 URD）
 
-| REQ ID | 标准 | 验收方法 |
-| --- | --- | --- |
+| REQ ID      | 标准                      | 验收方法       |
+| ----------- | ------------------------- | -------------- |
 | REQ-CAB-001 | 多 Agent 统一本地 Gateway | UAT-01、UAT-05 |
-| REQ-CAB-002 | 按任务自动选模 | UAT-02 |
-| REQ-CAB-003 | 供应商/模型可配置 | UAT-03 |
-| REQ-CAB-004 | Agent 无感接入 | UAT-06 |
-| REQ-CAB-005 | 请求可观测 | UAT-04 |
-| REQ-CAB-006 | 订阅优先与 429 fallback | UAT-07、UAT-08 |
+| REQ-CAB-002 | 按任务自动选模            | UAT-02         |
+| REQ-CAB-003 | 提供商/模型可配置         | UAT-03         |
+| REQ-CAB-004 | Agent 无感接入            | UAT-06         |
+| REQ-CAB-005 | 请求可观测                | UAT-04         |
+| REQ-CAB-006 | 订阅优先与 429 fallback   | UAT-07、UAT-08 |
 
 ## 通过准则
 

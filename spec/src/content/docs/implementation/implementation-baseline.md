@@ -7,12 +7,12 @@ order: 1
 
 ## 实现依据
 
-| 优先级 | 文档 | 代码落点 |
-| --- | --- | --- |
-| 1 | 模组设计 `logic-pseudocode.md` | `routing.rs`, `fallback.rs` |
-| 2 | 接口契约 `interface-contracts.md` | `lib.rs`, `server.rs` |
-| 3 | 数据字典 `entity-data-dictionary.md` | `types.rs`, `StoreData` |
-| 4 | 系统规格 `software-specification.md` | `main.rs` 组装 |
+| 优先级 | 文档                                 | 代码落点                    |
+| ------ | ------------------------------------ | --------------------------- |
+| 1      | 模组设计 `logic-pseudocode.md`       | `routing.rs`, `fallback.rs` |
+| 2      | 接口契约 `interface-contracts.md`    | `lib.rs`, `server.rs`       |
+| 3      | 数据字典 `entity-data-dictionary.md` | `types.rs`, `StoreData`     |
+| 4      | 系统规格 `software-specification.md` | `main.rs` 组装              |
 
 ## 推荐实现顺序
 
@@ -26,13 +26,13 @@ order: 1
 
 ## 功能增量追溯
 
-| 需求 ID | 实现提交域 |
-| --- | --- |
-| REQ-CAB-001 统一网关 | `cab-gateway`, `cab-server` |
-| REQ-CAB-002 智能路由 | `cab-core/routing.rs`, `router.rs` |
-| REQ-CAB-003 供应商管理 | `cab-api/providers.rs`, `providers/+page.svelte` |
-| REQ-CAB-004 Agent 接入 | `agents.rs` |
-| REQ-CAB-005 可观测性 | `log.rs`, `dashboard.rs`, `logs/+page.svelte` |
+| 需求 ID                | 实现提交域                                         |
+| ---------------------- | -------------------------------------------------- |
+| REQ-CAB-001 统一网关   | `cab-gateway`, `cab-server`                        |
+| REQ-CAB-002 智能路由   | `cab-core/routing.rs`, `router.rs`                 |
+| REQ-CAB-003 提供商管理 | `cab-api/providers.rs`, `providers/+page.svelte`   |
+| REQ-CAB-004 Agent 接入 | `agents.rs`                                        |
+| REQ-CAB-005 可观测性   | `log.rs`, `dashboard.rs`, `logs/+page.svelte`      |
 | REQ-CAB-006 订阅与 429 | `subscription_quota.rs`, `types.rs`, `fallback.rs` |
 
 ## 构建产物

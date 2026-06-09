@@ -1,20 +1,14 @@
-//! ST: Combined gateway + management API system scenarios for v0.1.0 scope.
+//! ST (in-process): fast subsystem wiring checks via Tower oneshot.
 
-use axum::Router;
+mod support;
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cab_api::api_router;
 use cab_db::InMemoryStore;
-use cab_gateway::{GatewayState, gateway_router};
+use cab_server::build_combined_router;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
-
-fn combined_app(store: InMemoryStore) -> Router {
-    let gateway = gateway_router(GatewayState::new(store.clone()));
-    let api = api_router(store);
-    gateway.merge(api)
-}
 
 async fn json_body(response: axum::response::Response) -> Value {
     let bytes = response
@@ -27,8 +21,8 @@ async fn json_body(response: axum::response::Response) -> Value {
 }
 
 #[tokio::test]
-async fn st_gateway_lists_models_on_v1_path() {
-    let app = combined_app(InMemoryStore::new());
+async fn st_inprocess_gateway_lists_models() {
+    let app = build_combined_router(InMemoryStore::new());
     let response = app
         .oneshot(
             Request::builder()
@@ -42,12 +36,11 @@ async fn st_gateway_lists_models_on_v1_path() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert_eq!(body.get("object").and_then(|v| v.as_str()), Some("list"));
-    assert!(body.get("data").and_then(|v| v.as_array()).is_some());
 }
 
 #[tokio::test]
-async fn st_cloudcode_proxy_route_is_not_exposed() {
-    let app = combined_app(InMemoryStore::new());
+async fn st_inprocess_cloudcode_route_removed() {
+    let app = build_combined_router(InMemoryStore::new());
     let response = app
         .oneshot(
             Request::builder()
@@ -59,15 +52,12 @@ async fn st_cloudcode_proxy_route_is_not_exposed() {
         )
         .await
         .unwrap();
-
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-async fn st_management_and_gateway_share_agent_catalog() {
-    let store = InMemoryStore::new();
-    let app = combined_app(store);
-
+async fn st_inprocess_agent_catalog_has_seven_entries() {
+    let app = build_combined_router(InMemoryStore::new());
     let response = app
         .oneshot(
             Request::builder()
@@ -96,7 +86,7 @@ async fn st_management_and_gateway_share_agent_catalog() {
 
 #[tokio::test]
 async fn st_settings_endpoint_available_on_combined_router() {
-    let app = combined_app(InMemoryStore::new());
+    let app = build_combined_router(InMemoryStore::new());
     let response = app
         .oneshot(
             Request::builder()
