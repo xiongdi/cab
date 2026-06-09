@@ -69,7 +69,7 @@
       </div>
       <div class="logo-text">
         <span class="logo-name">CAB</span>
-        <span class="logo-subtitle">Coding Agents Bridge</span>
+        <span class="logo-subtitle">{i18n.t('common.app_subtitle')}</span>
       </div>
     </div>
   </div>
@@ -120,7 +120,7 @@
         <span class="dot dot-active"></span>
         <span class="status-text">{i18n.t('settings.running')}</span>
       </div>
-      <span class="version">v0.1.0</span>
+      <span class="version">v0.1.1</span>
     </div>
   </div>
 </aside>

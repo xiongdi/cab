@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<WixLocalization
+  Culture="en-US"
+  Codepage="1252"
+  xmlns="http://schemas.microsoft.com/wix/2006/localization"
+>
+  <String Id="LaunchApp">Launch CAB</String>
+  <String Id="DowngradeErrorMessage">A newer version of CAB is already installed.</String>
+  <String Id="PathEnvVarFeature">
+    Add the install location of the CAB executable to the PATH environment variable so it can be called from any location.
+  </String>
+  <String Id="InstallAppFeature">Install CAB.</String>
+</WixLocalization>

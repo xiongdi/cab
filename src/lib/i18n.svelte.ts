@@ -35,6 +35,15 @@ class I18nManager {
 
     return typeof current === 'string' ? current : key;
   }
+
+  /** Translate with `{name}`-style placeholders. */
+  tParams(key: string, params: Record<string, string | number>): string {
+    let text = this.t(key);
+    for (const [name, value] of Object.entries(params)) {
+      text = text.replaceAll(`{${name}}`, String(value));
+    }
+    return text;
+  }
 }
 
 export const i18n = new I18nManager();

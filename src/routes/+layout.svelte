@@ -2,9 +2,19 @@
   import '../app.css';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import { i18n } from '$lib/i18n.svelte';
 
   let { children } = $props();
+
+  $effect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = i18n.currentLang === 'zh' ? 'zh-CN' : 'en';
+  });
 </script>
+
+<svelte:head>
+  <title>{i18n.t('meta.title')}</title>
+</svelte:head>
 
 <div class="app-layout">
   <Sidebar />

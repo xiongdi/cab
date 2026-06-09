@@ -46,11 +46,11 @@
   function capabilityFlags(entry: ModelCatalogEntry): string[] {
     const data = md(entry);
     const flags: string[] = [];
-    if (data.reasoning) flags.push('reasoning');
-    if (data.tool_call) flags.push('tools');
-    if (data.temperature) flags.push('temperature');
-    if (data.attachment) flags.push('files');
-    if (data.open_weights) flags.push('open weights');
+    if (data.reasoning) flags.push(i18n.t('models.cap_reasoning'));
+    if (data.tool_call) flags.push(i18n.t('models.cap_tools'));
+    if (data.temperature) flags.push(i18n.t('models.cap_temperature'));
+    if (data.attachment) flags.push(i18n.t('models.cap_files'));
+    if (data.open_weights) flags.push(i18n.t('models.cap_open_weights'));
     return flags;
   }
 

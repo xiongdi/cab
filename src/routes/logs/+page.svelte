@@ -4,6 +4,7 @@
   import type { RequestLog, PaginatedLogs, Column, LogFilter } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
+  import { i18n } from '$lib/i18n.svelte';
 
   let logs = $state<RequestLog[]>([]);
   let total = $state(0);
@@ -20,10 +21,12 @@
   let filterModel = $state('');
   let filterStatus = $state('');
 
-  const columns: Column[] = [
+  const columns = $derived.by((): Column[] => {
+    void i18n.currentLang;
+    return [
     {
       key: 'timestamp',
-      label: 'Timestamp',
+      label: i18n.t('logs.time'),
       sortable: true,
       render: (v: string) => {
         try {
@@ -34,38 +37,38 @@
         }
       },
     },
-    { key: 'agent', label: 'Agent', sortable: true },
-    { key: 'provider', label: 'Provider', sortable: true },
+    { key: 'agent', label: i18n.t('logs.agent'), sortable: true },
+    { key: 'provider', label: i18n.t('logs.provider'), sortable: true },
     {
       key: 'model',
-      label: 'Model',
+      label: i18n.t('logs.model'),
       sortable: true,
       render: (v: string) => `<span class="mono" style="font-size:12px">${v}</span>`,
     },
     {
       key: 'input_tokens',
-      label: 'In',
+      label: i18n.t('dashboard.inputs'),
       sortable: true,
       align: 'right' as const,
       render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
     },
     {
       key: 'output_tokens',
-      label: 'Out',
+      label: i18n.t('dashboard.outputs'),
       sortable: true,
       align: 'right' as const,
       render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
     },
     {
       key: 'latency_ms',
-      label: 'Latency',
+      label: i18n.t('logs.latency'),
       sortable: true,
       align: 'right' as const,
       render: (v: number) => `<span class="mono">${v}ms</span>`,
     },
     {
       key: 'status_code',
-      label: 'Status',
+      label: i18n.t('logs.status_code'),
       align: 'center' as const,
       render: (v: number) => {
         const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
@@ -73,6 +76,7 @@
       },
     },
   ];
+  });
 
   onMount(loadLogs);
 
@@ -135,7 +139,7 @@
   }
 </script>
 
-<PageHeader title="Logs" description="Request history and audit trail">
+<PageHeader title={i18n.t('logs.title')} description={i18n.t('logs.subtitle')}>
   {#snippet children()}
     <button class="btn {autoRefresh ? 'btn-primary' : 'btn-secondary'}" onclick={toggleAutoRefresh}>
       <svg
@@ -152,7 +156,7 @@
           d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
         />
       </svg>
-      {autoRefresh ? 'Auto-refresh ON' : 'Auto-refresh'}
+      {autoRefresh ? i18n.t('logs.auto_refresh_on') : i18n.t('logs.auto_refresh')}
     </button>
   {/snippet}
 </PageHeader>
@@ -162,43 +166,52 @@
   <input
     class="input filter-input"
     type="text"
-    placeholder="Filter agent…"
+    placeholder={i18n.t('logs.filter_agent_ph')}
     bind:value={filterAgent}
     onchange={applyFilters}
   />
   <input
     class="input filter-input"
     type="text"
-    placeholder="Filter provider…"
+    placeholder={i18n.t('logs.filter_provider_ph')}
     bind:value={filterProvider}
     onchange={applyFilters}
   />
   <input
     class="input filter-input"
     type="text"
-    placeholder="Filter model…"
+    placeholder={i18n.t('logs.filter_model_ph')}
     bind:value={filterModel}
     onchange={applyFilters}
   />
   <select class="select filter-input" bind:value={filterStatus} onchange={applyFilters}>
-    <option value="">All status</option>
-    <option value="2xx">2xx Success</option>
-    <option value="4xx">4xx Client Error</option>
-    <option value="5xx">5xx Server Error</option>
+    <option value="">{i18n.t('logs.all_status')}</option>
+    <option value="2xx">{i18n.t('logs.status_2xx')}</option>
+    <option value="4xx">{i18n.t('logs.status_4xx')}</option>
+    <option value="5xx">{i18n.t('logs.status_5xx')}</option>
   </select>
-  <button class="btn btn-ghost btn-sm" onclick={clearFilters}>Clear</button>
+  <button class="btn btn-ghost btn-sm" onclick={clearFilters}>{i18n.t('common.clear')}</button>
 </div>
 
 {#if loading && logs.length === 0}
   <div class="skeleton" style="height: 300px; border-radius: var(--radius-lg);"></div>
 {:else}
-  <DataTable {columns} data={logs} emptyMessage="No logs match your filters" />
+  <DataTable
+    {columns}
+    data={logs}
+    emptyMessage={i18n.t('logs.empty_filtered')}
+    searchPlaceholder={i18n.t('common.search')}
+  />
 
   <!-- Pagination -->
   {#if totalPages > 1}
     <div class="pagination">
       <span class="page-info">
-        Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} of {total}
+        {i18n.tParams('logs.page_range', {
+          start: (page - 1) * perPage + 1,
+          end: Math.min(page * perPage, total),
+          total,
+        })}
       </span>
       <div class="page-controls">
         <button class="btn btn-ghost btn-sm" disabled={page <= 1} onclick={() => goPage(page - 1)}>
@@ -214,7 +227,7 @@
           >
             <path d="M15 19l-7-7 7-7" />
           </svg>
-          Previous
+          {i18n.t('common.previous')}
         </button>
         {#each Array(Math.min(totalPages, 7)) as _, i}
           {@const p =
@@ -234,7 +247,7 @@
           disabled={page >= totalPages}
           onclick={() => goPage(page + 1)}
         >
-          Next
+          {i18n.t('common.next')}
           <svg
             width="14"
             height="14"

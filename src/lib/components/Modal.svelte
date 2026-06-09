@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { i18n } from '$lib/i18n.svelte';
 
   let {
     open = $bindable(false),
@@ -42,7 +43,7 @@
     >
       <div class="modal-header">
         <h2 class="modal-title">{title}</h2>
-        <button class="modal-close" onclick={handleBackdrop} aria-label="Close">
+        <button class="modal-close" onclick={handleBackdrop} aria-label={i18n.t('common.close')}>
           <svg
             width="16"
             height="16"

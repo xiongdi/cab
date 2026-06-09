@@ -8,12 +8,12 @@
   let {
     columns,
     data,
-    emptyMessage = 'No data found',
+    emptyMessage,
     emptyIcon = 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
     rowActions,
     showSearch = true,
     pageSize = 50,
-    searchPlaceholder = 'Search...',
+    searchPlaceholder,
     ontoggleStatus,
     expandedRow,
     isRowExpanded,
@@ -226,14 +226,14 @@
         <input
           type="text"
           class="input search-input"
-          placeholder={searchPlaceholder}
+          placeholder={searchPlaceholder ?? i18n.t('datatable.search_placeholder')}
           bind:value={searchQuery}
         />
         {#if searchQuery}
           <button
             class="clear-btn"
             onclick={() => (searchQuery = '')}
-            aria-label="Clear search"
+            aria-label={i18n.t('datatable.clear_search')}
             type="button"
           >
             <svg
@@ -257,7 +257,7 @@
         <!-- Provider Filter Dropdown -->
         {#if uniqueProviders.length > 1}
           <select class="select filter-select" bind:value={selectedProvider}>
-            <option value="all">All Providers</option>
+            <option value="all">{i18n.t('datatable.all_providers')}</option>
             {#each uniqueProviders as provider}
               <option value={provider}>{provider}</option>
             {/each}
@@ -267,16 +267,16 @@
         <!-- Protocol Filter Dropdown -->
         {#if columns.some((c) => c.key === 'protocol')}
           <select class="select filter-select" bind:value={selectedProtocol}>
-            <option value="all">All Protocols</option>
-            <option value="openai">OpenAI Protocol</option>
-            <option value="anthropic">Anthropic Protocol</option>
+            <option value="all">{i18n.t('datatable.all_protocols')}</option>
+            <option value="openai">{i18n.t('datatable.protocol_openai')}</option>
+            <option value="anthropic">{i18n.t('datatable.protocol_anthropic')}</option>
           </select>
         {/if}
 
         <!-- Context Limit Range Filter Dropdown -->
         {#if columns.some((c) => c.key === 'context_length')}
           <select class="select filter-select" bind:value={selectedContext}>
-            <option value="all">Any Context</option>
+            <option value="all">{i18n.t('datatable.all_context')}</option>
             <option value="8k">≥ 8K</option>
             <option value="32k">≥ 32K</option>
             <option value="128k">≥ 128K</option>
@@ -286,19 +286,19 @@
         <!-- Price Range Filter -->
         {#if columns.some((c) => c.key === 'input_cost')}
           <select class="select filter-select" bind:value={selectedPrice}>
-            <option value="all">Any Price</option>
-            <option value="free">Free / $0</option>
-            <option value="budget">Budget (&lt;$1/M)</option>
-            <option value="mid">Mid ($1–$10/M)</option>
-            <option value="premium">Premium (&gt;$10/M)</option>
+            <option value="all">{i18n.t('datatable.all_price')}</option>
+            <option value="free">{i18n.t('datatable.price_free')}</option>
+            <option value="budget">{i18n.t('datatable.price_budget')}</option>
+            <option value="mid">{i18n.t('datatable.price_mid')}</option>
+            <option value="premium">{i18n.t('datatable.price_premium')}</option>
           </select>
         {/if}
 
         <!-- Status Filter Dropdown -->
         <select class="select filter-select" bind:value={selectedStatus}>
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="all">{i18n.t('datatable.all_status')}</option>
+          <option value="active">{i18n.t('datatable.status_active')}</option>
+          <option value="inactive">{i18n.t('datatable.status_inactive')}</option>
         </select>
       </div>
     </div>
@@ -306,11 +306,11 @@
     <!-- Active Filter Chips Bar -->
     {#if searchQuery || selectedProvider !== 'all' || selectedProtocol !== 'all' || selectedStatus !== 'all' || selectedContext !== 'all'}
       <div class="active-filters-chips fade-in">
-        <span class="chips-label text-muted">Filters:</span>
+        <span class="chips-label text-muted">{i18n.t('datatable.filters')}</span>
 
         {#if searchQuery}
           <div class="filter-chip">
-            <span class="chip-key">Query:</span>
+            <span class="chip-key">{i18n.t('datatable.filter_query')}:</span>
             <span class="chip-val">{searchQuery}</span>
             <button class="chip-remove" onclick={() => (searchQuery = '')}>✕</button>
           </div>
@@ -318,7 +318,7 @@
 
         {#if selectedProvider !== 'all'}
           <div class="filter-chip">
-            <span class="chip-key">Provider:</span>
+            <span class="chip-key">{i18n.t('datatable.filter_provider')}:</span>
             <span class="chip-val">{selectedProvider}</span>
             <button class="chip-remove" onclick={() => (selectedProvider = 'all')}>✕</button>
           </div>
@@ -326,7 +326,7 @@
 
         {#if selectedProtocol !== 'all'}
           <div class="filter-chip">
-            <span class="chip-key">Protocol:</span>
+            <span class="chip-key">{i18n.t('datatable.filter_protocol')}:</span>
             <span class="chip-val">{selectedProtocol}</span>
             <button class="chip-remove" onclick={() => (selectedProtocol = 'all')}>✕</button>
           </div>
@@ -334,7 +334,7 @@
 
         {#if selectedContext !== 'all'}
           <div class="filter-chip">
-            <span class="chip-key">Context:</span>
+            <span class="chip-key">{i18n.t('datatable.filter_context')}:</span>
             <span class="chip-val">≥ {selectedContext.toUpperCase()}</span>
             <button class="chip-remove" onclick={() => (selectedContext = 'all')}>✕</button>
           </div>
@@ -342,15 +342,15 @@
 
         {#if selectedPrice !== 'all'}
           <div class="filter-chip">
-            <span class="chip-key">Price:</span>
+            <span class="chip-key">{i18n.t('datatable.filter_price')}:</span>
             <span class="chip-val"
               >{selectedPrice === 'free'
-                ? 'Free'
+                ? i18n.t('datatable.price_free')
                 : selectedPrice === 'budget'
-                  ? '<$1/M'
+                  ? i18n.t('datatable.price_budget')
                   : selectedPrice === 'mid'
-                    ? '$1–$10/M'
-                    : '>$10/M'}</span
+                    ? i18n.t('datatable.price_mid')
+                    : i18n.t('datatable.price_premium')}</span
             >
             <button class="chip-remove" onclick={() => (selectedPrice = 'all')}>✕</button>
           </div>
@@ -358,27 +358,34 @@
 
         {#if selectedStatus !== 'all'}
           <div class="filter-chip">
-            <span class="chip-key">Status:</span>
-            <span class="chip-val">{selectedStatus === 'active' ? 'Active' : 'Inactive'}</span>
+            <span class="chip-key">{i18n.t('datatable.filter_status')}:</span>
+            <span class="chip-val"
+              >{selectedStatus === 'active'
+                ? i18n.t('datatable.status_active')
+                : i18n.t('datatable.status_inactive')}</span
+            >
             <button class="chip-remove" onclick={() => (selectedStatus = 'all')}>✕</button>
           </div>
         {/if}
 
         <button class="btn btn-ghost btn-sm clear-all-btn" onclick={clearAllFilters} type="button">
-          Clear All
+          {i18n.t('datatable.clear_all')}
         </button>
 
         <div style="flex-grow:1"></div>
 
         <div class="search-results-count mono">
-          Found {filteredData.length} of {data.length}
+          {i18n.tParams('datatable.found_count', {
+            found: filteredData.length,
+            total: data.length,
+          })}
         </div>
       </div>
     {/if}
   {/if}
 
   {#if filteredData.length === 0}
-    <EmptyState message={emptyMessage} icon={emptyIcon} />
+    <EmptyState message={emptyMessage ?? i18n.t('datatable.empty')} icon={emptyIcon} />
   {:else}
     <div class="table-wrapper">
       <table>
@@ -416,7 +423,7 @@
               </th>
             {/each}
             {#if rowActions}
-              <th style:width="100px" style:text-align="right">Actions</th>
+              <th style:width="100px" style:text-align="right">{i18n.t('datatable.actions')}</th>
             {/if}
           </tr>
         </thead>
@@ -482,16 +489,11 @@
     {#if pageSize > 0 && totalPages > 1}
       <div class="pagination-container fade-in">
         <div class="pagination-info">
-          Showing <span class="mono" style="color:var(--text-primary); font-weight: 500;"
-            >{Math.min(filteredData.length, (currentPage - 1) * pageSize + 1)}-{Math.min(
-              filteredData.length,
-              currentPage * pageSize
-            )}</span
-          >
-          of
-          <span class="mono" style="color:var(--text-primary); font-weight: 500;"
-            >{filteredData.length}</span
-          >
+          {i18n.tParams('datatable.showing_range', {
+            start: Math.min(filteredData.length, (currentPage - 1) * pageSize + 1),
+            end: Math.min(filteredData.length, currentPage * pageSize),
+            total: filteredData.length,
+          })}
         </div>
         <div class="pagination-buttons">
           <button
@@ -500,7 +502,7 @@
             onclick={() => (currentPage = Math.max(1, currentPage - 1))}
             type="button"
           >
-            Previous
+            {i18n.t('common.previous')}
           </button>
 
           <div class="pagination-pages">
@@ -526,7 +528,7 @@
             onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
             type="button"
           >
-            Next
+            {i18n.t('common.next')}
           </button>
         </div>
       </div>

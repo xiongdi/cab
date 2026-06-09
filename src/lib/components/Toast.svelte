@@ -28,6 +28,8 @@
 </script>
 
 <script lang="ts">
+  import { i18n } from '$lib/i18n.svelte';
+
   const iconPaths: Record<string, string> = {
     success: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
     error: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z',
@@ -55,7 +57,7 @@
           <path d={iconPaths[t.type]} />
         </svg>
         <span class="toast-message">{t.message}</span>
-        <button class="toast-close" onclick={() => removeToast(t.id)} aria-label="Dismiss">
+        <button class="toast-close" onclick={() => removeToast(t.id)} aria-label={i18n.t('common.dismiss')}>
           <svg
             width="12"
             height="12"

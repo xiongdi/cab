@@ -243,11 +243,9 @@
                     onclick={() => (expandedStrategies[s.id] = !isExpanded)}
                   >
                     {#if isExpanded}
-                      {i18n.currentLang === 'zh' ? '收起候选模型' : 'Show Less'}
+                      {i18n.t('routes.show_less')}
                     {:else}
-                      {i18n.currentLang === 'zh'
-                        ? `展开全部候选模型 (${candidates.length})`
-                        : `Show All Candidates (${candidates.length})`}
+                      {i18n.tParams('routes.show_all_candidates', { count: candidates.length })}
                     {/if}
                   </button>
                 </div>
