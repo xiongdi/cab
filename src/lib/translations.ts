@@ -405,7 +405,7 @@ export const translations = {
       guide_opencode:
         '「自动挡」注册 cab/auto 等策略别名；「手动挡」将所有已启用模型写入 `opencode.json` 的 cab provider。',
       guide_hermes:
-        '「自动挡」将 `~/.hermes/config.yaml` 的主模型写为 CAB 自定义端点、当前路由策略与本地网关密钥；新建 Hermes 会话后生效。',
+        '「自动挡」将 `~/.hermes/config.yaml` 以 OpenAI 兼容模式（`api_mode: chat_completions`）指向 CAB 网关，并写入识别用 `default_headers`（Hermes 仅在此模式下支持自定义请求头）。若上游模型只有 Anthropic 协议，CAB 会自动做协议转换转发；新建 Hermes 会话后生效。',
       guide_kilocode:
         'Kilo CLI 基于 OpenCode 配置格式。「自动挡」写入 `~/.config/kilo/opencode.json` 的 cab provider 与策略别名；「手动挡」写入全部已启用模型。',
       guide_openclaw:
@@ -833,7 +833,7 @@ export const translations = {
       guide_opencode:
         'Auto mode registers cab/auto strategy aliases. Manual mode writes every enabled model into `opencode.json` under the cab provider.',
       guide_hermes:
-        'Auto mode writes CAB as the custom main model endpoint in `~/.hermes/config.yaml`, including the selected routing strategy and gateway key. It applies to new Hermes sessions.',
+        'Auto mode points `~/.hermes/config.yaml` at CAB via OpenAI-compatible `api_mode: chat_completions` and adds identifying `default_headers` (Hermes only supports custom headers on this wire). When upstream models are Anthropic-only, CAB translates protocols automatically. Applies to new Hermes sessions.',
       guide_kilocode:
         'Kilo CLI uses the OpenCode config shape. Auto mode writes the cab provider and strategy aliases to `~/.config/kilo/opencode.json`; Manual mode writes every enabled model.',
       guide_openclaw:

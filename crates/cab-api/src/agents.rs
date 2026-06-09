@@ -101,6 +101,51 @@ fn yaml_quote(value: &str) -> String {
     format!("\"{escaped}\"")
 }
 
+/// Hermes only supports custom request headers on the OpenAI-compatible wire
+/// (`api_mode: chat_completions`). Anthropic-only upstream models are reached via
+/// CAB gateway protocol translation, not by switching Hermes to `anthropic_messages`.
+fn cab_identifying_headers(agent_id: &str) -> serde_json::Map<String, Value> {
+    let user_agent = match agent_id {
+        "opencode" => "OpenCode/CAB",
+        "kilocode" => "KiloCode/CAB",
+        "openclaw" => "OpenClaw/CAB",
+        "pi" => "pi-coding-agent/CAB",
+        "hermes" => "HermesAgent/CAB",
+        _ => "CAB",
+    };
+    let mut headers = serde_json::Map::new();
+    headers.insert(
+        "X-CAB-Agent".to_string(),
+        Value::String(agent_id.to_string()),
+    );
+    headers.insert(
+        "User-Agent".to_string(),
+        Value::String(user_agent.to_string()),
+    );
+    headers
+}
+
+fn opencode_model_config(display_name: &str, agent_id: &str) -> Value {
+    let mut model = serde_json::Map::new();
+    model.insert("name".to_string(), Value::String(display_name.to_string()));
+    model.insert(
+        "headers".to_string(),
+        Value::Object(cab_identifying_headers(agent_id)),
+    );
+    Value::Object(model)
+}
+
+fn build_hermes_model_block(model_name: &str, endpoint: &str, api_key: &str) -> String {
+    format!(
+        "model:\n  provider: custom\n  default: {}\n  model: {}\n  base_url: {}\n  api_key: {}\n  api_mode: chat_completions\n  default_headers:\n    User-Agent: {}\n    X-CAB-Agent: \"hermes\"",
+        yaml_quote(model_name),
+        yaml_quote(model_name),
+        yaml_quote(endpoint),
+        yaml_quote(api_key),
+        yaml_quote("HermesAgent/CAB"),
+    )
+}
+
 fn replace_top_level_yaml_block(content: &str, key: &str, replacement: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let Some(start) = lines.iter().position(|line| {
@@ -427,6 +472,10 @@ async fn apply_agent_config(
                 let mut options_obj = serde_json::Map::new();
                 options_obj.insert("baseURL".to_string(), Value::String(ep));
                 options_obj.insert("apiKey".to_string(), Value::String(key));
+                options_obj.insert(
+                    "headers".to_string(),
+                    Value::Object(cab_identifying_headers(agent_id)),
+                );
 
                 let npm = if endpoint.contains("anthropic") {
                     "@ai-sdk/anthropic"
@@ -439,18 +488,25 @@ async fn apply_agent_config(
                     for strategy_name in ["auto", "balanced", "intelligent", "price"] {
                         models_obj.insert(
                             strategy_name.to_string(),
-                            Value::Object(serde_json::Map::new()),
+                            opencode_model_config(
+                                &format!("CAB {strategy_name}"),
+                                agent_id,
+                            ),
                         );
                     }
                 } else {
                     for model in &enabled_models {
-                        models_obj
-                            .insert(model.name.clone(), Value::Object(serde_json::Map::new()));
+                        models_obj.insert(
+                            model.name.clone(),
+                            opencode_model_config(&model.display_name, agent_id),
+                        );
                         if let Some(pos) = model.name.find('/') {
                             let suffix = &model.name[pos + 1..];
                             models_obj
                                 .entry(suffix.to_string())
-                                .or_insert(Value::Object(serde_json::Map::new()));
+                                .or_insert_with(|| {
+                                    opencode_model_config(&model.display_name, agent_id)
+                                });
                         }
                     }
                 }
@@ -517,13 +573,7 @@ async fn apply_agent_config(
                     api_key.to_string()
                 };
                 let model_name = strategy.unwrap_or("auto");
-                let model_block = format!(
-                    "model:\n  provider: custom\n  default: {}\n  model: {}\n  base_url: {}\n  api_key: {}\n  api_mode: chat_completions",
-                    yaml_quote(model_name),
-                    yaml_quote(model_name),
-                    yaml_quote(&ep),
-                    yaml_quote(&key)
-                );
+                let model_block = build_hermes_model_block(model_name, &ep, &key);
                 content = replace_top_level_yaml_block(&content, "model", &model_block);
             } else {
                 let native_block = "model: \"\"";
@@ -615,6 +665,7 @@ async fn apply_agent_config(
                     "apiKey": key,
                     "api": "openai-completions",
                     "timeoutSeconds": 600,
+                    "headers": cab_identifying_headers("openclaw"),
                     "models": provider_models,
                 });
                 run_openclaw_config(vec![
@@ -702,6 +753,7 @@ async fn apply_agent_config(
                 };
 
                 let mut pi_models = Vec::new();
+                let pi_headers = cab_identifying_headers("pi");
                 let default_model = if mode == "auto" {
                     for strategy_name in ["auto", "balanced", "intelligent", "price"] {
                         pi_models.push(serde_json::json!({
@@ -709,6 +761,7 @@ async fn apply_agent_config(
                             "name": format!("CAB {}", strategy_name),
                             "contextWindow": 200000,
                             "maxTokens": 8192,
+                            "headers": pi_headers,
                         }));
                     }
                     strategy.unwrap_or("auto").to_string()
@@ -730,6 +783,7 @@ async fn apply_agent_config(
                                 "cacheRead": 0,
                                 "cacheWrite": 0,
                             },
+                            "headers": pi_headers,
                         }));
                     }
                     enabled_models
@@ -744,6 +798,7 @@ async fn apply_agent_config(
                         "name": "CAB auto",
                         "contextWindow": 200000,
                         "maxTokens": 8192,
+                        "headers": pi_headers,
                     }));
                 }
 
@@ -752,6 +807,7 @@ async fn apply_agent_config(
                     "api": "openai-completions",
                     "apiKey": key,
                     "authHeader": true,
+                    "headers": pi_headers,
                     "compat": {
                         "supportsDeveloperRole": false,
                         "supportsStore": false,
@@ -872,6 +928,37 @@ mod tests {
             let agent = normalize_agent_mode(sample_agent(mode));
             assert_eq!(agent.mode, mode);
         }
+    }
+
+    #[test]
+    fn opencode_model_config_includes_identifying_headers() {
+        let model = opencode_model_config("CAB auto", "kilocode");
+        let headers = model
+            .get("headers")
+            .and_then(|v| v.as_object())
+            .expect("headers");
+        assert_eq!(
+            headers.get("X-CAB-Agent").and_then(|v| v.as_str()),
+            Some("kilocode")
+        );
+        assert_eq!(
+            headers.get("User-Agent").and_then(|v| v.as_str()),
+            Some("KiloCode/CAB")
+        );
+    }
+
+    #[test]
+    fn hermes_model_block_uses_openai_wire_and_identifying_headers() {
+        let block = build_hermes_model_block(
+            "balanced",
+            "http://localhost:3125/v1",
+            "cab-local-key",
+        );
+        assert!(block.contains("api_mode: chat_completions"));
+        assert!(block.contains("default_headers:"));
+        assert!(block.contains("User-Agent: \"HermesAgent/CAB\""));
+        assert!(block.contains("X-CAB-Agent: \"hermes\""));
+        assert!(!block.contains("anthropic_messages"));
     }
 }
 

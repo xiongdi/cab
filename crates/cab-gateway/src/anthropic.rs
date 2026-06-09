@@ -21,7 +21,7 @@ pub async fn handle_messages(
     body: Bytes,
 ) -> Result<Response, CabError> {
     let start = std::time::Instant::now();
-    let agent = extract_agent(&headers);
+    let agent = crate::agent_id::extract_agent_id(&headers);
 
     // Parse body to extract model and stream
     let body_json: serde_json::Value = serde_json::from_slice(&body)
@@ -174,28 +174,3 @@ pub async fn handle_messages(
     }
 }
 
-/// Extract agent identifier from headers — checks x-api-key owner, User-Agent, etc.
-fn extract_agent(headers: &HeaderMap) -> String {
-    headers
-        .get("user-agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|ua| {
-            let lower = ua.to_lowercase();
-            if lower.contains("cursor") {
-                "cursor".to_string()
-            } else if lower.contains("copilot") {
-                "copilot".to_string()
-            } else if lower.contains("continue") {
-                "continue".to_string()
-            } else if lower.contains("cline") {
-                "cline".to_string()
-            } else if lower.contains("aider") {
-                "aider".to_string()
-            } else if lower.contains("claude") {
-                "claude-code".to_string()
-            } else {
-                ua.chars().take(64).collect()
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string())
-}

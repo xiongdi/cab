@@ -22,7 +22,7 @@ pub async fn handle_chat_completions(
     body: Bytes,
 ) -> Result<Response, CabError> {
     let start = std::time::Instant::now();
-    let agent = extract_agent(&headers);
+    let agent = crate::agent_id::extract_agent_id(&headers);
 
     // Parse body to extract the requested model and stream flag
     let body_json: serde_json::Value = serde_json::from_slice(&body)
@@ -178,7 +178,7 @@ pub async fn handle_responses(
     body: Bytes,
 ) -> Result<Response, CabError> {
     let start = std::time::Instant::now();
-    let agent = extract_agent(&headers);
+    let agent = crate::agent_id::extract_agent_id(&headers);
 
     let body_json: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| CabError::InvalidRequest(format!("Invalid JSON body: {e}")))?;
@@ -480,29 +480,3 @@ fn codex_compatible_model(id: &str, display_name: &str, owned_by: &str) -> serde
     })
 }
 
-/// Extract agent identifier from User-Agent header.
-fn extract_agent(headers: &HeaderMap) -> String {
-    headers
-        .get("user-agent")
-        .and_then(|v| v.to_str().ok())
-        .map(|ua| {
-            // Try to extract a meaningful agent name from User-Agent
-            if ua.contains("cursor") || ua.contains("Cursor") {
-                "cursor".to_string()
-            } else if ua.contains("copilot") || ua.contains("Copilot") {
-                "copilot".to_string()
-            } else if ua.contains("continue") || ua.contains("Continue") {
-                "continue".to_string()
-            } else if ua.contains("cline") || ua.contains("Cline") {
-                "cline".to_string()
-            } else if ua.contains("aider") || ua.contains("Aider") {
-                "aider".to_string()
-            } else if ua.contains("claude") || ua.contains("Claude") {
-                "claude-code".to_string()
-            } else {
-                // Use first 64 chars of User-Agent
-                ua.chars().take(64).collect()
-            }
-        })
-        .unwrap_or_else(|| "unknown".to_string())
-}
