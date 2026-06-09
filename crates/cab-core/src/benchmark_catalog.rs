@@ -622,6 +622,30 @@ fn urlencoding_encode_slug(value: &str) -> String {
 mod tests {
     use super::*;
 
+    static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
     fn sample_record(slug: &str, overall: f64, coding: f64, tau2: f64) -> BenchmarkModelRecord {
         BenchmarkModelRecord {
             id: slug.to_string(),
@@ -721,5 +745,204 @@ mod tests {
         assert_eq!(resolved.overall_intelligence, 0.0);
         assert_eq!(resolved.coding_index, 0.0);
         assert_eq!(resolved.agentic_index, 0.0);
+    }
+
+    #[test]
+    fn catalog_paths_statuses_and_raw_writes_use_home_cache() {
+        let _home = TestHome::new();
+        assert!(catalog_root_dir().ends_with(".cab/catalog"));
+        assert_eq!(models_dev_catalog_url(), MODELS_DEV_CATALOG_URL);
+        assert_eq!(artificial_analysis_models_url(), AA_MODELS_URL);
+        assert_eq!(
+            models_dev_provider_logo_url("Open AI"),
+            "https://models.dev/logos/open ai.svg"
+        );
+        assert_eq!(
+            models_dev_lab_logo_url("MiniMax"),
+            "https://models.dev/logos/labs/minimax.svg"
+        );
+
+        let status = models_dev_catalog_status();
+        assert!(!status.available);
+        assert_eq!(status.providers, None);
+        assert_eq!(status.models, None);
+
+        write_raw_catalog_file(
+            &models_dev_catalog_path(),
+            &serde_json::json!({
+                "providers": {"p1": {"name": "P1"}},
+                "models": {"p1/m1": {"id": "p1/m1"}}
+            }),
+        )
+        .unwrap();
+        let catalog = load_models_dev_catalog_file().unwrap();
+        assert_eq!(catalog.providers["p1"]["name"], "P1");
+        let status = models_dev_catalog_status();
+        assert!(status.available);
+        assert_eq!(status.providers, Some(1));
+        assert_eq!(status.models, Some(1));
+        assert!(status.synced_at.is_some());
+
+        write_catalog_file(
+            &artificial_analysis_models_path(),
+            &BenchmarkCatalogFile {
+                source: "artificialanalysis.ai".into(),
+                synced_at: "2026-01-01T00:00:00Z".into(),
+                models: vec![sample_record("p1-m1", 80.0, 70.0, 0.6)],
+            },
+        )
+        .unwrap();
+        let status = artificial_analysis_catalog_status();
+        assert!(status.available);
+        assert_eq!(status.synced_at.as_deref(), Some("2026-01-01T00:00:00Z"));
+        assert_eq!(status.models, Some(1));
+        assert!(load_artificial_analysis_catalog().is_some());
+    }
+
+    #[test]
+    fn aa_model_map_load_save_status_and_exact_refresh() {
+        let _home = TestHome::new();
+        let mut file = AaModelMapFile {
+            version: 7,
+            description: "custom".into(),
+            mappings: HashMap::new(),
+        };
+        file.mappings
+            .insert("existing/model".into(), "known".into());
+        save_aa_model_map(&file).unwrap();
+        assert_eq!(load_aa_model_map().version, 7);
+        let status = aa_model_map_status();
+        assert!(status.available);
+        assert_eq!(status.models, Some(1));
+
+        std::fs::write(aa_model_map_path(), "{bad-json").unwrap();
+        assert_eq!(load_aa_model_map().version, 1);
+        std::fs::remove_file(aa_model_map_path()).unwrap();
+        let seeded = ensure_aa_model_map_file().unwrap();
+        assert!(!seeded.mappings.is_empty());
+
+        write_raw_catalog_file(
+            &models_dev_catalog_path(),
+            &serde_json::json!({
+                "providers": {},
+                "models": {
+                    "minimax/minimax-m3": {"name": "minimax-m3"}
+                }
+            }),
+        )
+        .unwrap();
+        write_catalog_file(
+            &artificial_analysis_models_path(),
+            &BenchmarkCatalogFile {
+                source: "aa".into(),
+                synced_at: "now".into(),
+                models: vec![sample_record("minimax-m3", 48.5, 44.0, 0.59)],
+            },
+        )
+        .unwrap();
+        let refreshed = refresh_aa_model_map_exact_matches().unwrap();
+        assert_eq!(
+            refreshed
+                .mappings
+                .get("minimax/minimax-m3")
+                .map(String::as_str),
+            Some("minimax-m3")
+        );
+    }
+
+    #[test]
+    fn lookup_record_variants_scores_and_key_helpers_cover_edges() {
+        let catalog = BenchmarkCatalog::from_file(BenchmarkCatalogFile {
+            source: "test".into(),
+            synced_at: "now".into(),
+            models: vec![
+                sample_record("model-32k", 120.0, 0.5, 1.2),
+                BenchmarkModelRecord {
+                    id: "fallback".into(),
+                    slug: "fallback".into(),
+                    name: "Fallback".into(),
+                    creator_slug: None,
+                    creator_name: None,
+                    evaluations: BenchmarkEvaluations {
+                        artificial_analysis_math_index: Some(40.0),
+                        livecodebench: Some(0.42),
+                        scicode: Some(0.5),
+                        terminalbench_hard: Some(0.3),
+                        gpqa: Some(0.6),
+                        hle: Some(0.9),
+                        ..Default::default()
+                    },
+                },
+            ],
+        });
+        assert!(catalog.synced_at.is_some());
+        assert_eq!(
+            catalog
+                .lookup_record_exact("creator/model.v1", Some("minimax/model_32k"), None)
+                .unwrap()
+                .slug,
+            "model-32k"
+        );
+        assert_eq!(
+            catalog
+                .lookup_variant(&[normalize_key("minimax/model")], 33_000)
+                .unwrap()
+                .slug,
+            "model-32k"
+        );
+        assert_eq!(context_hint_from_key("model-32k"), Some(32_000));
+        assert_eq!(context_hint_from_key("model"), None);
+
+        let fallback = catalog
+            .lookup(
+                "fallback",
+                None,
+                Some("Fallback"),
+                0,
+                &AaModelMapFile::default(),
+            )
+            .unwrap();
+        assert_eq!(fallback.overall_intelligence, 40.0);
+        assert_eq!(fallback.coding_index, 42.0);
+        assert_eq!(fallback.math_index, 40.0);
+        assert_eq!(fallback.agentic_index, 60.0);
+        let clamped = indices_from_evaluations(&BenchmarkEvaluations {
+            artificial_analysis_intelligence_index: Some(120.0),
+            artificial_analysis_coding_index: Some(0.0),
+            artificial_analysis_math_index: Some(-1.0),
+            tau2: Some(2.0),
+            ..Default::default()
+        });
+        assert_eq!(clamped.overall_intelligence, 100.0);
+        assert_eq!(clamped.coding_index, 1.0);
+        assert_eq!(clamped.agentic_index, 100.0);
+        assert_eq!(clamped.math_index, 1.0);
+    }
+
+    #[test]
+    fn api_key_resolution_prefers_settings_then_env_aliases() {
+        unsafe {
+            std::env::remove_var("ARTIFICIAL_ANALYSIS_API_KEY");
+            std::env::remove_var("AA_API_KEY");
+        }
+        assert_eq!(
+            resolve_artificial_analysis_api_key(Some(" settings-key ")).as_deref(),
+            Some("settings-key")
+        );
+        unsafe {
+            std::env::set_var("ARTIFICIAL_ANALYSIS_API_KEY", "env-key");
+        }
+        assert_eq!(
+            resolve_artificial_analysis_api_key(Some("")).as_deref(),
+            Some("env-key")
+        );
+        unsafe {
+            std::env::remove_var("ARTIFICIAL_ANALYSIS_API_KEY");
+            std::env::set_var("AA_API_KEY", "aa-key");
+        }
+        assert_eq!(
+            resolve_artificial_analysis_api_key(None).as_deref(),
+            Some("aa-key")
+        );
     }
 }

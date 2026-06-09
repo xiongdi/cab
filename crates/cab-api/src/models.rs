@@ -205,3 +205,286 @@ pub async fn update_model_endpoint(
         .ok_or_else(|| CabError::NotFound(format!("Endpoint {} not found", input.id)))?;
     Ok(Json(endpoint))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use cab_core::types::{ApiKeyConfig, Model, Provider, ProviderEndpoint};
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
+    fn provider() -> Provider {
+        Provider {
+            id: "provider-1".into(),
+            name: "Provider One".into(),
+            endpoints: vec![ProviderEndpoint {
+                id: "chat".into(),
+                protocol: "openai-chat".into(),
+                url: "https://provider.test/v1".into(),
+                label: None,
+                priority: 50,
+                enabled: true,
+            }],
+            api_key: "key".into(),
+            enabled: true,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            privacy_policy_url: None,
+            terms_of_service_url: None,
+            status_page_url: None,
+            headquarters: None,
+            datacenters: None,
+            api_keys: vec![ApiKeyConfig {
+                key: "key".into(),
+                enabled: true,
+                subscribed: false,
+                quota_reset_at: None,
+            }],
+            api: None,
+            doc: None,
+            env: None,
+            npm: None,
+            model_count: 0,
+            catalog_models: vec![],
+        }
+    }
+
+    fn model(id: &str, name: &str, enabled: bool) -> Model {
+        Model {
+            id: id.into(),
+            name: name.into(),
+            display_name: format!("Display {name}"),
+            provider_id: "provider-1".into(),
+            protocol: "openai-chat".into(),
+            context_length: 128000,
+            input_cost: Some(1.0),
+            output_cost: Some(2.0),
+            enabled,
+            overall_intelligence: 50.0,
+            coding_index: 50.0,
+            agentic_index: 50.0,
+            math_index: 50.0,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        }
+    }
+
+    fn endpoint(id: &str, model_name: &str, enabled: bool) -> cab_db::endpoint::ModelEndpoint {
+        cab_db::endpoint::ModelEndpoint {
+            id: id.into(),
+            model_id: model_name.into(),
+            canonical_slug: model_name.into(),
+            provider_name: "provider".into(),
+            provider_tag: format!("provider/{id}"),
+            native_model_id: model_name.into(),
+            quantization: "unknown".into(),
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cache_read_cost: None,
+            context_length: 128000,
+            max_completion_tokens: None,
+            status: 1,
+            uptime_30m: None,
+            uptime_5m: None,
+            uptime_1d: None,
+            supports_tools: true,
+            supports_streaming: true,
+            enabled,
+            updated_at: "now".into(),
+        }
+    }
+
+    fn state() -> ApiState {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.providers.insert("provider-1".into(), provider());
+            data.models
+                .insert("model-1".into(), model("model-1", "provider/model-1", true));
+            data.models.insert(
+                "model-2".into(),
+                model("model-2", "provider/model-2", false),
+            );
+            data.model_endpoints.insert(
+                "endpoint-1".into(),
+                endpoint("endpoint-1", "provider/model-1", true),
+            );
+            data.model_endpoints.insert(
+                "endpoint-2".into(),
+                endpoint("endpoint-2", "provider/model-2", false),
+            );
+        }
+        ApiState { pool }
+    }
+
+    async fn json_body(response: impl IntoResponse) -> serde_json::Value {
+        let response = response.into_response();
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    fn expect_err<T>(result: Result<T, CabError>) -> CabError {
+        match result {
+            Ok(_) => panic!("expected handler error"),
+            Err(err) => err,
+        }
+    }
+
+    #[tokio::test]
+    async fn model_handlers_cover_list_get_update_delete_and_endpoint_paths() {
+        let _home = TestHome::new();
+        let state = state();
+
+        let list = list_models(State(state.clone())).await.unwrap();
+        let json = json_body(list).await;
+        assert_eq!(json.as_array().unwrap().len(), 2);
+
+        let got = get_model(State(state.clone()), Path("model-1".into()))
+            .await
+            .unwrap();
+        assert_eq!(json_body(got).await["name"], "provider/model-1");
+        let missing = expect_err(get_model(State(state.clone()), Path("missing".into())).await);
+        assert!(matches!(missing, CabError::NotFound(_)));
+
+        let create_err = create_model(
+            State(state.clone()),
+            Json(CreateModel {
+                name: "manual".into(),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(create_err, CabError::InvalidRequest(_)));
+
+        let bad_update = expect_err(
+            update_model(
+                State(state.clone()),
+                Path("model-1".into()),
+                Json(UpdateModel {
+                    display_name: Some("Nope".into()),
+                    enabled: Some(false),
+                    ..Default::default()
+                }),
+            )
+            .await,
+        );
+        assert!(matches!(bad_update, CabError::InvalidRequest(_)));
+
+        let missing_enabled = expect_err(
+            update_model(
+                State(state.clone()),
+                Path("model-1".into()),
+                Json(UpdateModel::default()),
+            )
+            .await,
+        );
+        assert!(matches!(missing_enabled, CabError::InvalidRequest(_)));
+
+        let updated = update_model(
+            State(state.clone()),
+            Path("model-1".into()),
+            Json(UpdateModel {
+                enabled: Some(false),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(json_body(updated).await["enabled"], false);
+        assert_eq!(
+            cab_db::settings::get(&state.pool).await.unwrap().models["provider/model-1"].enabled,
+            Some(false)
+        );
+
+        let update_missing = expect_err(
+            update_model(
+                State(state.clone()),
+                Path("missing".into()),
+                Json(UpdateModel {
+                    enabled: Some(true),
+                    ..Default::default()
+                }),
+            )
+            .await,
+        );
+        assert!(matches!(update_missing, CabError::NotFound(_)));
+
+        let delete_err = delete_model(State(state.clone()), Path("model-1".into()))
+            .await
+            .unwrap_err();
+        assert!(matches!(delete_err, CabError::InvalidRequest(_)));
+
+        let endpoints = list_model_endpoints(State(state.clone()), Path("model-1".into()))
+            .await
+            .unwrap();
+        assert_eq!(json_body(endpoints).await.as_array().unwrap().len(), 1);
+        let endpoints_by_name =
+            list_model_endpoints(State(state.clone()), Path("provider%2Fmodel-2".into()))
+                .await
+                .unwrap();
+        assert_eq!(
+            json_body(endpoints_by_name).await[0]["model_id"],
+            "provider/model-2"
+        );
+
+        let endpoint_update = update_model_endpoint(
+            State(state.clone()),
+            Json(EndpointUpdateInput {
+                id: "endpoint-1".into(),
+                enabled: false,
+            }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(json_body(endpoint_update).await["enabled"], false);
+        let endpoint_missing = expect_err(
+            update_model_endpoint(
+                State(state),
+                Json(EndpointUpdateInput {
+                    id: "missing".into(),
+                    enabled: true,
+                }),
+            )
+            .await,
+        );
+        assert!(matches!(endpoint_missing, CabError::NotFound(_)));
+    }
+}

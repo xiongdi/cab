@@ -348,3 +348,311 @@ pub async fn clear_api_key_quota_reset(
     drop(inner);
     crate::settings::save_to_disk(&settings)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cab_core::types::{ApiKeyConfig, ProviderUserSettings};
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
+    fn endpoint(id: &str, protocol: &str, url: &str) -> ProviderEndpoint {
+        ProviderEndpoint {
+            id: id.into(),
+            protocol: protocol.into(),
+            url: url.into(),
+            label: Some(id.into()),
+            priority: 50,
+            enabled: true,
+        }
+    }
+
+    fn api_key(key: &str, subscribed: bool) -> ApiKeyConfig {
+        ApiKeyConfig {
+            key: key.into(),
+            enabled: true,
+            subscribed,
+            quota_reset_at: None,
+        }
+    }
+
+    fn create_provider() -> CreateProvider {
+        CreateProvider {
+            name: "Provider One".into(),
+            endpoints: Some(vec![endpoint("ep-1", "openai-chat", "https://one.test/v1")]),
+            api_key: "legacy-key".into(),
+            enabled: Some(true),
+            privacy_policy_url: Some("https://privacy.test".into()),
+            terms_of_service_url: Some("https://terms.test".into()),
+            status_page_url: Some("https://status.test".into()),
+            headquarters: Some("Earth".into()),
+            datacenters: Some(vec!["iad".into()]),
+            api_keys: Some(vec![api_key("sub-key", true), api_key("payg-key", false)]),
+            api: Some("https://api.test".into()),
+            doc: Some("https://docs.test".into()),
+            env: Some(vec!["PROVIDER_KEY".into()]),
+            npm: Some("@provider/sdk".into()),
+            model_count: Some(2),
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_crud_catalog_and_config_paths() {
+        let _home = TestHome::new();
+        let store = InMemoryStore::new();
+
+        let created = create(&store, &create_provider()).await.unwrap();
+        assert_eq!(created.id, "provider-one");
+        assert_eq!(created.api_key, "legacy-key");
+        assert!(created.enabled);
+        assert_eq!(created.api_keys[0].key, "sub-key");
+
+        upsert_catalog_provider(
+            &store,
+            "catalog-b",
+            "Catalog B",
+            Some(("openai-chat", "https://catalog-b.test/v1")),
+            Some("privacy"),
+            Some("terms"),
+            Some("status"),
+            Some("HQ"),
+            Some(&["iad".into(), "sfo".into()]),
+            Some("api"),
+            Some("doc"),
+            Some(&["ENV".into()]),
+            Some("npm"),
+            3,
+            &["model-a".into()],
+        )
+        .await
+        .unwrap();
+        upsert_catalog_provider(
+            &store,
+            "catalog-a",
+            "Catalog A",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            0,
+            &[],
+        )
+        .await
+        .unwrap();
+        upsert_catalog_provider(
+            &store,
+            "catalog-b",
+            "Catalog B Updated",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some("api2"),
+            Some("doc2"),
+            Some(&["ENV2".into()]),
+            Some("npm2"),
+            4,
+            &["model-b".into()],
+        )
+        .await
+        .unwrap();
+
+        let catalog = list_catalog(&store).await.unwrap();
+        assert_eq!(
+            catalog
+                .iter()
+                .map(|provider| provider.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Catalog A", "Catalog B Updated", "Provider One"]
+        );
+        let active = list(&store).await.unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, "provider-one");
+
+        ensure_extra_endpoints(
+            &store,
+            "provider-one",
+            &[
+                ("openai-chat", "https://one.test/v1", Some("dup"), 1),
+                (
+                    "anthropic",
+                    "https://one.test/anthropic",
+                    Some("Anthropic"),
+                    2,
+                ),
+            ],
+        )
+        .await
+        .unwrap();
+        ensure_extra_endpoints(&store, "missing", &[("x", "https://x.test", None, 1)])
+            .await
+            .unwrap();
+        assert_eq!(
+            get_by_id(&store, "provider-one")
+                .await
+                .unwrap()
+                .unwrap()
+                .endpoints
+                .len(),
+            2
+        );
+
+        let updated = update(
+            &store,
+            "provider-one",
+            &UpdateProvider {
+                name: Some("Provider Updated".into()),
+                endpoints: Some(vec![endpoint("ep-2", "anthropic", "https://two.test")]),
+                api_key: Some("new-legacy".into()),
+                enabled: Some(false),
+                privacy_policy_url: None,
+                terms_of_service_url: None,
+                status_page_url: None,
+                headquarters: None,
+                datacenters: None,
+                api_keys: Some(vec![api_key("new-sub", true)]),
+                api: Some("api".into()),
+                doc: Some("doc".into()),
+                env: Some(vec!["ENV".into()]),
+                npm: Some("npm".into()),
+                model_count: Some(9),
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(updated.name, "Provider Updated");
+        assert_eq!(updated.api_key, "new-sub");
+        assert!(!updated.enabled);
+        assert_eq!(updated.endpoints[0].protocol, "anthropic");
+        assert_eq!(updated.model_count, 9);
+        assert!(
+            update(
+                &store,
+                "missing",
+                &UpdateProvider {
+                    name: None,
+                    endpoints: None,
+                    api_key: None,
+                    enabled: None,
+                    privacy_policy_url: None,
+                    terms_of_service_url: None,
+                    status_page_url: None,
+                    headquarters: None,
+                    datacenters: None,
+                    api_keys: None,
+                    api: None,
+                    doc: None,
+                    env: None,
+                    npm: None,
+                    model_count: None,
+                },
+            )
+            .await
+            .unwrap()
+            .is_none()
+        );
+
+        assert!(delete(&store, "catalog-a").await.unwrap());
+        assert!(!delete(&store, "catalog-a").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn provider_settings_and_quota_reset_paths() {
+        let _home = TestHome::new();
+        let store = InMemoryStore::new();
+        create(&store, &create_provider()).await.unwrap();
+
+        {
+            let mut inner = store.inner.write().unwrap();
+            inner.settings.providers.insert(
+                "provider-one".into(),
+                ProviderUserSettings {
+                    enabled: Some(true),
+                    api_key: Some("settings-legacy".into()),
+                    api_keys: Some(vec![api_key("sub-key", true), api_key("payg-key", false)]),
+                    endpoints: Some(vec![endpoint(
+                        "settings-ep",
+                        "openai-responses",
+                        "https://settings.test/v1",
+                    )]),
+                },
+            );
+        }
+
+        let defaults = cab_core::ProviderDefaultsCatalog {
+            providers: Default::default(),
+        };
+        let settings = store.inner.read().unwrap().settings.clone();
+        apply_provider_config(&store, "provider-one", &settings, &defaults)
+            .await
+            .unwrap();
+        apply_provider_config(
+            &store,
+            "missing",
+            &crate::settings::default_settings(),
+            &defaults,
+        )
+        .await
+        .unwrap();
+        let configured = get_by_id(&store, "provider-one").await.unwrap().unwrap();
+        assert!(configured.enabled);
+        assert_eq!(configured.api_key, "sub-key");
+        assert_eq!(configured.endpoints[0].protocol, "openai-responses");
+
+        let reset_at = chrono::Utc::now() + chrono::Duration::seconds(60);
+        mark_api_key_quota_reset(&store, "provider-one", "sub-key", reset_at)
+            .await
+            .unwrap();
+        let after_reset = get_by_id(&store, "provider-one").await.unwrap().unwrap();
+        assert!(after_reset.api_keys[0].quota_reset_at.is_some());
+        assert_eq!(after_reset.api_key, "payg-key");
+
+        clear_api_key_quota_reset(&store, "provider-one", "sub-key")
+            .await
+            .unwrap();
+        let cleared = get_by_id(&store, "provider-one").await.unwrap().unwrap();
+        assert!(cleared.api_keys[0].quota_reset_at.is_none());
+        assert_eq!(cleared.api_key, "sub-key");
+        clear_api_key_quota_reset(&store, "provider-one", "missing")
+            .await
+            .unwrap();
+        clear_api_key_quota_reset(&store, "missing", "sub-key")
+            .await
+            .unwrap();
+
+        let settings = crate::settings::default_settings();
+        assert_eq!(
+            default_protocol_for_provider("unknown", &settings, &defaults),
+            "openai-chat"
+        );
+    }
+}

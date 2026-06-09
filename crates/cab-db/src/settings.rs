@@ -97,3 +97,145 @@ pub async fn set_model_override(
     drop(inner);
     save_to_disk(&settings)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cab_core::types::{ApiKeyConfig, ProviderEndpoint};
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
+    #[test]
+    fn settings_path_defaults_load_and_save_roundtrip() {
+        let _home = TestHome::new();
+        let path = settings_file_path();
+        assert!(path.ends_with(".cab/settings.json"));
+
+        let defaults = default_settings();
+        assert_eq!(defaults.gateway_port, 3125);
+        assert_eq!(defaults.log_retention_days, 30);
+        assert!(defaults.gateway_key.starts_with("cab-token-"));
+        assert!(defaults.providers.is_empty());
+        assert!(defaults.models.is_empty());
+        assert_eq!(load_from_disk().gateway_port, 3125);
+
+        let mut settings = defaults.clone();
+        settings.gateway_port = 4567;
+        settings.artificial_analysis_api_key = Some("aa-key".into());
+        settings.providers.insert(
+            "provider-1".into(),
+            ProviderUserSettings {
+                enabled: Some(true),
+                api_key: Some("legacy-key".into()),
+                api_keys: Some(vec![ApiKeyConfig {
+                    key: "key-1".into(),
+                    enabled: true,
+                    subscribed: true,
+                    quota_reset_at: None,
+                }]),
+                endpoints: Some(vec![ProviderEndpoint {
+                    id: "ep-1".into(),
+                    protocol: "openai-chat".into(),
+                    url: "https://example.test/v1".into(),
+                    label: Some("Example".into()),
+                    priority: 1,
+                    enabled: true,
+                }]),
+            },
+        );
+        settings.models.insert(
+            "model-1".into(),
+            ModelUserSettings {
+                enabled: Some(false),
+            },
+        );
+
+        save_to_disk(&settings).unwrap();
+        let loaded = load_from_disk();
+        assert_eq!(loaded.gateway_port, 4567);
+        assert_eq!(
+            loaded.artificial_analysis_api_key.as_deref(),
+            Some("aa-key")
+        );
+        assert_eq!(
+            loaded.providers["provider-1"].api_keys.as_ref().unwrap()[0].key,
+            "key-1"
+        );
+        assert_eq!(loaded.models["model-1"].enabled, Some(false));
+    }
+
+    #[test]
+    fn load_from_disk_falls_back_for_invalid_json() {
+        let _home = TestHome::new();
+        let path = settings_file_path();
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "{not-json").unwrap();
+
+        assert_eq!(load_from_disk().gateway_port, 3125);
+    }
+
+    #[tokio::test]
+    async fn store_get_update_and_overrides_persist() {
+        let _home = TestHome::new();
+        let store = InMemoryStore::new();
+
+        let mut settings = get(&store).await.unwrap();
+        settings.gateway_port = 9999;
+        let updated = update(&store, &settings).await.unwrap();
+        assert_eq!(updated.gateway_port, 9999);
+        assert_eq!(load_from_disk().gateway_port, 9999);
+
+        set_provider_override(
+            &store,
+            "provider-1",
+            ProviderUserSettings {
+                enabled: Some(true),
+                api_key: Some("key".into()),
+                api_keys: None,
+                endpoints: None,
+            },
+        )
+        .await
+        .unwrap();
+        set_model_override(
+            &store,
+            "provider/model",
+            ModelUserSettings {
+                enabled: Some(false),
+            },
+        )
+        .await
+        .unwrap();
+
+        let stored = get(&store).await.unwrap();
+        assert_eq!(stored.providers["provider-1"].enabled, Some(true));
+        assert_eq!(stored.models["provider/model"].enabled, Some(false));
+
+        let loaded = load_from_disk();
+        assert_eq!(
+            loaded.providers["provider-1"].api_key.as_deref(),
+            Some("key")
+        );
+        assert_eq!(loaded.models["provider/model"].enabled, Some(false));
+    }
+}

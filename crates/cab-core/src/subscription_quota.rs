@@ -123,4 +123,71 @@ mod tests {
         };
         assert!(!is_key_rate_limited(&key));
     }
+
+    #[test]
+    fn invalid_or_missing_rate_limit_window_is_usable() {
+        for quota_reset_at in [None, Some("not-a-date".to_string())] {
+            let key = crate::types::ApiKeyConfig {
+                key: "sk-test".into(),
+                enabled: true,
+                subscribed: true,
+                quota_reset_at,
+            };
+            assert!(!is_key_rate_limited(&key));
+        }
+    }
+
+    #[test]
+    fn parses_retry_after_millis_rfc2822_rfc3339_and_ignores_empty() {
+        assert!(parse_retry_after_value("").is_none());
+        let millis = Utc::now().timestamp_millis() + 600_000;
+        assert!(parse_retry_after_value(&millis.to_string()).unwrap() > Utc::now());
+
+        let rfc2822 = (Utc::now() + chrono::Duration::minutes(10)).to_rfc2822();
+        assert!(parse_retry_after_value(&rfc2822).unwrap() > Utc::now());
+
+        let rfc3339 = (Utc::now() + chrono::Duration::minutes(10)).to_rfc3339();
+        assert!(parse_retry_after_value(&rfc3339).unwrap() > Utc::now());
+        assert!(parse_retry_after_value("nonsense").is_none());
+    }
+
+    #[test]
+    fn extract_retry_after_uses_supported_headers_in_order() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-ratelimit-reset", "120".parse().unwrap());
+        assert!(extract_retry_after(&headers).unwrap() > Utc::now());
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("retry-after", "".parse().unwrap());
+        headers.insert("ratelimit-reset", "120".parse().unwrap());
+        assert!(extract_retry_after(&headers).unwrap() > Utc::now());
+
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert("x-rate-limit-reset", "120".parse().unwrap());
+        assert!(extract_retry_after(&headers).unwrap() > Utc::now());
+
+        assert!(extract_retry_after(&axum::http::HeaderMap::new()).is_none());
+    }
+
+    #[test]
+    fn resolves_quota_reset_from_body_keys_or_default_window() {
+        let explicit = Utc::now() + chrono::Duration::minutes(5);
+        assert_eq!(
+            resolve_quota_reset_at(Some(explicit), r#"{"retry_after": 1}"#),
+            explicit
+        );
+
+        for body in [
+            r#"{"retry_after": 120}"#,
+            r#"{"retryAfter": "120"}"#,
+            r#"{"error": {"reset_at": 120}}"#,
+            r#"{"error": {"resetAt": "120"}}"#,
+        ] {
+            assert!(resolve_quota_reset_at(None, body) > Utc::now());
+        }
+
+        let fallback = resolve_quota_reset_at(None, "not-json");
+        let delta = (fallback - Utc::now()).num_seconds();
+        assert!((DEFAULT_QUOTA_RESET_SECS - 10..=DEFAULT_QUOTA_RESET_SECS + 10).contains(&delta));
+    }
 }

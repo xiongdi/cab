@@ -79,3 +79,70 @@ pub async fn update_settings(
 
     Ok(Json(settings))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
+    async fn json_body(response: impl IntoResponse) -> serde_json::Value {
+        let response = response.into_response();
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn settings_handlers_get_update_and_catalog_status() {
+        let _home = TestHome::new();
+        let state = ApiState {
+            pool: cab_db::InMemoryStore::new(),
+        };
+
+        let current = get_settings(State(state.clone())).await.unwrap();
+        assert_eq!(json_body(current).await["gateway_port"], 3125);
+
+        let mut settings = cab_db::settings::default_settings();
+        settings.gateway_port = 4567;
+        settings.gateway_key = "updated-key".into();
+        let updated = update_settings(State(state.clone()), Json(settings))
+            .await
+            .unwrap();
+        let json = json_body(updated).await;
+        assert_eq!(json["gateway_port"], 4567);
+        assert_eq!(
+            cab_db::settings::get(&state.pool)
+                .await
+                .unwrap()
+                .gateway_key,
+            "updated-key"
+        );
+
+        let status = get_catalog_status(State(state)).await.unwrap();
+        let json = json_body(status).await;
+        assert_eq!(json["sources"].as_array().unwrap().len(), 3);
+    }
+}

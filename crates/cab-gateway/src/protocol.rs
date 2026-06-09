@@ -581,3 +581,289 @@ impl<S> Drop for TokenTrackingStream<S> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cab_core::types::RequestLog;
+    use futures::StreamExt;
+
+    #[test]
+    fn openai_to_anthropic_moves_system_and_defaults_max_tokens() {
+        let body = serde_json::json!({
+            "model": "gpt-test",
+            "temperature": 0.2,
+            "stream": true,
+            "messages": [
+                {"role": "system", "content": "be terse"},
+                {"role": "system", "content": "be exact"},
+                {"role": "user", "content": "hello"},
+                {"role": "tool", "content": "tool payload"}
+            ]
+        });
+
+        let converted = openai_to_anthropic(&body);
+
+        assert_eq!(converted["model"], "gpt-test");
+        assert_eq!(converted["max_tokens"], 4096);
+        assert_eq!(converted["temperature"], 0.2);
+        assert_eq!(converted["stream"], true);
+        assert_eq!(converted["system"], "be terse\n\nbe exact");
+        assert_eq!(converted["messages"].as_array().unwrap().len(), 2);
+        assert_eq!(converted["messages"][0]["role"], "user");
+        assert_eq!(converted["messages"][1]["role"], "tool");
+    }
+
+    #[test]
+    fn anthropic_to_openai_maps_content_finish_reason_and_usage() {
+        let body = serde_json::json!({
+            "id": "msg_1",
+            "model": "claude-test",
+            "content": [
+                {"type": "text", "text": "hello "},
+                {"type": "text", "text": "world"}
+            ],
+            "stop_reason": "max_tokens",
+            "usage": {"input_tokens": 3, "output_tokens": 5}
+        });
+
+        let converted = anthropic_to_openai(&body);
+
+        assert_eq!(converted["id"], "msg_1");
+        assert_eq!(converted["object"], "chat.completion");
+        assert_eq!(converted["model"], "claude-test");
+        assert_eq!(converted["choices"][0]["message"]["content"], "hello world");
+        assert_eq!(converted["choices"][0]["finish_reason"], "length");
+        assert_eq!(converted["usage"]["prompt_tokens"], 3);
+        assert_eq!(converted["usage"]["completion_tokens"], 5);
+    }
+
+    #[test]
+    fn anthropic_to_openai_uses_defaults_when_fields_are_missing() {
+        let converted = anthropic_to_openai(&serde_json::json!({}));
+
+        assert_eq!(converted["id"], "chatcmpl-converted");
+        assert_eq!(converted["choices"].as_array().unwrap().len(), 0);
+        assert!(converted.get("usage").is_none());
+    }
+
+    #[test]
+    fn anthropic_to_openai_chat_request_flattens_system_and_blocks() {
+        let body = serde_json::json!({
+            "model": "claude-test",
+            "max_tokens": 100,
+            "temperature": 0.4,
+            "stream": false,
+            "system": [{"type": "text", "text": "system text"}],
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": "hello"}, {"content": " world"}]},
+                {"role": "assistant", "content": "done"},
+                {"role": "user", "content": []}
+            ]
+        });
+
+        let converted = anthropic_to_openai_chat_request(&body);
+
+        assert_eq!(converted["model"], "claude-test");
+        assert_eq!(converted["max_tokens"], 100);
+        assert_eq!(converted["temperature"], 0.4);
+        assert_eq!(converted["stream"], false);
+        assert_eq!(converted["messages"].as_array().unwrap().len(), 3);
+        assert_eq!(converted["messages"][0]["role"], "system");
+        assert_eq!(converted["messages"][0]["content"], "system text");
+        assert_eq!(converted["messages"][1]["content"], "hello world");
+        assert_eq!(converted["messages"][2]["role"], "assistant");
+    }
+
+    #[test]
+    fn openai_chat_to_anthropic_messages_maps_usage_and_finish_reason() {
+        let body = serde_json::json!({
+            "id": "chatcmpl_1",
+            "model": "gpt-test",
+            "choices": [{"message": {"content": "done"}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 11, "completion_tokens": 13}
+        });
+
+        let converted = openai_chat_to_anthropic_messages(&body);
+
+        assert_eq!(converted["id"], "chatcmpl_1");
+        assert_eq!(converted["type"], "message");
+        assert_eq!(converted["model"], "gpt-test");
+        assert_eq!(converted["content"][0]["text"], "done");
+        assert_eq!(converted["stop_reason"], "max_tokens");
+        assert_eq!(converted["usage"]["input_tokens"], 11);
+        assert_eq!(converted["usage"]["output_tokens"], 13);
+    }
+
+    #[test]
+    fn responses_to_chat_request_handles_string_input_and_instructions() {
+        let body = serde_json::json!({
+            "model": "resp-test",
+            "instructions": "be helpful",
+            "input": "hello",
+            "max_output_tokens": 20
+        });
+
+        let converted = responses_to_chat_request(&body);
+
+        assert_eq!(converted["model"], "resp-test");
+        assert_eq!(converted["stream"], false);
+        assert_eq!(converted["max_tokens"], 20);
+        assert_eq!(
+            converted["messages"][0],
+            serde_json::json!({"role": "system", "content": "be helpful"})
+        );
+        assert_eq!(
+            converted["messages"][1],
+            serde_json::json!({"role": "user", "content": "hello"})
+        );
+    }
+
+    #[test]
+    fn responses_to_chat_request_handles_array_input_roles_and_empty_fallback() {
+        let body = serde_json::json!({
+            "instructions": {"kind": "json"},
+            "input": [
+                "plain text",
+                {"role": "developer", "content": "dev note"},
+                {"role": "assistant", "content": [{"text": "assistant "}, "text"]},
+                {"role": "tool", "content": {"value": 1}},
+                {"role": "unknown", "content": ""}
+            ],
+            "max_tokens": 30
+        });
+
+        let converted = responses_to_chat_request(&body);
+
+        assert_eq!(converted["max_tokens"], 30);
+        assert_eq!(converted["messages"][0]["role"], "system");
+        assert_eq!(
+            converted["messages"][1],
+            serde_json::json!({"role": "user", "content": "plain text"})
+        );
+        assert_eq!(
+            converted["messages"][2],
+            serde_json::json!({"role": "system", "content": "dev note"})
+        );
+        assert_eq!(
+            converted["messages"][3],
+            serde_json::json!({"role": "assistant", "content": "assistant text"})
+        );
+        assert_eq!(converted["messages"][4]["role"], "tool");
+
+        let empty = responses_to_chat_request(&serde_json::json!({"input": []}));
+        assert_eq!(
+            empty["messages"][0],
+            serde_json::json!({"role": "user", "content": " "})
+        );
+    }
+
+    #[test]
+    fn chat_to_responses_maps_text_and_token_usage() {
+        let body = serde_json::json!({
+            "model": "gpt-test",
+            "choices": [{"message": {"content": "answer"}}],
+            "usage": {"input_tokens": 7, "output_tokens": 9}
+        });
+
+        let converted = chat_to_responses(&body, "fallback-model");
+
+        assert_eq!(converted["object"], "response");
+        assert_eq!(converted["model"], "gpt-test");
+        assert_eq!(converted["output"][0]["content"][0]["text"], "answer");
+        assert_eq!(converted["output_text"], "answer");
+        assert_eq!(converted["usage"]["input_tokens"], 7);
+        assert_eq!(converted["usage"]["output_tokens"], 9);
+        assert_eq!(converted["usage"]["total_tokens"], 16);
+    }
+
+    #[test]
+    fn chat_to_responses_uses_fallback_model_and_prompt_token_names() {
+        let body = serde_json::json!({
+            "choices": [{"message": {"content": "answer"}}],
+            "usage": {"prompt_tokens": 2, "completion_tokens": 4}
+        });
+
+        let converted = chat_to_responses(&body, "fallback-model");
+
+        assert_eq!(converted["model"], "fallback-model");
+        assert_eq!(converted["usage"]["input_tokens"], 2);
+        assert_eq!(converted["usage"]["output_tokens"], 4);
+        assert_eq!(converted["usage"]["total_tokens"], 6);
+    }
+
+    #[test]
+    fn responses_to_sse_stream_emits_expected_events_with_and_without_text() {
+        let body = serde_json::json!({
+            "id": "resp_1",
+            "created": 123,
+            "model": "resp-model",
+            "output_text": "hello"
+        });
+
+        let sse = String::from_utf8(responses_to_sse_stream(&body).to_vec()).unwrap();
+
+        assert!(sse.contains("event: response.created"));
+        assert!(sse.contains("\"id\":\"resp_1\""));
+        assert!(sse.contains("event: response.output_text.delta"));
+        assert!(sse.contains("\"delta\":\"hello\""));
+        assert!(sse.contains("event: response.completed"));
+        assert!(sse.contains("\"status\":\"completed\""));
+
+        let empty =
+            String::from_utf8(responses_to_sse_stream(&serde_json::json!({})).to_vec()).unwrap();
+        assert!(empty.contains("\"id\":\"resp_shim\""));
+        assert!(empty.contains("\"model\":\"unknown\""));
+        assert!(!empty.contains("response.output_text.delta"));
+    }
+
+    #[tokio::test]
+    async fn token_tracking_stream_updates_request_log_on_drop() {
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-1".to_string();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.request_logs.push(RequestLog {
+                id: log_id.clone(),
+                timestamp: "now".into(),
+                agent: "codex".into(),
+                provider: "test".into(),
+                model: "model".into(),
+                input_tokens: 0,
+                output_tokens: 0,
+                total_tokens: 0,
+                latency_ms: 0,
+                status: 200,
+                error: None,
+                path: "/v1/chat/completions".into(),
+                stream: true,
+            });
+        }
+
+        let chunks = futures::stream::iter(vec![
+            Ok(Bytes::from_static(
+                br#"data: {"message":{"usage":{"input_tokens":3}}}
+"#,
+            )),
+            Ok(Bytes::from_static(
+                br#"data: {"usage":{"prompt_tokens":5,"completion_tokens":8}}
+data: {"usage":{"input_tokens":7,"output_tokens":11}}
+data: [DONE]
+"#,
+            )),
+        ]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), log_id.clone());
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 7);
+        assert_eq!(log.output_tokens, 11);
+        assert_eq!(log.total_tokens, 18);
+    }
+}

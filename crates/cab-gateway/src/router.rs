@@ -422,7 +422,7 @@ async fn resolve_model_by_name(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cab_core::types::{Provider, ProviderEndpoint};
+    use cab_core::types::{Agent, ApiKeyConfig, Model, Provider, ProviderEndpoint, Route};
 
     fn make_provider(endpoints: Vec<ProviderEndpoint>) -> Provider {
         Provider {
@@ -446,6 +446,269 @@ mod tests {
             model_count: 0,
             catalog_models: vec![],
         }
+    }
+
+    fn active_provider(id: &str, key: &str) -> Provider {
+        Provider {
+            id: id.into(),
+            name: format!("Provider {id}"),
+            endpoints: vec![
+                ProviderEndpoint {
+                    id: format!("{id}-chat"),
+                    protocol: "openai-chat".into(),
+                    url: format!("https://{id}.test/v1"),
+                    label: None,
+                    priority: 50,
+                    enabled: true,
+                },
+                ProviderEndpoint {
+                    id: format!("{id}-responses"),
+                    protocol: "openai-responses".into(),
+                    url: format!("https://{id}.test/v1"),
+                    label: None,
+                    priority: 40,
+                    enabled: true,
+                },
+            ],
+            api_key: key.into(),
+            enabled: true,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            privacy_policy_url: None,
+            terms_of_service_url: None,
+            status_page_url: None,
+            headquarters: None,
+            datacenters: None,
+            api_keys: vec![
+                ApiKeyConfig {
+                    key: "sub-key".into(),
+                    enabled: true,
+                    subscribed: true,
+                    quota_reset_at: None,
+                },
+                ApiKeyConfig {
+                    key: key.into(),
+                    enabled: true,
+                    subscribed: false,
+                    quota_reset_at: None,
+                },
+            ],
+            api: None,
+            doc: None,
+            env: None,
+            npm: None,
+            model_count: 0,
+            catalog_models: vec![],
+        }
+    }
+
+    fn model(id: &str, provider_id: &str, cost: f64, intelligence: f64, enabled: bool) -> Model {
+        Model {
+            id: id.into(),
+            name: format!("{provider_id}/{id}"),
+            display_name: format!("Model {id}"),
+            provider_id: provider_id.into(),
+            protocol: "openai-chat".into(),
+            context_length: 128000,
+            input_cost: Some(cost),
+            output_cost: Some(cost * 2.0),
+            enabled,
+            overall_intelligence: intelligence,
+            coding_index: intelligence,
+            agentic_index: intelligence,
+            math_index: intelligence,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            canonical_slug: Some(format!("{provider_id}/{id}")),
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: Some(serde_json::json!({"native_model_id": format!("native-{id}")})),
+        }
+    }
+
+    fn route(id: &str, agent_pattern: &str, model_id: &str, fallbacks: Vec<&str>) -> Route {
+        Route {
+            id: id.into(),
+            name: id.into(),
+            agent_pattern: agent_pattern.into(),
+            model_id: model_id.into(),
+            fallback_ids: fallbacks.into_iter().map(str::to_string).collect(),
+            priority: 10,
+            routing_strategy: "manual".into(),
+            enabled: true,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+        }
+    }
+
+    fn model_endpoint(id: &str, model_name: &str) -> cab_db::endpoint::ModelEndpoint {
+        cab_db::endpoint::ModelEndpoint {
+            id: id.into(),
+            model_id: model_name.into(),
+            canonical_slug: model_name.into(),
+            provider_name: "provider".into(),
+            provider_tag: format!("tag/{id}"),
+            native_model_id: model_name.into(),
+            quantization: "unknown".into(),
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cache_read_cost: None,
+            context_length: 128000,
+            max_completion_tokens: None,
+            status: 1,
+            uptime_30m: None,
+            uptime_5m: None,
+            uptime_1d: None,
+            supports_tools: true,
+            supports_streaming: true,
+            enabled: true,
+            updated_at: "now".into(),
+        }
+    }
+
+    fn seeded_store() -> cab_db::InMemoryStore {
+        let store = cab_db::InMemoryStore::new();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.providers
+                .insert("p1".into(), active_provider("p1", "payg-key"));
+            data.providers
+                .insert("p2".into(), active_provider("p2", "payg-key-2"));
+            data.models
+                .insert("cheap".into(), model("cheap", "p1", 0.1, 20.0, true));
+            data.models
+                .insert("smart".into(), model("smart", "p1", 5.0, 95.0, true));
+            data.models
+                .insert("backup".into(), model("backup", "p2", 1.0, 50.0, true));
+            for key in ["cheap", "smart", "backup"] {
+                let name = data.models[key].name.clone();
+                data.model_endpoints
+                    .insert(format!("{key}-ep"), model_endpoint(key, &name));
+            }
+        }
+        store
+    }
+
+    #[tokio::test]
+    async fn resolves_requested_model_name_and_claude_alias() {
+        let store = seeded_store();
+
+        let resolved = resolve_route(&store, "codex", Some("p1/smart"), None)
+            .await
+            .unwrap();
+        assert_eq!(resolved.model.id, "smart");
+        assert_eq!(resolved.provider_api_key, "sub-key");
+        assert_eq!(resolved.endpoint_candidates[0].protocol, "openai-chat");
+        assert_eq!(resolved.provider_routing, vec!["tag/smart"]);
+
+        let alias = resolve_route(&store, "codex", Some("claude/cab/p1/cheap"), None)
+            .await
+            .unwrap();
+        assert_eq!(alias.model.id, "cheap");
+        assert!(alias.fallback_models.is_empty());
+        assert_eq!(alias.as_primary_model().model.name, "p1/cheap");
+    }
+
+    #[tokio::test]
+    async fn resolves_matching_route_with_available_fallbacks() {
+        let store = seeded_store();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.routes.insert(
+                "codex-route".into(),
+                route("codex-route", "codex", "smart", vec!["missing", "backup"]),
+            );
+        }
+
+        let resolved = resolve_route(
+            &store,
+            "codex",
+            Some("p1/cheap"),
+            Some(&serde_json::json!({"messages": [{"role": "user", "content": "hi"}]})),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resolved.model.id, "smart");
+        assert_eq!(resolved.fallback_models.len(), 1);
+        assert_eq!(resolved.fallback_models[0].model.id, "backup");
+        assert_eq!(resolved.fallback_models[0].provider_name, "Provider p2");
+    }
+
+    #[tokio::test]
+    async fn auto_agent_configured_route_id_overrides_requested_model() {
+        let store = seeded_store();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.agents.insert(
+                "codex".into(),
+                Agent {
+                    id: "codex".into(),
+                    name: "Codex".into(),
+                    mode: "auto".into(),
+                    model_id: Some("custom".into()),
+                    api_key: String::new(),
+                    endpoint: String::new(),
+                    updated_at: "now".into(),
+                },
+            );
+            data.routes
+                .insert("custom".into(), route("custom", "*", "backup", vec![]));
+        }
+
+        let resolved = resolve_route(&store, "codex", Some("p1/smart"), None)
+            .await
+            .unwrap();
+        assert_eq!(resolved.model.id, "backup");
+    }
+
+    #[tokio::test]
+    async fn built_in_cheapest_strategy_filters_and_ranks_models() {
+        let store = seeded_store();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.models
+                .insert("disabled".into(), model("disabled", "p1", -1.0, 99.0, true));
+            data.providers.get_mut("p2").unwrap().enabled = false;
+        }
+
+        let resolved = resolve_route(
+            &store,
+            "codex",
+            Some("cheapest"),
+            Some(&serde_json::json!({"messages": [{"role": "user", "content": "simple"}]})),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(resolved.model.id, "cheap");
+        assert_eq!(resolved.fallback_models.len(), 1);
+        assert_eq!(resolved.fallback_models[0].model.id, "smart");
+    }
+
+    #[tokio::test]
+    async fn returns_not_found_when_requested_model_is_unusable() {
+        let store = seeded_store();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.models.get_mut("smart").unwrap().enabled = false;
+            data.providers.get_mut("p1").unwrap().enabled = false;
+        }
+
+        let err = resolve_route(&store, "codex", Some("p1/smart"), None)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, cab_core::CabError::NotFound(_)));
     }
 
     #[test]

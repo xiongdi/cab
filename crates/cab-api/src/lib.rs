@@ -13,6 +13,9 @@ use axum::routing::{delete, get, post, put};
 use cab_db::InMemoryStore;
 use tower_http::cors::{Any, CorsLayer};
 
+#[cfg(test)]
+pub(crate) static TEST_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Shared state for all management API handlers.
 #[derive(Clone)]
 pub struct ApiState {

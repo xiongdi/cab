@@ -127,10 +127,7 @@ mod tests {
 
     #[test]
     fn prefers_x_cab_agent_header() {
-        let headers = headers_with(&[
-            ("user-agent", "OpenAI/JS 6.0"),
-            ("x-cab-agent", "openclaw"),
-        ]);
+        let headers = headers_with(&[("user-agent", "OpenAI/JS 6.0"), ("x-cab-agent", "openclaw")]);
         assert_eq!(extract_agent_id(&headers), "openclaw");
     }
 
@@ -151,7 +148,10 @@ mod tests {
             (("user-agent", "opencode/1.14.48 ai-sdk/5"), "opencode"),
             (("user-agent", "HermesAgent/0.16.0"), "hermes"),
             (
-                ("user-agent", "Kilo-Code/7.3.40 ai-sdk/provider-utils/4.0.23"),
+                (
+                    "user-agent",
+                    "Kilo-Code/7.3.40 ai-sdk/provider-utils/4.0.23",
+                ),
                 "kilocode",
             ),
             (("user-agent", "OpenClaw/2026.6.1 (cab-probe)"), "openclaw"),

@@ -62,3 +62,60 @@ impl CabConfig {
         CabConfig::default()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("cab-config-{name}-{}.toml", uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn default_config_uses_local_gateway_defaults() {
+        let cfg = CabConfig::default();
+        assert_eq!(cfg.gateway.host, "127.0.0.1");
+        assert_eq!(cfg.gateway.port, 3125);
+    }
+
+    #[test]
+    fn load_from_reads_valid_toml_and_applies_field_defaults() {
+        let full = temp_path("full");
+        std::fs::write(
+            &full,
+            r#"[gateway]
+host = "0.0.0.0"
+port = 4567
+"#,
+        )
+        .unwrap();
+        let cfg = CabConfig::load_from(full.to_str().unwrap());
+        assert_eq!(cfg.gateway.host, "0.0.0.0");
+        assert_eq!(cfg.gateway.port, 4567);
+        let _ = std::fs::remove_file(full);
+
+        let partial = temp_path("partial");
+        std::fs::write(&partial, "[gateway]\n").unwrap();
+        let cfg = CabConfig::load_from(partial.to_str().unwrap());
+        assert_eq!(cfg.gateway.host, "127.0.0.1");
+        assert_eq!(cfg.gateway.port, 3125);
+        let _ = std::fs::remove_file(partial);
+    }
+
+    #[test]
+    fn load_from_falls_back_for_missing_or_invalid_files() {
+        let missing = temp_path("missing");
+        assert_eq!(
+            CabConfig::load_from(missing.to_str().unwrap()).gateway.port,
+            3125
+        );
+
+        let invalid = temp_path("invalid");
+        std::fs::write(&invalid, "not = [toml").unwrap();
+        assert_eq!(
+            CabConfig::load_from(invalid.to_str().unwrap()).gateway.port,
+            3125
+        );
+        let _ = std::fs::remove_file(invalid);
+    }
+}

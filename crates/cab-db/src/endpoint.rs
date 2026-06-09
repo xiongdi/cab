@@ -132,3 +132,97 @@ pub async fn enabled_provider_tags_for_model(
         .collect();
     Ok(matched)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn endpoint(id: &str, model_id: &str, provider_name: &str, enabled: bool) -> ModelEndpoint {
+        ModelEndpoint {
+            id: id.into(),
+            model_id: model_id.into(),
+            canonical_slug: model_id.into(),
+            provider_name: provider_name.into(),
+            provider_tag: format!("{provider_name}/{model_id}"),
+            native_model_id: model_id.into(),
+            quantization: "unknown".into(),
+            input_cost: 1.0,
+            output_cost: 2.0,
+            cache_read_cost: Some(0.5),
+            context_length: 128000,
+            max_completion_tokens: Some(4096),
+            status: 1,
+            uptime_30m: Some(99.0),
+            uptime_5m: Some(98.0),
+            uptime_1d: Some(97.0),
+            supports_tools: true,
+            supports_streaming: true,
+            enabled,
+            updated_at: "now".into(),
+        }
+    }
+
+    #[tokio::test]
+    async fn endpoint_store_covers_summary_listing_toggles_and_delete() {
+        let store = InMemoryStore::new();
+        upsert(&store, &endpoint("b", "model-1", "Beta", true))
+            .await
+            .unwrap();
+        upsert(&store, &endpoint("a", "model-1", "Alpha", false))
+            .await
+            .unwrap();
+        upsert(&store, &endpoint("c", "model-2", "Beta", true))
+            .await
+            .unwrap();
+
+        let summaries = provider_summary(&store).await.unwrap();
+        let beta = summaries
+            .iter()
+            .find(|summary| summary.provider_name == "Beta")
+            .unwrap();
+        assert_eq!(beta.model_count, 2);
+
+        let listed = list_for_model(&store, "model-1").await.unwrap();
+        assert_eq!(
+            listed
+                .iter()
+                .map(|ep| ep.provider_name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Alpha", "Beta"]
+        );
+
+        assert_eq!(
+            enabled_provider_tags_for_model(&store, "model-1")
+                .await
+                .unwrap(),
+            vec!["Beta/model-1"]
+        );
+
+        let toggled = set_enabled(&store, "a", true).await.unwrap().unwrap();
+        assert!(toggled.enabled);
+        assert!(
+            set_enabled(&store, "missing", true)
+                .await
+                .unwrap()
+                .is_none()
+        );
+
+        set_provider_enabled(&store, "Beta", false).await.unwrap();
+        assert!(
+            list_for_model(&store, "model-1")
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|ep| ep.provider_name == "Beta")
+                .unwrap()
+                .enabled
+                == false
+        );
+
+        assert_eq!(delete_for_model(&store, "model-1").await.unwrap(), 2);
+        assert!(list_for_model(&store, "model-1").await.unwrap().is_empty());
+
+        clear_all(&store).await.unwrap();
+        assert!(provider_summary(&store).await.unwrap().is_empty());
+    }
+}

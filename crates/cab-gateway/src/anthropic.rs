@@ -174,3 +174,253 @@ pub async fn handle_messages(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::to_bytes;
+    use axum::http::{HeaderMap, StatusCode};
+    use axum::routing::post;
+    use axum::{Json, Router};
+    use cab_core::types::{ApiKeyConfig, Model, Provider, ProviderEndpoint};
+    use tokio::net::TcpListener;
+    use tokio::sync::oneshot;
+
+    struct TestServer {
+        base_url: String,
+        shutdown: Option<oneshot::Sender<()>>,
+    }
+
+    impl Drop for TestServer {
+        fn drop(&mut self) {
+            if let Some(shutdown) = self.shutdown.take() {
+                let _ = shutdown.send(());
+            }
+        }
+    }
+
+    async fn spawn_router(app: Router) -> TestServer {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = oneshot::channel::<()>();
+        tokio::spawn(async move {
+            axum::serve(listener, app.into_make_service())
+                .with_graceful_shutdown(async {
+                    let _ = rx.await;
+                })
+                .await
+                .unwrap();
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        TestServer {
+            base_url: format!("http://{addr}"),
+            shutdown: Some(tx),
+        }
+    }
+
+    async fn anthropic_success() -> impl axum::response::IntoResponse {
+        Json(serde_json::json!({
+            "id": "msg_1",
+            "model": "native-model",
+            "content": [{"type": "text", "text": "anthropic answer"}],
+            "usage": {"input_tokens": 4, "output_tokens": 6}
+        }))
+    }
+
+    async fn anthropic_stream() -> impl axum::response::IntoResponse {
+        (
+            [("content-type", "text/event-stream")],
+            "data: {\"message\":{\"usage\":{\"input_tokens\":4}}}\n\
+data: {\"usage\":{\"output_tokens\":6}}\n\
+data: [DONE]\n",
+        )
+    }
+
+    async fn anthropic_error() -> impl axum::response::IntoResponse {
+        (StatusCode::BAD_REQUEST, "bad upstream")
+    }
+
+    fn provider(base_url: &str) -> Provider {
+        Provider {
+            id: "provider-1".into(),
+            name: "Provider One".into(),
+            endpoints: vec![ProviderEndpoint {
+                id: "anthropic".into(),
+                protocol: "anthropic".into(),
+                url: base_url.into(),
+                label: None,
+                priority: 50,
+                enabled: true,
+            }],
+            api_key: "key-1".into(),
+            enabled: true,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            privacy_policy_url: None,
+            terms_of_service_url: None,
+            status_page_url: None,
+            headquarters: None,
+            datacenters: None,
+            api_keys: vec![ApiKeyConfig {
+                key: "key-1".into(),
+                enabled: true,
+                subscribed: false,
+                quota_reset_at: None,
+            }],
+            api: None,
+            doc: None,
+            env: None,
+            npm: None,
+            model_count: 0,
+            catalog_models: vec![],
+        }
+    }
+
+    fn model() -> Model {
+        Model {
+            id: "provider-model".into(),
+            name: "provider/model".into(),
+            display_name: "Provider Model".into(),
+            provider_id: "provider-1".into(),
+            protocol: "anthropic".into(),
+            context_length: 128000,
+            input_cost: Some(1.0),
+            output_cost: Some(2.0),
+            enabled: true,
+            overall_intelligence: 50.0,
+            coding_index: 50.0,
+            agentic_index: 50.0,
+            math_index: 50.0,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        }
+    }
+
+    fn state(base_url: &str) -> Arc<GatewayState> {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.providers
+                .insert("provider-1".into(), provider(base_url));
+            data.models.insert("provider-model".into(), model());
+        }
+        Arc::new(GatewayState {
+            pool,
+            client: reqwest::Client::new(),
+        })
+    }
+
+    async fn body_json(response: Response) -> serde_json::Value {
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn messages_success_returns_response_and_logs_usage() {
+        let server =
+            spawn_router(Router::new().route("/v1/messages", post(anthropic_success))).await;
+        let state = state(&server.base_url);
+        let response = handle_messages(
+            State(state.clone()),
+            HeaderMap::new(),
+            Bytes::from_static(
+                br#"{"model":"provider/model","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+        )
+        .await
+        .unwrap();
+        let json = body_json(response).await;
+
+        assert_eq!(json["content"][0]["text"], "anthropic answer");
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let data = state.pool.inner.read().unwrap();
+        let log = data.request_logs.last().unwrap();
+        assert_eq!(log.provider, "Provider One");
+        assert_eq!(log.model, "provider/model");
+        assert_eq!(log.path, "/v1/messages");
+        assert_eq!(log.input_tokens, 4);
+        assert_eq!(log.output_tokens, 6);
+        assert_eq!(log.total_tokens, 10);
+        assert_eq!(log.status, 200);
+    }
+
+    #[tokio::test]
+    async fn messages_stream_tracks_usage_when_body_is_dropped() {
+        let server =
+            spawn_router(Router::new().route("/v1/messages", post(anthropic_stream))).await;
+        let state = state(&server.base_url);
+        let response = handle_messages(
+            State(state.clone()),
+            HeaderMap::new(),
+            Bytes::from_static(
+                br#"{"model":"provider/model","stream":true,"messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+        )
+        .await
+        .unwrap();
+
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        assert!(String::from_utf8_lossy(&bytes).contains("[DONE]"));
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let data = state.pool.inner.read().unwrap();
+        let log = data.request_logs.last().unwrap();
+        assert_eq!(log.stream, true);
+        assert_eq!(log.input_tokens, 4);
+        assert_eq!(log.output_tokens, 6);
+    }
+
+    #[tokio::test]
+    async fn messages_error_logs_provider_failure() {
+        let server = spawn_router(Router::new().route("/v1/messages", post(anthropic_error))).await;
+        let state = state(&server.base_url);
+        let err = handle_messages(
+            State(state.clone()),
+            HeaderMap::new(),
+            Bytes::from_static(
+                br#"{"model":"provider/model","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, CabError::ProviderError { status: 400, .. }));
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        let data = state.pool.inner.read().unwrap();
+        let log = data.request_logs.last().unwrap();
+        assert_eq!(log.status, 400);
+        assert!(log.error.as_ref().unwrap().contains("bad upstream"));
+    }
+
+    #[tokio::test]
+    async fn messages_invalid_json_returns_invalid_request_without_log() {
+        let state = state("http://127.0.0.1:1");
+        let err = handle_messages(
+            State(state.clone()),
+            HeaderMap::new(),
+            Bytes::from_static(b"{"),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(err, CabError::InvalidRequest(_)));
+        assert!(state.pool.inner.read().unwrap().request_logs.is_empty());
+    }
+}

@@ -160,3 +160,119 @@ pub async fn sync_artificial_analysis_catalog(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::Router;
+    use axum::http::StatusCode;
+    use axum::routing::get;
+    use tokio::net::TcpListener;
+    use tokio::sync::oneshot;
+
+    struct TestServer {
+        base_url: String,
+        shutdown: Option<oneshot::Sender<()>>,
+    }
+
+    impl Drop for TestServer {
+        fn drop(&mut self) {
+            if let Some(shutdown) = self.shutdown.take() {
+                let _ = shutdown.send(());
+            }
+        }
+    }
+
+    async fn spawn_router(app: Router) -> TestServer {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = oneshot::channel::<()>();
+        tokio::spawn(async move {
+            axum::serve(listener, app.into_make_service())
+                .with_graceful_shutdown(async {
+                    let _ = rx.await;
+                })
+                .await
+                .unwrap();
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        TestServer {
+            base_url: format!("http://{addr}"),
+            shutdown: Some(tx),
+        }
+    }
+
+    async fn models_dev_json() -> impl axum::response::IntoResponse {
+        axum::Json(serde_json::json!({
+            "models": {
+                "provider/model": {
+                    "id": "provider/model",
+                    "name": "Provider Model"
+                }
+            }
+        }))
+    }
+
+    async fn upstream_error() -> impl axum::response::IntoResponse {
+        (StatusCode::BAD_GATEWAY, "upstream unavailable")
+    }
+
+    async fn invalid_json() -> impl axum::response::IntoResponse {
+        "not-json"
+    }
+
+    #[tokio::test]
+    async fn sync_models_dev_json_writes_successful_response() {
+        let server = spawn_router(Router::new().route("/models.json", get(models_dev_json))).await;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models.json");
+
+        sync_models_dev_json(
+            &reqwest::Client::new(),
+            &format!("{}/models.json", server.base_url),
+            path.clone(),
+        )
+        .await
+        .unwrap();
+
+        let cached: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(cached["models"]["provider/model"]["name"], "Provider Model");
+    }
+
+    #[tokio::test]
+    async fn sync_models_dev_json_reports_http_and_parse_errors() {
+        let error_server =
+            spawn_router(Router::new().route("/models.json", get(upstream_error))).await;
+        let dir = tempfile::tempdir().unwrap();
+        let err = sync_models_dev_json(
+            &reqwest::Client::new(),
+            &format!("{}/models.json", error_server.base_url),
+            dir.path().join("error.json"),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, CabError::ProviderError { status: 502, .. }));
+
+        let invalid_server =
+            spawn_router(Router::new().route("/models.json", get(invalid_json))).await;
+        let err = sync_models_dev_json(
+            &reqwest::Client::new(),
+            &format!("{}/models.json", invalid_server.base_url),
+            dir.path().join("invalid.json"),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, CabError::Proxy(message) if message.contains("Failed to parse")));
+    }
+
+    #[tokio::test]
+    async fn sync_artificial_analysis_catalog_is_noop_without_key() {
+        unsafe {
+            std::env::remove_var("ARTIFICIAL_ANALYSIS_API_KEY");
+        }
+        let pool = InMemoryStore::new();
+        let result = sync_artificial_analysis_catalog(&pool, &reqwest::Client::new()).await;
+        assert!(result.is_ok());
+    }
+}

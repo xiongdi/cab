@@ -488,10 +488,7 @@ async fn apply_agent_config(
                     for strategy_name in ["auto", "balanced", "intelligent", "price"] {
                         models_obj.insert(
                             strategy_name.to_string(),
-                            opencode_model_config(
-                                &format!("CAB {strategy_name}"),
-                                agent_id,
-                            ),
+                            opencode_model_config(&format!("CAB {strategy_name}"), agent_id),
                         );
                     }
                 } else {
@@ -502,11 +499,9 @@ async fn apply_agent_config(
                         );
                         if let Some(pos) = model.name.find('/') {
                             let suffix = &model.name[pos + 1..];
-                            models_obj
-                                .entry(suffix.to_string())
-                                .or_insert_with(|| {
-                                    opencode_model_config(&model.display_name, agent_id)
-                                });
+                            models_obj.entry(suffix.to_string()).or_insert_with(|| {
+                                opencode_model_config(&model.display_name, agent_id)
+                            });
                         }
                     }
                 }
@@ -896,7 +891,31 @@ async fn apply_agent_config(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cab_core::types::Agent;
+    use cab_core::types::{Agent, ApiKeyConfig, Model, Provider, ProviderEndpoint};
+    use std::path::PathBuf;
+
+    struct TestHome {
+        dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self { dir, _lock: lock }
+        }
+
+        fn path(&self, path: &str) -> PathBuf {
+            self.dir.path().join(path)
+        }
+    }
 
     fn sample_agent(mode: &str) -> Agent {
         Agent {
@@ -908,6 +927,96 @@ mod tests {
             endpoint: String::new(),
             updated_at: String::new(),
         }
+    }
+
+    fn agent(id: &str, mode: &str) -> Agent {
+        Agent {
+            id: id.to_string(),
+            name: id.to_string(),
+            mode: mode.to_string(),
+            model_id: Some("balanced".to_string()),
+            api_key: String::new(),
+            endpoint: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    fn pool_with_models() -> cab_db::InMemoryStore {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.providers.insert(
+                "provider-1".into(),
+                Provider {
+                    id: "provider-1".into(),
+                    name: "Provider One".into(),
+                    endpoints: vec![ProviderEndpoint {
+                        id: "chat".into(),
+                        protocol: "openai-chat".into(),
+                        url: "https://provider.test/v1".into(),
+                        label: None,
+                        priority: 50,
+                        enabled: true,
+                    }],
+                    api_key: "key".into(),
+                    enabled: true,
+                    created_at: "now".into(),
+                    updated_at: "now".into(),
+                    privacy_policy_url: None,
+                    terms_of_service_url: None,
+                    status_page_url: None,
+                    headquarters: None,
+                    datacenters: None,
+                    api_keys: vec![ApiKeyConfig {
+                        key: "key".into(),
+                        enabled: true,
+                        subscribed: false,
+                        quota_reset_at: None,
+                    }],
+                    api: None,
+                    doc: None,
+                    env: None,
+                    npm: None,
+                    model_count: 0,
+                    catalog_models: vec![],
+                },
+            );
+            data.models.insert(
+                "model-1".into(),
+                Model {
+                    id: "model-1".into(),
+                    name: "provider/model-1".into(),
+                    display_name: "Model One".into(),
+                    provider_id: "provider-1".into(),
+                    protocol: "openai-chat".into(),
+                    context_length: 64000,
+                    input_cost: Some(1.0),
+                    output_cost: Some(2.0),
+                    enabled: true,
+                    overall_intelligence: 80.0,
+                    coding_index: 80.0,
+                    agentic_index: 80.0,
+                    math_index: 80.0,
+                    created_at: "now".into(),
+                    updated_at: "now".into(),
+                    canonical_slug: None,
+                    hugging_face_id: None,
+                    created: None,
+                    description: None,
+                    architecture: None,
+                    pricing: None,
+                    top_provider: None,
+                    per_request_limits: Some(serde_json::json!({"output_tokens": 1234})),
+                    supported_parameters: None,
+                    default_parameters: None,
+                    supported_voices: None,
+                    knowledge_cutoff: None,
+                    expiration_date: None,
+                    links: None,
+                },
+            );
+        }
+        pool
     }
 
     #[test]
@@ -949,16 +1058,228 @@ mod tests {
 
     #[test]
     fn hermes_model_block_uses_openai_wire_and_identifying_headers() {
-        let block = build_hermes_model_block(
-            "balanced",
-            "http://localhost:3125/v1",
-            "cab-local-key",
-        );
+        let block =
+            build_hermes_model_block("balanced", "http://localhost:3125/v1", "cab-local-key");
         assert!(block.contains("api_mode: chat_completions"));
         assert!(block.contains("default_headers:"));
         assert!(block.contains("User-Agent: \"HermesAgent/CAB\""));
         assert!(block.contains("X-CAB-Agent: \"hermes\""));
         assert!(!block.contains("anthropic_messages"));
+    }
+
+    #[test]
+    fn yaml_block_replacement_appends_replaces_and_preserves_following_keys() {
+        let appended = replace_top_level_yaml_block("other: true\n", "model", "model: cab");
+        assert!(appended.contains("other: true"));
+        assert!(appended.contains("model: cab"));
+
+        let replaced = replace_top_level_yaml_block(
+            "before: 1\nmodel:\n  old: true\nnext: 2\n",
+            "model",
+            "model:\n  new: true",
+        );
+        assert!(replaced.contains("before: 1"));
+        assert!(replaced.contains("model:\n  new: true"));
+        assert!(replaced.contains("next: 2"));
+        assert!(!replaced.contains("old: true"));
+    }
+
+    #[test]
+    fn backup_agent_config_creates_timestamped_copy_when_file_exists() {
+        let home = TestHome::new();
+        let path = home.path("config.json");
+        fs::write(&path, "{\"old\":true}").unwrap();
+
+        backup_agent_config(&path);
+
+        let backups = fs::read_dir(home.path("backups")).unwrap().count();
+        assert_eq!(backups, 1);
+    }
+
+    #[tokio::test]
+    async fn codex_auto_manual_and_native_modes_update_toml_config() {
+        let home = TestHome::new();
+        let pool = pool_with_models();
+        let config_path = home.path(".codex/config.toml");
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::write(
+            &config_path,
+            "model_provider = \"old\"\n[model_providers.old]\nname = \"Old\"\n",
+        )
+        .unwrap();
+
+        apply_agent_config(&pool, &agent("codex", "auto"), 4567, "gw-key")
+            .await
+            .unwrap();
+        let auto = fs::read_to_string(&config_path).unwrap();
+        assert!(auto.contains("model = \"balanced\""));
+        assert!(auto.contains("model_provider = \"cab\""));
+        assert!(auto.contains("base_url = \"http://localhost:4567/v1\""));
+
+        apply_agent_config(&pool, &agent("codex", "manual"), 4567, "gw-key")
+            .await
+            .unwrap();
+        let manual = fs::read_to_string(&config_path).unwrap();
+        assert!(!manual.contains("model = \"balanced\""));
+        assert!(manual.contains("model_provider = \"cab\""));
+
+        apply_agent_config(&pool, &agent("codex", "native"), 4567, "gw-key")
+            .await
+            .unwrap();
+        let native = fs::read_to_string(&config_path).unwrap();
+        assert!(!native.contains("model_provider = \"cab\""));
+        assert!(!native.contains("[model_providers.cab]"));
+    }
+
+    #[tokio::test]
+    async fn claude_code_managed_mode_rewrites_existing_settings_env() {
+        let home = TestHome::new();
+        let pool = pool_with_models();
+        let config_path = home.path(".claude/settings.json");
+        fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+        fs::write(
+            &config_path,
+            serde_json::json!({
+                "model": "old",
+                "env": {
+                    "KEEP": "yes",
+                    "ANTHROPIC_MODEL": "old-model"
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        apply_agent_config(&pool, &agent("claude-code", "auto"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let json: Value = serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert!(json.get("model").is_none());
+        assert_eq!(json["env"]["KEEP"], "yes");
+        assert_eq!(json["env"]["ANTHROPIC_BASE_URL"], "http://localhost:3125");
+        assert_eq!(json["env"]["ANTHROPIC_AUTH_TOKEN"], "gw-key");
+        assert_eq!(
+            json["env"]["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"],
+            "1"
+        );
+        assert!(json["env"].get("ANTHROPIC_MODEL").is_none());
+
+        apply_agent_config(&pool, &agent("claude-code", "native"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let json: Value = serde_json::from_str(&fs::read_to_string(&config_path).unwrap()).unwrap();
+        assert!(json["env"].get("ANTHROPIC_BASE_URL").is_none());
+        assert_eq!(json["env"]["KEEP"], "yes");
+    }
+
+    #[tokio::test]
+    async fn opencode_and_kilocode_write_auto_manual_and_native_provider_config() {
+        let home = TestHome::new();
+        let pool = pool_with_models();
+
+        apply_agent_config(&pool, &agent("opencode", "auto"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let opencode_path = home.path(".config/opencode/opencode.json");
+        let json: Value =
+            serde_json::from_str(&fs::read_to_string(&opencode_path).unwrap()).unwrap();
+        assert_eq!(
+            json["provider"]["cab"]["models"]["balanced"]["name"],
+            "CAB balanced"
+        );
+        assert_eq!(
+            json["provider"]["cab"]["options"]["headers"]["X-CAB-Agent"],
+            "opencode"
+        );
+
+        apply_agent_config(&pool, &agent("kilocode", "manual"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let kilo_path = home.path(".config/kilo/opencode.json");
+        let json: Value = serde_json::from_str(&fs::read_to_string(&kilo_path).unwrap()).unwrap();
+        assert_eq!(
+            json["provider"]["cab"]["models"]["provider/model-1"]["name"],
+            "Model One"
+        );
+        assert_eq!(
+            json["provider"]["cab"]["models"]["model-1"]["headers"]["User-Agent"],
+            "KiloCode/CAB"
+        );
+
+        apply_agent_config(&pool, &agent("kilocode", "native"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let json: Value = serde_json::from_str(&fs::read_to_string(&kilo_path).unwrap()).unwrap();
+        assert!(json.get("provider").is_none());
+    }
+
+    #[tokio::test]
+    async fn hermes_and_pi_configs_cover_managed_and_native_modes() {
+        let home = TestHome::new();
+        let pool = pool_with_models();
+
+        apply_agent_config(&pool, &agent("hermes", "auto"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let hermes_path = home.path(".hermes/config.yaml");
+        let hermes = fs::read_to_string(&hermes_path).unwrap();
+        assert!(hermes.contains("model: \"balanced\""));
+        assert!(hermes.contains("api_key: \"gw-key\""));
+
+        apply_agent_config(&pool, &agent("hermes", "native"), 3125, "gw-key")
+            .await
+            .unwrap();
+        assert!(
+            fs::read_to_string(&hermes_path)
+                .unwrap()
+                .contains("model: \"\"")
+        );
+
+        apply_agent_config(&pool, &agent("pi", "manual"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let models_path = home.path(".pi/agent/models.json");
+        let settings_path = home.path(".pi/agent/settings.json");
+        let models: Value =
+            serde_json::from_str(&fs::read_to_string(&models_path).unwrap()).unwrap();
+        let settings: Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        assert_eq!(
+            models["providers"]["cab"]["models"][0]["id"],
+            "provider/model-1"
+        );
+        assert_eq!(models["providers"]["cab"]["models"][0]["maxTokens"], 1234);
+        assert_eq!(settings["defaultProvider"], "cab");
+        assert_eq!(settings["defaultModel"], "provider/model-1");
+
+        apply_agent_config(&pool, &agent("pi", "native"), 3125, "gw-key")
+            .await
+            .unwrap();
+        let models: Value =
+            serde_json::from_str(&fs::read_to_string(&models_path).unwrap()).unwrap();
+        let settings: Value =
+            serde_json::from_str(&fs::read_to_string(&settings_path).unwrap()).unwrap();
+        assert!(models.get("providers").is_none());
+        assert!(settings.get("defaultProvider").is_none());
+    }
+
+    #[tokio::test]
+    async fn openclaw_branch_reports_missing_cli_for_managed_mode() {
+        let home = TestHome::new();
+        let pool = pool_with_models();
+        let old_path = std::env::var("PATH").unwrap_or_default();
+        unsafe {
+            std::env::set_var("PATH", home.path("empty-bin"));
+        }
+
+        let err = apply_agent_config(&pool, &agent("openclaw", "auto"), 3125, "gw-key")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("Failed to run `openclaw"));
+
+        unsafe {
+            std::env::set_var("PATH", old_path);
+        }
     }
 }
 

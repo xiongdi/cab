@@ -74,3 +74,106 @@ pub async fn recent(store: &InMemoryStore, limit: i64) -> Result<Vec<RequestLog>
     let lim = (limit as usize).min(logs.len());
     Ok(logs[..lim].to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn log(id: &str, agent: &str, provider: &str, model: &str, status: i32) -> RequestLog {
+        RequestLog {
+            id: id.into(),
+            timestamp: id.into(),
+            agent: agent.into(),
+            provider: provider.into(),
+            model: model.into(),
+            input_tokens: 1,
+            output_tokens: 2,
+            total_tokens: 3,
+            latency_ms: 10,
+            status,
+            error: if status >= 400 {
+                Some("error".into())
+            } else {
+                None
+            },
+            path: "/v1/test".into(),
+            stream: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn logs_insert_update_query_filters_pagination_and_recent() {
+        let store = InMemoryStore::new();
+        insert(&store, &log("1", "codex", "p1", "m1", 200))
+            .await
+            .unwrap();
+        insert(&store, &log("2", "claude", "p2", "m2", 500))
+            .await
+            .unwrap();
+        insert(&store, &log("3", "codex", "p1", "m3", 200))
+            .await
+            .unwrap();
+
+        let mut updated = log("2", "claude", "p2", "m2", 429);
+        updated.total_tokens = 99;
+        insert(&store, &updated).await.unwrap();
+        assert_eq!(store.inner.read().unwrap().request_logs.len(), 3);
+
+        let page = query(
+            &store,
+            &LogQuery {
+                agent: Some("codex".into()),
+                provider: Some("p1".into()),
+                model: Some("m3".into()),
+                status: Some("200".into()),
+                page: Some(1),
+                per_page: Some(1),
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.total_pages, 1);
+        assert_eq!(page.data[0].id, "3");
+
+        let all = query(
+            &store,
+            &LogQuery {
+                status: Some("not-a-number".into()),
+                page: Some(2),
+                per_page: Some(2),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(all.total, 3);
+        assert_eq!(all.page, 2);
+        assert_eq!(all.per_page, 2);
+        assert_eq!(all.total_pages, 2);
+        assert_eq!(all.data.len(), 1);
+        assert_eq!(all.data[0].id, "1");
+
+        let out_of_range = query(
+            &store,
+            &LogQuery {
+                page: Some(99),
+                per_page: Some(10),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(out_of_range.data.is_empty());
+
+        let recent = recent(&store, 2).await.unwrap();
+        assert_eq!(
+            recent
+                .iter()
+                .map(|entry| entry.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["3", "2"]
+        );
+        assert_eq!(recent[1].total_tokens, 99);
+    }
+}
