@@ -120,7 +120,7 @@
         <span class="dot dot-active"></span>
         <span class="status-text">{i18n.t('settings.running')}</span>
       </div>
-      <span class="version">v0.1.1</span>
+      <span class="version">v0.1.2</span>
     </div>
   </div>
 </aside>
