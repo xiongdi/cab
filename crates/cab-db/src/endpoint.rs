@@ -209,14 +209,13 @@ mod tests {
 
         set_provider_enabled(&store, "Beta", false).await.unwrap();
         assert!(
-            list_for_model(&store, "model-1")
+            !list_for_model(&store, "model-1")
                 .await
                 .unwrap()
                 .into_iter()
                 .find(|ep| ep.provider_name == "Beta")
                 .unwrap()
                 .enabled
-                == false
         );
 
         assert_eq!(delete_for_model(&store, "model-1").await.unwrap(), 2);

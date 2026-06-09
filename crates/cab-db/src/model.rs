@@ -216,7 +216,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(defaults.id, "beta-model");
-        assert_eq!(defaults.enabled, true);
+        assert!(defaults.enabled);
         assert_eq!(defaults.overall_intelligence, 30.0);
         assert_eq!(defaults.coding_index, 24.0);
         assert_eq!(defaults.agentic_index, 36.0);
