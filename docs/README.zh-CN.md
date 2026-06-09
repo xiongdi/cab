@@ -53,6 +53,8 @@ graph TD
 
 ## 快速开始
 
+**安装发布版：** 请参阅 [安装指南](INSTALL.zh-CN.md)（[English](INSTALL.md)），在 [GitHub Releases](https://github.com/xiongdi/cab/releases) 下载对应平台的安装包。
+
 ### 前置条件
 
 - [Rust](https://rustup.rs/)（2024 Edition）

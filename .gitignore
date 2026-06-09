@@ -17,3 +17,6 @@ cab-webview-shot.png
 
 # Tauri generated bindings (regenerated on every build)
 src-tauri/gen/
+
+# CI-generated GitHub Release body
+.github/release-body.md

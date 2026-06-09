@@ -7,7 +7,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate release notes
+        run: ./scripts/generate-release-body.sh "${{ github.ref_name }}"
+
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            gh release edit "${{ github.ref_name }}" \
+              --title "CAB ${{ github.ref_name }}" \
+              --notes-file .github/release-body.md
+          else
+            gh release create "${{ github.ref_name }}" \
+              --draft \
+              --title "CAB ${{ github.ref_name }}" \
+              --notes-file .github/release-body.md
+          fi
+
   build-tauri:
+    needs: prepare-release
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
     name: Build (${{ matrix.platform }}${{ matrix.args != '' && ' - ' || '' }}${{ matrix.args }})
     permissions:
       contents: write

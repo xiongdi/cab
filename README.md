@@ -53,6 +53,8 @@ graph TD
 
 ## Getting Started
 
+**Install a release:** see the [Installation Guide](docs/INSTALL.md) ([中文](docs/INSTALL.zh-CN.md)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
+
 ### Prerequisites
 
 - [Rust](https://rustup.rs/) (2024 Edition)
