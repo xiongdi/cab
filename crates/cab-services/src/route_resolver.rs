@@ -618,6 +618,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn built_in_balanced_strategy_ranks_by_value_for_pi() {
+        // All providers in seeded_store have subscribed keys; effective cost ~0
+        // so balanced ranks by capability alone.
+        let store = seeded_store();
+        {
+            let mut data = store.inner.write().unwrap();
+            data.models.insert(
+                "mid".into(),
+                model("mid", "p1", 2.0, 75.0, true),
+            );
+            let name = data.models["mid"].name.clone();
+            data.model_endpoints
+                .insert("mid-ep".into(), model_endpoint("mid", &name));
+        }
+
+        // Simulate pi sending model="balanced" — the gateway resolves via built-in strategy
+        let resolved = resolve_route(
+            &store,
+            "pi",
+            Some("balanced"),
+            Some(&serde_json::json!({
+                "messages": [{"role": "user", "content": "Write a Rust web server"}]
+            })),
+        )
+        .await
+        .unwrap();
+
+        // All providers have subscribed keys → cost is near-zero → capability dominates
+        // Rank: smart(95) > mid(75) > backup(50) > cheap(20)
+        assert!(!resolved.fallback_models.is_empty(), "balanced should return fallbacks");
+        assert_eq!(resolved.model.id, "smart");
+        assert_eq!(resolved.fallback_models[0].model.id, "mid");
+        assert_eq!(resolved.fallback_models[1].model.id, "backup");
+    }
+
+    #[tokio::test]
+    async fn built_in_balanced_strategy_prefers_good_value_over_flagship_on_payg() {
+        let store = seeded_store();
+        {
+            // Override provider api_keys to mark them as PAYG-only (no subscribed keys)
+            let mut data = store.inner.write().unwrap();
+            data.providers.get_mut("p1").unwrap().api_keys = vec![ApiKeyConfig {
+                key: "payg-key".into(),
+                enabled: true,
+                subscribed: false,
+                quota_reset_at: None,
+            }];
+            data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
+                key: "payg-key-2".into(),
+                enabled: true,
+                subscribed: false,
+                quota_reset_at: None,
+            }];
+            data.models.insert(
+                "mid".into(),
+                model("mid", "p1", 2.0, 75.0, true),
+            );
+            let name = data.models["mid"].name.clone();
+            data.model_endpoints
+                .insert("mid-ep".into(), model_endpoint("mid", &name));
+        }
+
+        // Simulate pi sending model="balanced" with PAYG providers
+        let resolved = resolve_route(
+            &store,
+            "pi",
+            Some("balanced"),
+            Some(&serde_json::json!({
+                "messages": [{"role": "user", "content": "Write a Rust web server"}]
+            })),
+        )
+        .await
+        .unwrap();
+
+        // Balanced with PAYG: ranks by capability / effective_cost
+        // cheap:  20 / (0.1*3 + 0.2) = 20/0.5  = 40   ← best value
+        // backup: 50 / (1.0*3 + 2.0)  = 50/5    = 10
+        // mid:    75 / (2.0*3 + 4.0)  = 75/10   = 7.5
+        // smart:  95 / (5.0*3 + 10.0) = 95/25   = 3.8
+        assert!(!resolved.fallback_models.is_empty(), "balanced should return fallbacks");
+        assert_eq!(resolved.model.name, "p1/cheap");
+        assert_eq!(resolved.fallback_models[0].model.name, "p2/backup");
+        assert_eq!(resolved.fallback_models[1].model.name, "p1/mid");
+    }
+
+    #[tokio::test]
     async fn built_in_cheapest_strategy_filters_and_ranks_models() {
         let store = seeded_store();
         {

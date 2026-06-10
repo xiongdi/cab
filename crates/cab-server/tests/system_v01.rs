@@ -322,3 +322,288 @@ async fn st_routing_explain_returns_decision_trace() {
     );
     assert!(body.get("resolved").is_some());
 }
+
+#[tokio::test]
+async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
+    // CAB price route → Cheapest strategy should rank models by cost ascending.
+    // When pi sends model="price", the cheapest enabled model wins.
+    let store = InMemoryStore::new();
+    {
+        let mut data = store.inner.write().unwrap();
+        // Two providers, both enabled with keys.
+        data.providers.insert(
+            "cheap-provider".into(),
+            cab_core::types::Provider {
+                id: "cheap-provider".into(),
+                name: "Cheap Provider".into(),
+                endpoints: vec![cab_core::types::ProviderEndpoint {
+                    id: "chat".into(),
+                    protocol: "openai-chat".into(),
+                    url: "https://cheap.test/v1".into(),
+                    label: None,
+                    priority: 50,
+                    enabled: true,
+                }],
+                api_key: "key-cheap".into(),
+                enabled: true,
+                created_at: "now".into(),
+                updated_at: "now".into(),
+                privacy_policy_url: None,
+                terms_of_service_url: None,
+                status_page_url: None,
+                headquarters: None,
+                datacenters: None,
+                api_keys: vec![cab_core::types::ApiKeyConfig {
+                    key: "key-cheap".into(),
+                    enabled: true,
+                    subscribed: false,
+                    quota_reset_at: None,
+                }],
+                api: None,
+                doc: None,
+                env: None,
+                npm: None,
+                model_count: 2,
+                catalog_models: vec![],
+            },
+        );
+        data.providers.insert(
+            "pricey-provider".into(),
+            cab_core::types::Provider {
+                id: "pricey-provider".into(),
+                name: "Pricey Provider".into(),
+                endpoints: vec![cab_core::types::ProviderEndpoint {
+                    id: "chat".into(),
+                    protocol: "openai-chat".into(),
+                    url: "https://pricey.test/v1".into(),
+                    label: None,
+                    priority: 50,
+                    enabled: true,
+                }],
+                api_key: "key-pricey".into(),
+                enabled: true,
+                created_at: "now".into(),
+                updated_at: "now".into(),
+                privacy_policy_url: None,
+                terms_of_service_url: None,
+                status_page_url: None,
+                headquarters: None,
+                datacenters: None,
+                api_keys: vec![cab_core::types::ApiKeyConfig {
+                    key: "key-pricey".into(),
+                    enabled: true,
+                    subscribed: false,
+                    quota_reset_at: None,
+                }],
+                api: None,
+                doc: None,
+                env: None,
+                npm: None,
+                model_count: 2,
+                catalog_models: vec![],
+            },
+        );
+
+        fn make_model(
+            id: &str,
+            name: &str,
+            provider_id: &str,
+            input_cost: f64,
+            output_cost: f64,
+            intelligence: f64,
+        ) -> cab_core::types::Model {
+            cab_core::types::Model {
+                id: id.into(),
+                name: name.into(),
+                display_name: format!("Model {id}"),
+                provider_id: provider_id.into(),
+                protocol: "openai-chat".into(),
+                context_length: 128000,
+                input_cost: Some(input_cost),
+                output_cost: Some(output_cost),
+                enabled: true,
+                overall_intelligence: intelligence,
+                coding_index: intelligence,
+                agentic_index: intelligence,
+                math_index: intelligence,
+                created_at: "now".into(),
+                updated_at: "now".into(),
+                canonical_slug: None,
+                hugging_face_id: None,
+                created: None,
+                description: None,
+                architecture: None,
+                pricing: None,
+                top_provider: None,
+                per_request_limits: None,
+                supported_parameters: None,
+                default_parameters: None,
+                supported_voices: None,
+                knowledge_cutoff: None,
+                expiration_date: None,
+                links: None,
+            }
+        }
+
+        // cheap model: $0.1/$0.2 per Mtok
+        data.models.insert(
+            "cheap-model".into(),
+            make_model("cheap-model", "cheap-provider/cheap", "cheap-provider", 0.1, 0.2, 40.0),
+        );
+        // mid model: $1/$2 per Mtok
+        data.models.insert(
+            "mid-model".into(),
+            make_model("mid-model", "cheap-provider/mid", "cheap-provider", 1.0, 2.0, 70.0),
+        );
+        // expensive model: $10/$20 per Mtok
+        data.models.insert(
+            "expensive-model".into(),
+            make_model(
+                "expensive-model",
+                "pricey-provider/expensive",
+                "pricey-provider",
+                10.0,
+                20.0,
+                95.0,
+            ),
+        );
+
+        // Add model endpoints for all models (required for gateway model listing)
+        for m in ["cheap-model", "mid-model", "expensive-model"] {
+            let model_ref = &data.models[m];
+            let name = model_ref.name.clone();
+            let provider_name = data.providers[&model_ref.provider_id].name.clone();
+            let input_cost = model_ref.input_cost.unwrap_or(0.0);
+            let output_cost = model_ref.output_cost.unwrap_or(0.0);
+            data.model_endpoints.insert(
+                format!("{m}-ep"),
+                cab_db::endpoint::ModelEndpoint {
+                    id: format!("{m}-ep"),
+                    model_id: name.clone(),
+                    canonical_slug: name.clone(),
+                    provider_name,
+                    provider_tag: format!("tag/{m}"),
+                    native_model_id: name.clone(),
+                    quantization: "unknown".into(),
+                    input_cost,
+                    output_cost,
+                    cache_read_cost: None,
+                    context_length: 128000,
+                    max_completion_tokens: None,
+                    status: 1,
+                    uptime_30m: None,
+                    uptime_5m: None,
+                    uptime_1d: None,
+                    supports_tools: true,
+                    supports_streaming: true,
+                    enabled: true,
+                    updated_at: "now".into(),
+                },
+            );
+        }
+    }
+
+    let app = build_combined_router(store.clone());
+
+    // ----- Test 1: price mode explains cheapest model for pi -----
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/routing/explain")
+                .header("authorization", auth_header(&store))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "agent": "pi",
+                        "model": "price",
+                        "body": {"messages": [{"role": "user", "content": "Write a Rust function"}]}
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = json_body(response).await;
+
+    // Verify decision steps are produced
+    let steps = body
+        .get("decision_steps")
+        .and_then(|v| v.as_array())
+        .expect("decision_steps");
+    assert!(!steps.is_empty(), "expected decision steps");
+
+    // Verify resolved model is the cheapest (capped by cost)
+    let resolved = body
+        .get("resolved")
+        .expect("resolved");
+    let resolved_model = resolved
+        .get("model_id")
+        .and_then(|v| v.as_str())
+        .expect("resolved model_id");
+    assert!(
+        resolved_model.contains("cheap"),
+        "price route should select cheapest model, got {resolved_model}"
+    );
+    assert_eq!(
+        resolved.get("strategy").and_then(|v| v.as_str()),
+        Some("cheapest"),
+        "price route should resolve to cheapest strategy"
+    );
+
+    // Verify ranked candidates are ordered by cost ascending
+    let candidates = body
+        .get("ranked_candidates")
+        .and_then(|v| v.as_array())
+        .expect("ranked_candidates");
+    assert!(!candidates.is_empty(), "expected ranked candidates");
+    // First candidate should be the cheapest model
+    let top = &candidates[0];
+    let top_model = top
+        .get("model_id")
+        .and_then(|v| v.as_str())
+        .expect("top model_id");
+    assert!(
+        top_model.contains("cheap"),
+        "top ranked candidate should be cheapest model, got {top_model}"
+    );
+
+    // ----- Test 2: price alias resolves via gateway chat completions route -----
+    // This tests that the "price" model name resolves correctly in a routing scenario.
+    // We call the explain endpoint again with a simpler prompt to ensure consistent behavior.
+    let response2 = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/routing/explain")
+                .header("authorization", auth_header(&store))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "agent": "pi",
+                        "model": "price",
+                        "body": {"messages": [{"role": "user", "content": "hello"}]}
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response2.status(), StatusCode::OK);
+    let body2 = json_body(response2).await;
+    let resolved2 = body2.get("resolved").expect("resolved");
+    let model2 = resolved2
+        .get("model_id")
+        .and_then(|v| v.as_str())
+        .expect("resolved model_id");
+    assert!(
+        model2.contains("cheap"),
+        "price route should consistently select cheapest model for pi, got {model2}"
+    );
+}

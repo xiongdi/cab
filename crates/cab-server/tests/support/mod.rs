@@ -2,6 +2,8 @@
 #![allow(dead_code)]
 
 pub mod local_uat;
+pub mod real_ca;
+pub mod uat_report;
 
 use axum::Router;
 use cab_db::InMemoryStore;
@@ -47,8 +49,8 @@ pub struct TestServer {
     pub base_url: String,
     pub client: reqwest::Client,
     pub gateway_key: String,
-    _shutdown: oneshot::Sender<()>,
-    _task: JoinHandle<()>,
+    _shutdown: Option<oneshot::Sender<()>>,
+    _task: Option<JoinHandle<()>>,
 }
 
 /// Load bundled models.dev catalog into the store (no external network required).
@@ -97,6 +99,18 @@ pub async fn spawn_router(app: Router, gateway_key: String) -> TestServer {
     // Brief yield so accept loop is ready.
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 
+    let client = build_authed_client(&gateway_key);
+
+    TestServer {
+        base_url,
+        client,
+        gateway_key,
+        _shutdown: Some(shutdown_tx),
+        _task: Some(task),
+    }
+}
+
+pub(crate) fn build_authed_client(gateway_key: &str) -> reqwest::Client {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
@@ -104,18 +118,10 @@ pub async fn spawn_router(app: Router, gateway_key: String) -> TestServer {
             .parse()
             .expect("auth header"),
     );
-    let client = reqwest::Client::builder()
+    reqwest::Client::builder()
         .default_headers(headers)
         .build()
-        .expect("client");
-
-    TestServer {
-        base_url,
-        client,
-        gateway_key,
-        _shutdown: shutdown_tx,
-        _task: task,
-    }
+        .expect("client")
 }
 
 pub async fn get_json(server: &TestServer, path: &str) -> serde_json::Value {

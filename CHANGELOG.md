@@ -29,6 +29,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-10
+
+### Added
+
+- Local UAT now starts the **release** `cab-server` binary and invokes **real coding-agent CLIs** (UAT-10/11/12).
+- UAT Markdown reports under `reports/uat/` with per-case pass/fail summary.
+- `scripts/uat/` helpers: packaged server lifecycle, `run-real-ca.sh` per-agent probes.
+- UAT-11 covers all four auto strategies (`auto`, `balanced`, `intelligent`, `price`) × seven agents.
+- Expanded route-resolver tests for built-in `balanced` strategy (subscribed vs pay-as-you-go).
+
+### Changed
+
+- `./scripts/run-uat.sh` builds release, waits for catalog sync, tears down managed server on exit.
+- UAT tests connect to `CAB_UAT_BASE_URL` instead of an in-process ephemeral server.
+- Anthropic UAT (UAT-08) matches providers with enabled Anthropic endpoints, not only `protocol=anthropic` models.
+
+### Fixed
+
+- Real-CA verification when in-memory request logs hit the 500-entry ring buffer (CLI success no longer false-fails).
+
 ## [0.1.3] - 2026-06-09
 
 ### Added
