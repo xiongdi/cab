@@ -57,8 +57,8 @@ graph TD
 
 ### 前置条件
 
-- [Rust](https://rustup.rs/)（2024 Edition）
-- [Node.js](https://nodejs.org/)（v18+）
+- [Rust](https://rustup.rs/)（2024 Edition，`rust-toolchain.toml` 使用 `stable`）
+- [Node.js](https://nodejs.org/)（v24+，LTS）
 
 ### 桌面 GUI（Tauri）
 

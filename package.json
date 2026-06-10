@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.2.1",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vp dev",
     "build": "vp build",
@@ -19,14 +22,14 @@
     "tauri:start": "npm run build && npm run tauri -- dev --no-dev-server"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2"
+    "@tauri-apps/api": "^2.11.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3",
     "@sveltejs/kit": "^2",
     "@sveltejs/vite-plugin-svelte": "^7",
     "@tauri-apps/cli": "^2.11.2",
-    "@types/node": "^25.9.2",
+    "@types/node": "^24",
     "@vitest/coverage-v8": "^4.1.8",
     "esbuild": "^0.28.0",
     "svelte": "^5",

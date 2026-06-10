@@ -29,9 +29,9 @@ impl AgentIntegration for Integration {
             fs::read_to_string(&config_path)
                 .ok()
                 .and_then(|c| c.parse::<toml::Value>().ok())
-                .unwrap_or_else(|| toml::Value::Table(toml::value::Table::new()))
+                .unwrap_or_else(|| toml::Value::Table(toml::Table::new()))
         } else {
-            toml::Value::Table(toml::value::Table::new())
+            toml::Value::Table(toml::Table::new())
         };
 
         if cab_managed {
@@ -57,7 +57,7 @@ impl AgentIntegration for Integration {
             } else {
                 endpoint.to_string()
             };
-            let mut cab_provider = toml::value::Table::new();
+            let mut cab_provider = toml::Table::new();
             cab_provider.insert(
                 "name".to_string(),
                 toml::Value::String("CAB Gateway".to_string()),
@@ -71,7 +71,7 @@ impl AgentIntegration for Integration {
             if let Some(table) = toml_val.as_table_mut() {
                 let providers = table
                     .entry("model_providers".to_string())
-                    .or_insert_with(|| toml::Value::Table(toml::value::Table::new()));
+                    .or_insert_with(|| toml::Value::Table(toml::Table::new()));
                 if let Some(providers_table) = providers.as_table_mut() {
                     providers_table.insert("cab".to_string(), toml::Value::Table(cab_provider));
                 }

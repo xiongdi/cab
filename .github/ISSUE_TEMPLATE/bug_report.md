@@ -27,8 +27,8 @@ If applicable, add screenshots to help explain your problem.
 
 - OS: [e.g. macOS, Windows, Ubuntu]
 - Version: [e.g. 22]
-- Node Version: [e.g. 20.0.0]
-- Rust Version: [e.g. 1.78.0]
+- Node Version: [e.g. 24.0.0]
+- Rust Version: [e.g. 1.96.0]
 - CAB Version: [e.g. 0.1.0]
 
 **Additional context**

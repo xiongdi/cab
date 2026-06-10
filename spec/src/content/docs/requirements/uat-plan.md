@@ -12,7 +12,7 @@ order: 4
 ### 环境要求
 
 - OS：Linux / macOS / Windows（Tauri 构建矩阵见 `build-tauri.yml`）
-- Rust 2024 + Node 18+
+- Rust 2024 + Node 24+
 - 至少一个已配置提供商 Key
 
 ## UAT 用例（映射 REQ）

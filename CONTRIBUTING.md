@@ -6,8 +6,8 @@ Thank you for your interest in contributing to CAB (Coding Agents Bridge)! We we
 
 To build and run CAB locally, you need the following prerequisites installed on your system:
 
-1. **Rust Toolchain**: Install via [rustup](https://rustup.rs/) (edition 2024 is required).
-2. **Node.js & npm**: Install Node.js (v18 or higher recommended).
+1. **Rust Toolchain**: Install via [rustup](https://rustup.rs/) (edition 2024; repo `rust-toolchain.toml` pins `stable`).
+2. **Node.js & npm**: Install Node.js (v24 or higher, LTS).
 3. **OS-specific dependencies for Tauri**: Follow the [Tauri Prerequisites Guide](https://tauri.app/v1/guides/getting-started/prerequisites) (e.g., on Linux, you will need `libwebkit2gtk-4.1` and other system packages).
 4. **OpenSSL**: Required by the server component to dynamically generate local SSL certificates.
 

@@ -61,8 +61,8 @@ graph TD
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (2024 Edition)
-- [Node.js](https://nodejs.org/) (v18+)
+- [Rust](https://rustup.rs/) (2024 Edition, `stable` via `rust-toolchain.toml`)
+- [Node.js](https://nodejs.org/) (v24+, LTS)
 
 ### Desktop GUI (Tauri)
 

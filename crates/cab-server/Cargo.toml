@@ -27,8 +27,8 @@ axum-server = { workspace = true }
 
 [dev-dependencies]
 cab-api = { path = "../cab-api" }
-http-body-util = "0.1"
+http-body-util = "0.1.3"
 reqwest = { workspace = true }
 serde_json = { workspace = true }
-tempfile = "3"
+tempfile = "3.27"
 tower = { workspace = true }
