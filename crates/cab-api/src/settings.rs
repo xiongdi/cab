@@ -85,28 +85,6 @@ mod tests {
     use super::*;
     use axum::body::to_bytes;
 
-    struct TestHome {
-        _dir: tempfile::TempDir,
-        _lock: std::sync::MutexGuard<'static, ()>,
-    }
-
-    impl TestHome {
-        fn new() -> Self {
-            let lock = crate::TEST_HOME_LOCK
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let dir = tempfile::tempdir().unwrap();
-            unsafe {
-                std::env::set_var("HOME", dir.path());
-                std::env::remove_var("USERPROFILE");
-            }
-            Self {
-                _dir: dir,
-                _lock: lock,
-            }
-        }
-    }
-
     async fn json_body(response: impl IntoResponse) -> serde_json::Value {
         let response = response.into_response();
         let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
@@ -117,7 +95,7 @@ mod tests {
 
     #[tokio::test]
     async fn settings_handlers_get_update_and_catalog_status() {
-        let _home = TestHome::new();
+        let _home = crate::TestHome::new().await;
         let state = ApiState {
             pool: cab_db::InMemoryStore::new(),
         };

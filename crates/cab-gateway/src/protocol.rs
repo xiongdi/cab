@@ -419,18 +419,6 @@ pub fn responses_to_sse_stream(responses: &Value) -> bytes::Bytes {
     bytes::Bytes::from(sse)
 }
 
-fn openai_content_to_text(content: &Value) -> String {
-    match content {
-        Value::String(s) => s.clone(),
-        Value::Array(blocks) => blocks
-            .iter()
-            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
-            .collect::<Vec<_>>()
-            .join(""),
-        _ => String::new(),
-    }
-}
-
 /// Convert OpenAI chat completion response to Responses API format.
 pub fn chat_to_responses(openai_resp: &Value, model_name: &str) -> Value {
     let text = openai_resp
@@ -503,41 +491,38 @@ impl<S> TokenTrackingStream<S> {
             let line_bytes = self.buffer.drain(..=pos).collect::<Vec<u8>>();
             let line = String::from_utf8_lossy(&line_bytes);
             let trimmed = line.trim();
-            if trimmed.starts_with("data:") {
-                let data_content = trimmed["data:".len()..].trim();
-                if data_content != "[DONE]" && !data_content.is_empty() {
-                    if let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content) {
-                        // Anthropic message_start event: message.usage.input_tokens
-                        if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
-                            if let Some(in_tokens) =
-                                usage.get("input_tokens").and_then(|v| v.as_i64())
-                            {
-                                self.input_tokens = in_tokens;
-                            }
+            if let Some(data_content) = trimmed.strip_prefix("data:") {
+                let data_content = data_content.trim();
+                if data_content != "[DONE]"
+                    && !data_content.is_empty()
+                    && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
+                {
+                    // Anthropic message_start event: message.usage.input_tokens
+                    if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage"))
+                        && let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
+                    {
+                        self.input_tokens = in_tokens;
+                    }
+                    // Anthropic message_delta event: usage.output_tokens
+                    // OpenAI stream chunk usage: usage.prompt_tokens, usage.completion_tokens
+                    if let Some(usage) = json_val.get("usage") {
+                        if let Some(in_tokens) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
+                        {
+                            self.input_tokens = in_tokens;
                         }
-                        // Anthropic message_delta event: usage.output_tokens
-                        // OpenAI stream chunk usage: usage.prompt_tokens, usage.completion_tokens
-                        if let Some(usage) = json_val.get("usage") {
-                            if let Some(in_tokens) =
-                                usage.get("prompt_tokens").and_then(|v| v.as_i64())
-                            {
-                                self.input_tokens = in_tokens;
-                            }
-                            if let Some(in_tokens) =
-                                usage.get("input_tokens").and_then(|v| v.as_i64())
-                            {
-                                self.input_tokens = in_tokens;
-                            }
-                            if let Some(out_tokens) =
-                                usage.get("completion_tokens").and_then(|v| v.as_i64())
-                            {
-                                self.output_tokens = out_tokens;
-                            }
-                            if let Some(out_tokens) =
-                                usage.get("output_tokens").and_then(|v| v.as_i64())
-                            {
-                                self.output_tokens = out_tokens;
-                            }
+                        if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
+                        {
+                            self.input_tokens = in_tokens;
+                        }
+                        if let Some(out_tokens) =
+                            usage.get("completion_tokens").and_then(|v| v.as_i64())
+                        {
+                            self.output_tokens = out_tokens;
+                        }
+                        if let Some(out_tokens) =
+                            usage.get("output_tokens").and_then(|v| v.as_i64())
+                        {
+                            self.output_tokens = out_tokens;
                         }
                     }
                 }
@@ -572,12 +557,12 @@ impl<S> Drop for TokenTrackingStream<S> {
         let log_id = self.log_id.clone();
         let input_tokens = self.input_tokens;
         let output_tokens = self.output_tokens;
-        if let Ok(mut data) = pool.inner.write() {
-            if let Some(log) = data.request_logs.iter_mut().find(|l| l.id == log_id) {
-                log.input_tokens = input_tokens;
-                log.output_tokens = output_tokens;
-                log.total_tokens = input_tokens + output_tokens;
-            }
+        if let Ok(mut data) = pool.inner.write()
+            && let Some(log) = data.request_logs.iter_mut().find(|l| l.id == log_id)
+        {
+            log.input_tokens = input_tokens;
+            log.output_tokens = output_tokens;
+            log.total_tokens = input_tokens + output_tokens;
         }
     }
 }

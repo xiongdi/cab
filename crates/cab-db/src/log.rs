@@ -2,12 +2,16 @@ use crate::InMemoryStore;
 use cab_core::types::{LogQuery, PaginatedLogs, RequestLog};
 
 pub async fn insert(store: &InMemoryStore, log: &RequestLog) -> Result<(), String> {
+    crate::log_store::append(log)?;
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
-    // Deduplicate/Update existing log if it has the same ID (e.g. updating stream token count)
     if let Some(pos) = inner.request_logs.iter().position(|l| l.id == log.id) {
         inner.request_logs[pos] = log.clone();
     } else {
         inner.request_logs.push(log.clone());
+        if inner.request_logs.len() > crate::log_store::MAX_MEMORY_LOGS {
+            let overflow = inner.request_logs.len() - crate::log_store::MAX_MEMORY_LOGS;
+            inner.request_logs.drain(0..overflow);
+        }
     }
     Ok(())
 }
@@ -79,6 +83,28 @@ pub async fn recent(store: &InMemoryStore, limit: i64) -> Result<Vec<RequestLog>
 mod tests {
     use super::*;
 
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
+
     fn log(id: &str, agent: &str, provider: &str, model: &str, status: i32) -> RequestLog {
         RequestLog {
             id: id.into(),
@@ -103,6 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn logs_insert_update_query_filters_pagination_and_recent() {
+        let _home = TestHome::new();
         let store = InMemoryStore::new();
         insert(&store, &log("1", "codex", "p1", "m1", 200))
             .await

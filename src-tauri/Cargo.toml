@@ -21,6 +21,7 @@ cab-core = { path = "../crates/cab-core" }
 cab-db = { path = "../crates/cab-db" }
 cab-gateway = { path = "../crates/cab-gateway" }
 cab-api = { path = "../crates/cab-api" }
+cab-services = { path = "../crates/cab-services" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

@@ -27,27 +27,31 @@ graph TD
     subgraph Backend [cab-server / Daemon]
         API[cab-api: Management API]
         Gateway[cab-gateway: HTTP Gateway]
-        DB[(cab-db: Persisted JSON Store)]
+        Services[cab-services: Application Layer]
+        DB[(cab-db: settings + state + logs)]
         Core[cab-core: Routing Logic]
     end
 
-    AgentCLI[Coding Agent CLI] -- "HTTP /v1" --> Gateway
-    Gateway -- "1. Profile Request" --> Core
-    Core -- "2. Retrieve Config" --> DB
-    Core -- "3. Rank & Route" --> Gateway
-    Gateway -- "4. Forward Request" --> LLM[OpenAI / Anthropic]
-    Svelte -- "Configure Routes / Keys" --> API
-    API <--> DB
+    AgentCLI[Coding Agent CLI] -- "HTTP /v1 + Bearer" --> Gateway
+    Gateway --> Services
+    Services --> Core
+    Services --> DB
+    Gateway -- "Forward" --> LLM[OpenAI / Anthropic]
+    Svelte -- "Configure" --> API
+    API --> Services
 ```
 
-| Crate         | Role                                                    |
-| ------------- | ------------------------------------------------------- |
-| `cab-core`    | Types, request profiling, routing algorithm             |
-| `cab-db`      | In-memory store + `~/.cab/settings.json` persistence    |
-| `cab-gateway` | HTTP gateway, protocol translation, upstream forwarding |
-| `cab-api`     | Management REST API (`/api/*`)                          |
-| `cab-server`  | Headless daemon (gateway + API + static UI)             |
-| `src`         | Svelte dashboard                                        |
+| Crate          | Role                                             |
+| -------------- | ------------------------------------------------ |
+| `cab-core`     | Types, request profiling, routing algorithm      |
+| `cab-db`       | Store, `settings.json`, `state.json`, JSONL logs |
+| `cab-services` | Catalog sync, route resolution, agent config     |
+| `cab-gateway`  | Auth, protocol adapters, upstream forwarding     |
+| `cab-api`      | Management REST API (`/api/*`)                   |
+| `cab-server`   | Headless daemon (gateway + API + static UI)      |
+| `src`          | Svelte dashboard                                 |
+
+> **v0.2.0** adds persistent agent/route config, Gateway auth, JSONL logs, and routing explain API. See [CHANGELOG](CHANGELOG.md).
 
 ---
 

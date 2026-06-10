@@ -1,11 +1,15 @@
 pub mod agent;
+pub mod auth;
+pub mod catalog;
 pub mod dashboard;
 pub mod endpoint;
 pub mod log;
+pub mod log_store;
 pub mod model;
 pub mod provider;
 pub mod route;
 pub mod settings;
+pub mod state;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -41,39 +45,7 @@ impl Default for InMemoryStore {
 
 impl InMemoryStore {
     pub fn new() -> Self {
-        let mut agents = HashMap::new();
-        for id in &[
-            "claude-code",
-            "codex",
-            "opencode",
-            "hermes",
-            "kilocode",
-            "openclaw",
-            "pi",
-        ] {
-            let name = match *id {
-                "claude-code" => "Claude Code",
-                "codex" => "Codex",
-                "opencode" => "OpenCode",
-                "hermes" => "Hermes Agent",
-                "kilocode" => "Kilo Code",
-                "openclaw" => "OpenClaw",
-                "pi" => "Pi",
-                _ => "",
-            };
-            agents.insert(
-                id.to_string(),
-                Agent {
-                    id: id.to_string(),
-                    name: name.to_string(),
-                    mode: "native".to_string(),
-                    model_id: None,
-                    api_key: "".to_string(),
-                    endpoint: "".to_string(),
-                    updated_at: chrono::Utc::now().to_rfc3339(),
-                },
-            );
-        }
+        let agents = state::seed_agents();
 
         Self {
             inner: Arc::new(RwLock::new(StoreData {
@@ -97,9 +69,32 @@ pub async fn init_store() -> anyhow::Result<InMemoryStore> {
         let mut inner = store.inner.write().expect("store lock poisoned");
         inner.settings = settings;
     }
+
+    if let Some(persisted) = state::load_from_disk() {
+        state::merge_into_store(&store, persisted);
+    } else if let Err(e) = state::save_from_store(&store) {
+        tracing::warn!("Failed to write initial state.json: {e}");
+    }
+
+    let retention_days = store
+        .inner
+        .read()
+        .expect("store lock poisoned")
+        .settings
+        .log_retention_days;
+    if let Err(e) = log_store::enforce_retention(retention_days) {
+        tracing::warn!("Failed to enforce log retention: {e}");
+    }
+    match log_store::load_into_store(&store) {
+        Ok(count) if count > 0 => tracing::info!("Loaded {count} request logs from JSONL"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!("Failed to load request logs: {e}"),
+    }
+
     tracing::info!(
-        "In-memory store initialized (settings: {})",
-        settings::settings_file_path().display()
+        "In-memory store initialized (settings: {}, state: {})",
+        settings::settings_file_path().display(),
+        state::state_file_path().display()
     );
     Ok(store)
 }

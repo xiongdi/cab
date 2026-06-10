@@ -1,6 +1,7 @@
-#![allow(clippy::all, dead_code)]
+pub mod adapters;
 pub mod agent_id;
 pub mod anthropic;
+pub mod auth;
 pub mod fallback;
 pub mod openai;
 pub mod protocol;

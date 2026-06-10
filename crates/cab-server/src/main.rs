@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store_clone = store.clone();
     tokio::spawn(async move {
         tracing::info!("Startup: Synchronizing models.dev provider/catalog...");
-        match cab_api::providers::sync_models_dev_catalog(&store_clone).await {
+        match cab_services::catalog::sync_on_startup(&store_clone).await {
             Ok(count) => {
                 tracing::info!(
                     "Startup: models.dev catalog synchronization finished. Synced {} models.",

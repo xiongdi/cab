@@ -58,6 +58,8 @@ pub async fn create(store: &InMemoryStore, input: &CreateRoute) -> Result<Route,
         updated_at: now,
     };
     inner.routes.insert(id, route.clone());
+    drop(inner);
+    crate::state::save_from_store(store)?;
     Ok(route)
 }
 
@@ -90,7 +92,10 @@ pub async fn update(
             r.enabled = *enabled;
         }
         r.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(Some(r.clone()))
+        let updated = r.clone();
+        drop(inner);
+        crate::state::save_from_store(store)?;
+        Ok(Some(updated))
     } else {
         Ok(None)
     }
@@ -102,12 +107,39 @@ fn p_name_update(r: &mut Route, name: &str) {
 
 pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
-    Ok(inner.routes.remove(id).is_some())
+    let removed = inner.routes.remove(id).is_some();
+    drop(inner);
+    if removed {
+        crate::state::save_from_store(store)?;
+    }
+    Ok(removed)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
 
     fn route(name: &str, pattern: &str, priority: i32, enabled: Option<bool>) -> CreateRoute {
         CreateRoute {
@@ -123,6 +155,7 @@ mod tests {
 
     #[tokio::test]
     async fn route_crud_matching_priority_and_delete() {
+        let _home = TestHome::new();
         let store = InMemoryStore::new();
 
         let low = create(&store, &route("Low Route", "codex", 1, None))

@@ -46,6 +46,7 @@ impl TestHome {
 pub struct TestServer {
     pub base_url: String,
     pub client: reqwest::Client,
+    pub gateway_key: String,
     _shutdown: oneshot::Sender<()>,
     _task: JoinHandle<()>,
 }
@@ -58,8 +59,15 @@ pub async fn seed_catalog(store: &InMemoryStore) {
 }
 
 pub async fn spawn_test_server(store: InMemoryStore) -> TestServer {
+    let gateway_key = store
+        .inner
+        .read()
+        .expect("lock")
+        .settings
+        .gateway_key
+        .clone();
     let app = build_combined_router(store);
-    spawn_router(app).await
+    spawn_router(app, gateway_key).await
 }
 
 pub async fn spawn_seeded_server() -> TestServer {
@@ -68,7 +76,7 @@ pub async fn spawn_seeded_server() -> TestServer {
     spawn_test_server(store).await
 }
 
-pub async fn spawn_router(app: Router) -> TestServer {
+pub async fn spawn_router(app: Router, gateway_key: String) -> TestServer {
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind ephemeral port");
@@ -89,9 +97,22 @@ pub async fn spawn_router(app: Router) -> TestServer {
     // Brief yield so accept loop is ready.
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
 
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {gateway_key}")
+            .parse()
+            .expect("auth header"),
+    );
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("client");
+
     TestServer {
         base_url,
-        client: reqwest::Client::new(),
+        client,
+        gateway_key,
         _shutdown: shutdown_tx,
         _task: task,
     }

@@ -4,14 +4,13 @@ use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use cab_core::CabError;
-use cab_core::types::RequestLog;
-use chrono::Utc;
 use std::sync::Arc;
-use uuid::Uuid;
 
-use crate::fallback::{ProxyRequest, execute_with_fallback};
-use crate::router::{pick_endpoints_for_protocol, resolve_route};
+use crate::adapters::{OpenAiChatAdapter, OpenAiResponsesAdapter, handle_proxied_request};
 use crate::state::GatewayState;
+
+static OPENAI_CHAT: OpenAiChatAdapter = OpenAiChatAdapter;
+static OPENAI_RESPONSES: OpenAiResponsesAdapter = OpenAiResponsesAdapter;
 
 /// POST /v1/chat/completions
 ///
@@ -21,163 +20,7 @@ pub async fn handle_chat_completions(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, CabError> {
-    let start = std::time::Instant::now();
-    let agent = crate::agent_id::extract_agent_id(&headers);
-
-    // Parse body to extract the requested model and stream flag
-    let body_json: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| CabError::InvalidRequest(format!("Invalid JSON body: {e}")))?;
-
-    let requested_model = body_json
-        .get("model")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let stream = body_json
-        .get("stream")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    // Resolve route
-    let resolved = resolve_route(
-        &state.pool,
-        &agent,
-        requested_model.as_deref(),
-        Some(&body_json),
-    )
-    .await?;
-
-    let provider = cab_db::provider::get_by_id(&state.pool, &resolved.model.provider_id)
-        .await
-        .map_err(CabError::Database)?
-        .ok_or_else(|| {
-            CabError::NotFound(format!("Provider {} not found", resolved.model.provider_id))
-        })?;
-
-    let endpoint_candidates = pick_endpoints_for_protocol(&provider, "openai-chat");
-
-    let mut primary = resolved.as_primary_model();
-    primary.endpoint_candidates = endpoint_candidates;
-    primary.model_protocol = "openai-chat".to_string();
-
-    let proxy_req = ProxyRequest {
-        body,
-        headers: headers.clone(),
-        stream,
-        path_suffix: "chat/completions".to_string(),
-    };
-
-    let result = execute_with_fallback(
-        &state.client,
-        &state.pool,
-        &primary,
-        &resolved.fallback_models,
-        &proxy_req,
-    )
-    .await;
-
-    let latency_ms = start.elapsed().as_millis() as i64;
-
-    match result {
-        Ok((response, provider_name, model_name)) => {
-            let log_id = Uuid::new_v4().to_string();
-            let mut input_tokens = 0;
-            let mut output_tokens = 0;
-            let mut final_response = response;
-
-            if stream {
-                let (parts, body) = final_response.into_parts();
-                let tracking_stream = crate::protocol::TokenTrackingStream::new(
-                    body.into_data_stream(),
-                    state.pool.clone(),
-                    log_id.clone(),
-                );
-                final_response =
-                    Response::from_parts(parts, axum::body::Body::from_stream(tracking_stream));
-            } else {
-                let (parts, body) = final_response.into_parts();
-                let body_bytes = match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-                    Ok(b) => b,
-                    Err(e) => {
-                        tracing::error!("Failed to read response body: {e}");
-                        axum::body::Bytes::new()
-                    }
-                };
-                if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    if let Some(usage) = json_val.get("usage") {
-                        input_tokens = usage
-                            .get("prompt_tokens")
-                            .or_else(|| usage.get("input_tokens"))
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        output_tokens = usage
-                            .get("completion_tokens")
-                            .or_else(|| usage.get("output_tokens"))
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                    }
-                }
-                final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
-            }
-
-            // Log successful request
-            let log = RequestLog {
-                id: log_id,
-                timestamp: Utc::now().to_rfc3339(),
-                agent: agent.clone(),
-                provider: provider_name,
-                model: model_name,
-                input_tokens,
-                output_tokens,
-                total_tokens: input_tokens + output_tokens,
-                latency_ms,
-                status: 200,
-                error: None,
-                path: "/v1/chat/completions".to_string(),
-                stream,
-            };
-            let pool = state.pool.clone();
-            tokio::spawn(async move {
-                if let Err(e) = cab_db::log::insert(&pool, &log).await {
-                    tracing::error!("Failed to log request: {e}");
-                }
-            });
-
-            Ok(final_response)
-        }
-        Err(e) => {
-            // Log failed request
-            let status_code = match &e {
-                CabError::ProviderError { status, .. } => *status as i32,
-                CabError::Proxy(_) => 502,
-                CabError::NotFound(_) => 404,
-                _ => 500,
-            };
-            let log = RequestLog {
-                id: Uuid::new_v4().to_string(),
-                timestamp: Utc::now().to_rfc3339(),
-                agent,
-                provider: resolved.provider_name.clone(),
-                model: resolved.model.name.clone(),
-                input_tokens: 0,
-                output_tokens: 0,
-                total_tokens: 0,
-                latency_ms,
-                status: status_code,
-                error: Some(e.to_string()),
-                path: "/v1/chat/completions".to_string(),
-                stream,
-            };
-            let pool = state.pool.clone();
-            tokio::spawn(async move {
-                if let Err(e) = cab_db::log::insert(&pool, &log).await {
-                    tracing::error!("Failed to log request: {e}");
-                }
-            });
-
-            Err(e)
-        }
-    }
+    handle_proxied_request(&OPENAI_CHAT, state, headers, body).await
 }
 
 /// POST /v1/responses
@@ -188,159 +31,7 @@ pub async fn handle_responses(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response, CabError> {
-    let start = std::time::Instant::now();
-    let agent = crate::agent_id::extract_agent_id(&headers);
-
-    let body_json: serde_json::Value = serde_json::from_slice(&body)
-        .map_err(|e| CabError::InvalidRequest(format!("Invalid JSON body: {e}")))?;
-
-    let requested_model = body_json
-        .get("model")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-
-    let stream = body_json
-        .get("stream")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    let resolved = resolve_route(
-        &state.pool,
-        &agent,
-        requested_model.as_deref(),
-        Some(&body_json),
-    )
-    .await?;
-
-    let provider = cab_db::provider::get_by_id(&state.pool, &resolved.model.provider_id)
-        .await
-        .map_err(CabError::Database)?
-        .ok_or_else(|| {
-            CabError::NotFound(format!("Provider {} not found", resolved.model.provider_id))
-        })?;
-
-    let endpoint_candidates = pick_endpoints_for_protocol(&provider, "openai-responses");
-
-    let mut primary = resolved.as_primary_model();
-    primary.endpoint_candidates = endpoint_candidates;
-    primary.model_protocol = "openai-responses".to_string();
-
-    let proxy_req = ProxyRequest {
-        body,
-        headers: headers.clone(),
-        stream,
-        path_suffix: "responses".to_string(),
-    };
-
-    let result = execute_with_fallback(
-        &state.client,
-        &state.pool,
-        &primary,
-        &resolved.fallback_models,
-        &proxy_req,
-    )
-    .await;
-
-    let latency_ms = start.elapsed().as_millis() as i64;
-
-    match result {
-        Ok((response, provider_name, model_name)) => {
-            let log_id = Uuid::new_v4().to_string();
-            let mut input_tokens = 0;
-            let mut output_tokens = 0;
-            let mut final_response = response;
-
-            if stream {
-                let (parts, body) = final_response.into_parts();
-                let tracking_stream = crate::protocol::TokenTrackingStream::new(
-                    body.into_data_stream(),
-                    state.pool.clone(),
-                    log_id.clone(),
-                );
-                final_response =
-                    Response::from_parts(parts, axum::body::Body::from_stream(tracking_stream));
-            } else {
-                let (parts, body) = final_response.into_parts();
-                let body_bytes = match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-                    Ok(b) => b,
-                    Err(e) => {
-                        tracing::error!("Failed to read response body: {e}");
-                        axum::body::Bytes::new()
-                    }
-                };
-                if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    if let Some(usage) = json_val.get("usage") {
-                        input_tokens = usage
-                            .get("input_tokens")
-                            .or_else(|| usage.get("prompt_tokens"))
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        output_tokens = usage
-                            .get("output_tokens")
-                            .or_else(|| usage.get("completion_tokens"))
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                    }
-                }
-                final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
-            }
-
-            let log = RequestLog {
-                id: log_id,
-                timestamp: Utc::now().to_rfc3339(),
-                agent: agent.clone(),
-                provider: provider_name,
-                model: model_name,
-                input_tokens,
-                output_tokens,
-                total_tokens: input_tokens + output_tokens,
-                latency_ms,
-                status: 200,
-                error: None,
-                path: "/v1/responses".to_string(),
-                stream,
-            };
-            let pool = state.pool.clone();
-            tokio::spawn(async move {
-                if let Err(e) = cab_db::log::insert(&pool, &log).await {
-                    tracing::error!("Failed to log request: {e}");
-                }
-            });
-
-            Ok(final_response)
-        }
-        Err(e) => {
-            let status_code = match &e {
-                CabError::ProviderError { status, .. } => *status as i32,
-                CabError::Proxy(_) => 502,
-                CabError::NotFound(_) => 404,
-                _ => 500,
-            };
-            let log = RequestLog {
-                id: Uuid::new_v4().to_string(),
-                timestamp: Utc::now().to_rfc3339(),
-                agent,
-                provider: resolved.provider_name.clone(),
-                model: resolved.model.name.clone(),
-                input_tokens: 0,
-                output_tokens: 0,
-                total_tokens: 0,
-                latency_ms,
-                status: status_code,
-                error: Some(e.to_string()),
-                path: "/v1/responses".to_string(),
-                stream,
-            };
-            let pool = state.pool.clone();
-            tokio::spawn(async move {
-                if let Err(e) = cab_db::log::insert(&pool, &log).await {
-                    tracing::error!("Failed to log request: {e}");
-                }
-            });
-
-            Err(e)
-        }
-    }
+    handle_proxied_request(&OPENAI_RESPONSES, state, headers, body).await
 }
 
 /// GET /v1/models — list all enabled models in OpenAI format.
@@ -384,15 +75,16 @@ pub async fn handle_list_models(
         let mut owned_by_parts = Vec::new();
         owned_by_parts.push(model.provider_id.clone());
 
-        if let Some(ref desc) = model.description {
-            if !desc.trim().is_empty() && desc.to_lowercase() != model.provider_id.to_lowercase() {
-                let clean_desc = if desc.len() > 60 {
-                    format!("{}...", &desc[..57])
-                } else {
-                    desc.clone()
-                };
-                owned_by_parts.push(clean_desc);
-            }
+        if let Some(ref desc) = model.description
+            && !desc.trim().is_empty()
+            && desc.to_lowercase() != model.provider_id.to_lowercase()
+        {
+            let clean_desc = if desc.len() > 60 {
+                format!("{}...", &desc[..57])
+            } else {
+                desc.clone()
+            };
+            owned_by_parts.push(clean_desc);
         }
 
         if model.input_cost.is_some() || model.output_cost.is_some() {
@@ -639,6 +331,7 @@ data: [DONE]\n",
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn model(
         id: &str,
         name: &str,
@@ -799,7 +492,7 @@ data: [DONE]\n",
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         let data = state.pool.inner.read().unwrap();
         let log = data.request_logs.last().unwrap();
-        assert_eq!(log.stream, true);
+        assert!(log.stream);
         assert_eq!(log.input_tokens, 2);
         assert_eq!(log.output_tokens, 4);
     }
@@ -988,12 +681,11 @@ data: [DONE]\n",
         assert_eq!(json["has_more"], false);
         assert_eq!(data[0]["slug"], "p1/high-model");
         assert_eq!(data[0]["display_name"], "Display p1/high-model");
-        assert_eq!(
+        assert!(
             data[0]["owned_by"]
                 .as_str()
                 .unwrap()
-                .contains("$1.25/$2 per Mtok"),
-            true
+                .contains("$1.25/$2 per Mtok")
         );
         assert_eq!(data[0]["supported_in_api"], true);
         assert_eq!(data[0]["truncation_policy"]["type"], "bytes");

@@ -86,9 +86,7 @@ pub async fn proxy_request(
             .cloned()
             .unwrap_or_else(|| HeaderValue::from_static("text/event-stream"));
 
-        let byte_stream = upstream_resp
-            .bytes_stream()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e));
+        let byte_stream = upstream_resp.bytes_stream().map_err(std::io::Error::other);
 
         let body = Body::from_stream(byte_stream);
 
@@ -140,11 +138,11 @@ pub async fn proxy_get(
         .await
         .map_err(|e| CabError::Proxy(format!("Failed to read response: {e}")))?;
 
-    Ok(Response::builder()
+    Response::builder()
         .status(status.as_u16())
         .header("content-type", "application/json")
         .body(Body::from(body_bytes))
-        .map_err(|e| CabError::Proxy(format!("Failed to build response: {e}")))?)
+        .map_err(|e| CabError::Proxy(format!("Failed to build response: {e}")))
 }
 
 #[cfg(test)]

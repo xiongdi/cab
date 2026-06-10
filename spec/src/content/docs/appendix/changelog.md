@@ -12,6 +12,31 @@ order: 2
 | 0.1.0-spec | 2026-06 | 初始 spec 站 55 篇      | 建立 V 模型文档体系             |
 | 0.2.0-spec | 2026-06 | 全量按源码手写          | 替换脚本占位内容                |
 | 0.2.0-prod | 2026-06 | 订阅 Key + 429 fallback | REQ-CAB-006；types、routing、UI |
+| 0.2.0-arch | 2026-06 | P0–P3 架构演进          | REQ-CAB-007~010；cab-services   |
+
+## 0.2.0 架构演进摘要（v0.2.0-arch）
+
+### 持久化与安全（P0）
+
+- `~/.cab/state.json` 持久化 agents、routes
+- `auth_enabled` + Gateway/API Bearer 鉴权
+- 首次安装随机 `gateway_key`
+
+### 应用服务层（P1）
+
+- 新建 `cab-services` crate
+- `RouteCatalog` trait；薄化 cab-api / cab-gateway
+
+### 插件化（P2）
+
+- `AgentIntegration` registry（7 Agent 独立模块）
+- `ProtocolAdapter`（openai-chat / responses / anthropic）
+
+### 可观测与 API（P3）
+
+- JSONL 日志 + retention
+- `POST /api/routing/explain` + Routes UI
+- OpenAPI + 前端类型生成
 
 ## 0.2.0 功能变更摘要
 

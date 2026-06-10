@@ -2,35 +2,27 @@
 
 use axum::http::HeaderMap;
 
-const SUPPORTED_AGENT_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "opencode",
-    "hermes",
-    "kilocode",
-    "openclaw",
-    "pi",
-];
+use cab_services::agents::SUPPORTED_AGENT_IDS;
 
 /// Identify the calling coding agent using explicit CAB headers first, then
 /// vendor-specific signals such as `originator` and `User-Agent`.
 pub fn extract_agent_id(headers: &HeaderMap) -> String {
-    if let Some(value) = header_value(headers, "x-cab-agent") {
-        if let Some(id) = normalize_agent_id(&value) {
-            return id;
-        }
+    if let Some(value) = header_value(headers, "x-cab-agent")
+        && let Some(id) = normalize_agent_id(&value)
+    {
+        return id;
     }
 
-    if let Some(value) = header_value(headers, "originator") {
-        if let Some(id) = map_originator(&value) {
-            return id;
-        }
+    if let Some(value) = header_value(headers, "originator")
+        && let Some(id) = map_originator(&value)
+    {
+        return id;
     }
 
-    if let Some(ua) = header_value(headers, "user-agent") {
-        if let Some(id) = map_user_agent(&ua) {
-            return id;
-        }
+    if let Some(ua) = header_value(headers, "user-agent")
+        && let Some(id) = map_user_agent(&ua)
+    {
+        return id;
     }
 
     "unknown".to_string()

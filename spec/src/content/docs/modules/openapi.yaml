@@ -1,0 +1,133 @@
+openapi: 3.1.0
+info:
+  title: CAB Management API
+  version: 0.2.0
+  description: Local management API for Coding Agents Bridge
+servers:
+  - url: http://127.0.0.1:3125
+security:
+  - bearerAuth: []
+paths:
+  /api/agents:
+    get:
+      summary: List agents
+      operationId: listAgents
+      responses:
+        '200':
+          description: Agent list
+  /api/agents/{id}:
+    put:
+      summary: Update agent
+      operationId: updateAgent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgent'
+      responses:
+        '200':
+          description: Updated agent
+  /api/routing/explain:
+    post:
+      summary: Explain routing decision
+      operationId: explainRouting
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RouteExplainRequest'
+      responses:
+        '200':
+          description: Routing explanation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteExplainResult'
+  /api/settings:
+    get:
+      summary: Get settings
+      operationId: getSettings
+      responses:
+        '200':
+          description: Settings
+    put:
+      summary: Update settings
+      operationId: updateSettings
+      responses:
+        '200':
+          description: Updated settings
+  /api/logs:
+    get:
+      summary: Query request logs
+      operationId: queryLogs
+      responses:
+        '200':
+          description: Paginated logs
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    UpdateAgent:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [native, auto, manual]
+        model_id:
+          type: string
+          nullable: true
+    RouteExplainRequest:
+      type: object
+      required: [agent]
+      properties:
+        agent:
+          type: string
+        model:
+          type: string
+          nullable: true
+        body:
+          type: object
+    RouteExplainResult:
+      type: object
+      properties:
+        resolved:
+          type: object
+          nullable: true
+        decision_steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/DecisionStep'
+        ranked_candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankedModelSummary'
+    DecisionStep:
+      type: object
+      properties:
+        step:
+          type: string
+        matched:
+          type: boolean
+        detail:
+          type: string
+    RankedModelSummary:
+      type: object
+      properties:
+        model_id:
+          type: string
+        provider_id:
+          type: string
+        capability:
+          type: number
+        value:
+          type: number

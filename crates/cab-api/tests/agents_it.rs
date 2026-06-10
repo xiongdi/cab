@@ -8,6 +8,28 @@ use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
 
+static AGENTS_IT_HOME_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+struct TestHome {
+    _dir: tempfile::TempDir,
+    _lock: tokio::sync::MutexGuard<'static, ()>,
+}
+
+impl TestHome {
+    async fn new() -> Self {
+        let lock = AGENTS_IT_HOME_LOCK.lock().await;
+        let dir = tempfile::tempdir().expect("tempdir");
+        unsafe {
+            std::env::set_var("HOME", dir.path());
+            std::env::remove_var("USERPROFILE");
+        }
+        Self {
+            _dir: dir,
+            _lock: lock,
+        }
+    }
+}
+
 const SUPPORTED_AGENT_IDS: &[&str] = &[
     "claude-code",
     "codex",
@@ -28,13 +50,22 @@ async fn json_body(response: axum::response::Response) -> Value {
     serde_json::from_slice(&bytes).expect("valid json")
 }
 
+fn auth_header(store: &InMemoryStore) -> String {
+    format!(
+        "Bearer {}",
+        store.inner.read().unwrap().settings.gateway_key
+    )
+}
+
 #[tokio::test]
 async fn it_list_agents_returns_seven_supported_agents() {
-    let app = api_router(InMemoryStore::new());
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/api/agents")
+                .header("authorization", auth_header(&store))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -59,13 +90,15 @@ async fn it_list_agents_returns_seven_supported_agents() {
 
 #[tokio::test]
 async fn it_get_removed_agent_returns_not_found() {
-    let app = api_router(InMemoryStore::new());
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
     for id in ["cursor", "antigravity"] {
         let response = app
             .clone()
             .oneshot(
                 Request::builder()
                     .uri(format!("/api/agents/{id}"))
+                    .header("authorization", auth_header(&store))
                     .body(Body::empty())
                     .unwrap(),
             )
@@ -77,7 +110,8 @@ async fn it_get_removed_agent_returns_not_found() {
 
 #[tokio::test]
 async fn it_removed_proxy_endpoints_are_not_mounted() {
-    let app = api_router(InMemoryStore::new());
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
 
     // Dedicated hijack handler removed; POST may 405 on `/api/agents/{id}` fallback.
     let hijack = app
@@ -86,6 +120,7 @@ async fn it_removed_proxy_endpoints_are_not_mounted() {
             Request::builder()
                 .method("POST")
                 .uri("/api/agents/hijack-claude")
+                .header("authorization", auth_header(&store))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -106,6 +141,7 @@ async fn it_removed_proxy_endpoints_are_not_mounted() {
             Request::builder()
                 .method("POST")
                 .uri("/api/agents/codex/install-proxy")
+                .header("authorization", auth_header(&store))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -124,12 +160,16 @@ async fn it_removed_proxy_endpoints_are_not_mounted() {
 
 #[tokio::test]
 async fn it_update_agent_auto_mode_persists_strategy() {
-    let app = api_router(InMemoryStore::new());
+    let _home = TestHome::new().await;
+
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
     let response = app
         .oneshot(
             Request::builder()
                 .method("PUT")
                 .uri("/api/agents/codex")
+                .header("authorization", auth_header(&store))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({ "mode": "auto", "model_id": "balanced" }).to_string(),
@@ -150,12 +190,16 @@ async fn it_update_agent_auto_mode_persists_strategy() {
 
 #[tokio::test]
 async fn it_update_legacy_proxy_mode_returns_native() {
-    let app = api_router(InMemoryStore::new());
+    let _home = TestHome::new().await;
+
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
     let response = app
         .oneshot(
             Request::builder()
                 .method("PUT")
                 .uri("/api/agents/claude-code")
+                .header("authorization", auth_header(&store))
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({ "mode": "proxy" }).to_string(),

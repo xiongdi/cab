@@ -358,11 +358,17 @@ pub struct ModelUserSettings {
     pub enabled: Option<bool>,
 }
 
+fn default_auth_enabled() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
     pub gateway_port: i64,
     pub log_retention_days: i64,
     pub gateway_key: String,
+    #[serde(default = "default_auth_enabled")]
+    pub auth_enabled: bool,
     /// Artificial Analysis API key for benchmark sync.
     #[serde(default)]
     pub artificial_analysis_api_key: Option<String>,
@@ -370,6 +376,13 @@ pub struct Settings {
     pub providers: HashMap<String, ProviderUserSettings>,
     #[serde(default)]
     pub models: HashMap<String, ModelUserSettings>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersistedState {
+    pub version: u32,
+    pub agents: HashMap<String, Agent>,
+    pub routes: HashMap<String, Route>,
 }
 
 // ──────────────────────────── Agent ────────────────────────────
@@ -391,4 +404,43 @@ pub struct UpdateAgent {
     pub model_id: Option<Option<String>>,
     pub api_key: Option<String>,
     pub endpoint: Option<String>,
+}
+
+// ──────────────────────────── Route Explain ────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteExplainRequest {
+    pub agent: String,
+    pub model: Option<String>,
+    #[serde(default)]
+    pub body: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionStep {
+    pub step: String,
+    pub matched: bool,
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedSummary {
+    pub model_id: String,
+    pub provider_id: String,
+    pub strategy: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RankedModelSummary {
+    pub model_id: String,
+    pub provider_id: String,
+    pub capability: f64,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RouteExplainResult {
+    pub resolved: Option<ResolvedSummary>,
+    pub decision_steps: Vec<DecisionStep>,
+    pub ranked_candidates: Vec<RankedModelSummary>,
 }

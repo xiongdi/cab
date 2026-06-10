@@ -13,12 +13,16 @@ order: 4
 | REQ-CAB-002 | 按任务自动选模            | UAT-02         |
 | REQ-CAB-003 | 提供商/模型可配置         | UAT-03         |
 | REQ-CAB-004 | Agent 无感接入            | UAT-06         |
-| REQ-CAB-005 | 请求可观测                | UAT-04         |
+| REQ-CAB-005 | 请求可观测                | UAT-04、UAT-05 |
 | REQ-CAB-006 | 订阅优先与 429 fallback   | UAT-07、UAT-08 |
+| REQ-CAB-007 | Agent/Route 重启保留      | UAT-09         |
+| REQ-CAB-008 | Gateway/API 鉴权          | UAT-10         |
+| REQ-CAB-009 | 日志 JSONL 跨重启         | UAT-11         |
+| REQ-CAB-010 | 路由解释 API              | UAT-12         |
 
 ## 通过准则
 
-- UAT-01～08 **全部 Pass**，或 Fail 项有已批准豁免
+- UAT-01～12 **全部 Pass**，或 Fail 项有已批准豁免
 - 系统测试无开放 Blocker/Critical
 - 用户环境检查清单完成
 

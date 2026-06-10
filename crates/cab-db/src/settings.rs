@@ -11,11 +11,16 @@ pub fn settings_file_path() -> PathBuf {
     PathBuf::from(home).join(".cab").join("settings.json")
 }
 
+pub fn generate_gateway_key() -> String {
+    format!("cab-token-{}", uuid::Uuid::new_v4())
+}
+
 pub fn default_settings() -> Settings {
     Settings {
         gateway_port: 3125,
         log_retention_days: 30,
-        gateway_key: "cab-token-6a05e2d5-c0f5-48fa-8656-e91026bb4b2a".to_string(),
+        gateway_key: generate_gateway_key(),
+        auth_enabled: true,
         artificial_analysis_api_key: None,
         providers: Default::default(),
         models: Default::default(),
@@ -25,7 +30,11 @@ pub fn default_settings() -> Settings {
 pub fn load_from_disk() -> Settings {
     let path = settings_file_path();
     if !path.exists() {
-        return default_settings();
+        let settings = default_settings();
+        if let Err(e) = save_to_disk(&settings) {
+            tracing::warn!("Failed to write initial settings: {e}");
+        }
+        return settings;
     }
 
     match std::fs::read_to_string(&path) {
@@ -135,6 +144,7 @@ mod tests {
         assert_eq!(defaults.gateway_port, 3125);
         assert_eq!(defaults.log_retention_days, 30);
         assert!(defaults.gateway_key.starts_with("cab-token-"));
+        assert!(defaults.auth_enabled);
         assert!(defaults.providers.is_empty());
         assert!(defaults.models.is_empty());
         assert_eq!(load_from_disk().gateway_port, 3125);

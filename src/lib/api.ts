@@ -22,6 +22,8 @@ import type {
   SyncCatalogResponse,
   Agent,
   UpdateAgent,
+  RouteExplainRequest,
+  RouteExplainResult,
 } from './types';
 
 let resolvedPort: number | null = null;
@@ -160,6 +162,12 @@ export const api = {
       }),
 
     delete: (id: string) => request<void>(`/routes/${id}`, { method: 'DELETE' }),
+
+    explain: (data: RouteExplainRequest) =>
+      request<RouteExplainResult>('/routing/explain', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // ── Logs ──────────────────────────────────────────────────

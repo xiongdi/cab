@@ -1,4 +1,3 @@
-#![allow(clippy::all, dead_code)]
 pub mod agents;
 pub mod benchmarks;
 pub mod catalog_provider_urls;
@@ -7,14 +6,59 @@ pub mod logs;
 pub mod models;
 pub mod providers;
 pub mod routes;
+pub mod routing;
 pub mod settings;
 use axum::Router;
+use axum::extract::Request;
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use cab_db::InMemoryStore;
 use tower_http::cors::{Any, CorsLayer};
 
+async fn api_auth_middleware(
+    axum::extract::State(state): axum::extract::State<ApiState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    if let Err(err) = cab_db::auth::verify(
+        &state.pool,
+        request
+            .headers()
+            .get("authorization")
+            .and_then(|v| v.to_str().ok()),
+    )
+    .await
+    {
+        return err.into_response();
+    }
+    next.run(request).await
+}
+
 #[cfg(test)]
-pub(crate) static TEST_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static TEST_HOME_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[cfg(test)]
+pub(crate) struct TestHome {
+    _dir: tempfile::TempDir,
+    _lock: tokio::sync::MutexGuard<'static, ()>,
+}
+
+#[cfg(test)]
+impl TestHome {
+    pub(crate) async fn new() -> Self {
+        let lock = TEST_HOME_LOCK.lock().await;
+        let dir = tempfile::tempdir().expect("tempdir");
+        unsafe {
+            std::env::set_var("HOME", dir.path());
+            std::env::remove_var("USERPROFILE");
+        }
+        Self {
+            _dir: dir,
+            _lock: lock,
+        }
+    }
+}
 
 /// Shared state for all management API handlers.
 #[derive(Clone)]
@@ -76,6 +120,7 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/routes/{id}", get(routes::get_route))
         .route("/api/routes/{id}", put(routes::update_route))
         .route("/api/routes/{id}", delete(routes::delete_route))
+        .route("/api/routing/explain", post(routing::explain_routing))
         // Logs
         .route("/api/logs", get(logs::query_logs))
         // Coding Agents
@@ -92,6 +137,10 @@ pub fn api_router(pool: InMemoryStore) -> Router {
             get(settings::get_catalog_status),
         )
         .route("/api/settings/sync-catalog", post(settings::sync_catalog))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            api_auth_middleware,
+        ))
         .layer(cors)
         .with_state(state)
 }

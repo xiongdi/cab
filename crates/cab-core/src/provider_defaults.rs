@@ -234,6 +234,7 @@ mod tests {
             gateway_port: 3125,
             log_retention_days: 30,
             gateway_key: String::new(),
+            auth_enabled: true,
             artificial_analysis_api_key: None,
             providers: HashMap::new(),
             models: HashMap::new(),

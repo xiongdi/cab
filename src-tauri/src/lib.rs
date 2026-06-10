@@ -21,7 +21,7 @@ async fn start_server(port: u16, ready: tokio::sync::oneshot::Sender<()>) {
     let store_for_sync = store.clone();
     tokio::spawn(async move {
         tracing::info!("Startup: Synchronizing models.dev provider/model catalog...");
-        match cab_api::providers::sync_models_dev_catalog(&store_for_sync).await {
+        match cab_services::catalog::sync_on_startup(&store_for_sync).await {
             Ok(count) => tracing::info!(
                 "Startup: models.dev catalog synchronization finished. Synced {count} models."
             ),

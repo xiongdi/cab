@@ -24,5 +24,9 @@ echo "== Regression: full Rust workspace (UAT tests ignored, not run here) =="
 cargo test --workspace --quiet
 
 echo ""
+echo "== OpenAPI baseline validation =="
+bash "$ROOT/scripts/generate-openapi.sh"
+
+echo ""
 echo "Gate passed: UT → IT → ST."
 echo "UAT is local-only: ./scripts/run-uat.sh (requires ~/.cab/settings.json + real API keys)"

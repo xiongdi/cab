@@ -46,3 +46,27 @@ order: 3
 **触发**：Settings 页点击同步，或启动时 `sync_models_dev_catalog`。
 
 **路径**：拉取 models.dev → 更新 providers/models/endpoints → 应用用户 settings 覆盖。
+
+## 场景 SC-05：重启恢复配置
+
+**触发**：用户修改 Agent 为 `auto` 并创建 Route 后重启 cab-server。
+
+**路径**：
+
+1. `init_store` 加载 `settings.json` + `state.json`
+2. agents/routes 合并到 `StoreData`
+3. Dashboard 与 Agents 页显示重启前配置
+
+**源码**：`cab-db/state.rs`、`init_store`
+
+## 场景 SC-06：路由解释调试
+
+**触发**：用户在 Routes 页填写 agent、model、messages 点击「模拟路由」。
+
+**路径**：
+
+1. `POST /api/routing/explain`
+2. `route_explainer` 逐步记录 decision_steps
+3. UI 展示命中策略与 ranked_candidates
+
+**源码**：`cab-services/route_explainer.rs`、`routes/+page.svelte`

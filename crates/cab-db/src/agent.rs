@@ -40,7 +40,10 @@ pub async fn update(
             agent.endpoint = endpoint.clone();
         }
         agent.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(Some(agent.clone()))
+        let updated = agent.clone();
+        drop(inner);
+        crate::state::save_from_store(store)?;
+        Ok(Some(updated))
     } else {
         Ok(None)
     }
@@ -50,6 +53,28 @@ pub async fn update(
 mod tests {
     use super::*;
     use crate::InMemoryStore;
+
+    struct TestHome {
+        _dir: tempfile::TempDir,
+        _lock: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl TestHome {
+        fn new() -> Self {
+            let lock = crate::TEST_HOME_LOCK
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            unsafe {
+                std::env::set_var("HOME", dir.path());
+                std::env::remove_var("USERPROFILE");
+            }
+            Self {
+                _dir: dir,
+                _lock: lock,
+            }
+        }
+    }
 
     const SUPPORTED_AGENT_IDS: &[&str] = &[
         "claude-code",
@@ -84,6 +109,7 @@ mod tests {
 
     #[tokio::test]
     async fn update_normalizes_legacy_proxy_mode_to_native() {
+        let _home = TestHome::new();
         let store = InMemoryStore::new();
         {
             let mut inner = store.inner.write().expect("lock");

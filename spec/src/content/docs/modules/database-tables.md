@@ -73,7 +73,7 @@ CAB **不使用关系型数据库**。本节将 `StoreData` 与 `settings.json` 
 | status_code                  | i32    |         |
 | created_at                   | string | RFC3339 |
 
-存储：`Vec<RequestLog>`，按时间追加；保留天数 `settings.log_retention_days`（默认 30）。
+存储：JSONL 文件 `~/.cab/logs/requests-YYYY-MM-DD.jsonl`；内存缓存最近 500 条；保留天数 `settings.log_retention_days`（默认 30）。
 
 ## 持久化文件：~/.cab/settings.json
 
@@ -81,10 +81,21 @@ CAB **不使用关系型数据库**。本节将 `StoreData` 与 `settings.json` 
 {
   "gateway_port": 3125,
   "log_retention_days": 30,
-  "gateway_key": "cab-token-...",
+  "gateway_key": "cab-token-<uuid>",
+  "auth_enabled": true,
   "artificial_analysis_api_key": null,
   "providers": { "<id>": { "enabled": true, "api_keys": [...] } },
   "models": { "<id>": { "enabled": true } }
+}
+```
+
+## 持久化文件：~/.cab/state.json
+
+```json
+{
+  "version": 1,
+  "agents": { "<id>": { "mode": "native", "model_id": null, "...": "..." } },
+  "routes": { "<id>": { "agent_pattern": "codex", "routing_strategy": "auto", "...": "..." } }
 }
 ```
 

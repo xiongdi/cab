@@ -17,6 +17,7 @@ cab-core = { path = "../cab-core" }
 cab-db = { path = "../cab-db" }
 cab-gateway = { path = "../cab-gateway" }
 cab-api = { path = "../cab-api" }
+cab-services = { path = "../cab-services" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }

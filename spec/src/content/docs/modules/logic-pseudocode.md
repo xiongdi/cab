@@ -83,3 +83,38 @@ SWITCH agent.id:
   ...
 backup 原文件到 backups/*.cab-backup.{timestamp}
 ```
+
+## state.json 原子写（`save_from_store`）
+
+```
+data ← read StoreData.agents + StoreData.routes
+json ← serialize PersistedState { version: 1, agents, routes }
+write ~/.cab/state.json.tmp
+rename state.json.tmp → state.json
+```
+
+## Gateway 鉴权（`auth_middleware`）
+
+```
+IF NOT settings.auth_enabled → next.run(req)
+token ← Authorization header Bearer value
+IF token != settings.gateway_key → 401
+ELSE next.run(req)
+```
+
+## JSONL 日志（`log_store::append`）
+
+```
+path ← ~/.cab/logs/requests-{today}.jsonl
+append one JSON line per RequestLog
+update in-memory ring buffer (max 500)
+```
+
+## 路由解释（`route_explainer::explain`）
+
+```
+steps ← empty
+resolved ← resolve_route_with_trace(catalog, agent, model, body, steps)
+candidates ← rank_models(...) with summaries
+RETURN { resolved, decision_steps: steps, ranked_candidates: candidates }
+```

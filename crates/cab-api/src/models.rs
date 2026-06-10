@@ -212,28 +212,6 @@ mod tests {
     use axum::body::to_bytes;
     use cab_core::types::{ApiKeyConfig, Model, Provider, ProviderEndpoint};
 
-    struct TestHome {
-        _dir: tempfile::TempDir,
-        _lock: std::sync::MutexGuard<'static, ()>,
-    }
-
-    impl TestHome {
-        fn new() -> Self {
-            let lock = crate::TEST_HOME_LOCK
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let dir = tempfile::tempdir().unwrap();
-            unsafe {
-                std::env::set_var("HOME", dir.path());
-                std::env::remove_var("USERPROFILE");
-            }
-            Self {
-                _dir: dir,
-                _lock: lock,
-            }
-        }
-    }
-
     fn provider() -> Provider {
         Provider {
             id: "provider-1".into(),
@@ -369,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn model_handlers_cover_list_get_update_delete_and_endpoint_paths() {
-        let _home = TestHome::new();
+        let _home = crate::TestHome::new().await;
         let state = state();
 
         let list = list_models(State(state.clone())).await.unwrap();

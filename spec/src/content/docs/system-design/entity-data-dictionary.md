@@ -17,7 +17,41 @@ Route ──N──1── Model (primary_model_id)
 Route ──N──M── Model (fallback_model_ids)
 Agent ──0..1── Model|Route (model_id 依 mode)
 RequestLog ──引用── Provider, Model, Agent
+PersistedState ──包含── agents, routes（state.json）
 ```
+
+## Configuration vs Runtime
+
+| 分类          | 实体                   | 持久化文件                 |
+| ------------- | ---------------------- | -------------------------- |
+| Configuration | Settings, Agent, Route | settings.json / state.json |
+| Catalog cache | Provider, Model        | 内存 + catalog/            |
+| Observability | RequestLog             | logs/\*.jsonl              |
+| Runtime       | quota_reset_at         | settings.json              |
+
+## PersistedState（`state.rs`）
+
+| 字段    | 类型                     | 说明         |
+| ------- | ------------------------ | ------------ |
+| version | u32                      | 当前为 1     |
+| agents  | HashMap\<String, Agent\> | 7 内置 Agent |
+| routes  | HashMap\<String, Route\> | 用户路由规则 |
+
+## RouteExplainResult
+
+| 字段              | 类型                      | 说明         |
+| ----------------- | ------------------------- | ------------ |
+| resolved          | Option\<ResolvedSummary\> | 最终路由目标 |
+| decision_steps    | Vec\<DecisionStep\>       | 决策链       |
+| ranked_candidates | Vec\<RankedModelSummary\> | 候选排序     |
+
+## Settings（扩展 v0.2.0）
+
+| 字段         | 类型   | 说明              |
+| ------------ | ------ | ----------------- |
+| auth_enabled | bool   | 默认 true         |
+| gateway_key  | String | 首次安装随机 UUID |
+| gateway_port | i64    | 默认 3125         |
 
 ## Provider（`types.rs`）
 

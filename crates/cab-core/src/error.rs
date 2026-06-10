@@ -25,6 +25,9 @@ pub enum CabError {
 
     #[error("Invalid request: {0}")]
     InvalidRequest(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
 }
 
 impl IntoResponse for CabError {
@@ -43,6 +46,7 @@ impl IntoResponse for CabError {
                 (code, body.clone())
             }
             CabError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            CabError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
         };
 
         let body = json!({

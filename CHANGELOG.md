@@ -5,7 +5,31 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.3] -2026-06-09
+## [0.2.0] - 2026-06-10
+
+### Added
+
+- Persistent `~/.cab/state.json` for agents and routes (survives restart).
+- Gateway and management API Bearer auth (`auth_enabled`, random `gateway_key` on first install).
+- New `cab-services` application layer crate.
+- JSONL request logs under `~/.cab/logs/` with retention policy.
+- `POST /api/routing/explain` and Routes page routing preview.
+- OpenAPI spec and frontend type generation scripts.
+
+### Changed
+
+- Architecture: Gateway/API → cab-services → cab-db/cab-core.
+- Agent integrations and protocol handlers refactored to plugin/adapter pattern.
+
+### Migration
+
+- Upgrading from v0.1.x: existing `settings.json` is preserved; `auth_enabled` defaults to `true`.
+- First start after upgrade writes initial `state.json` from current agent defaults.
+- All API and Gateway clients must send `Authorization: Bearer {gateway_key}` (Agents in auto mode receive this automatically).
+
+## [Unreleased]
+
+## [0.1.3] - 2026-06-09
 
 ### Added
 

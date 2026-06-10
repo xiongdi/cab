@@ -308,6 +308,38 @@ export interface UpdateAgent {
   endpoint?: string;
 }
 
+// ── Route Explain ─────────────────────────────────────────────
+export interface RouteExplainRequest {
+  agent: string;
+  model?: string | null;
+  body?: Record<string, unknown> | null;
+}
+
+export interface DecisionStep {
+  step: string;
+  matched: boolean;
+  detail: string;
+}
+
+export interface ResolvedSummary {
+  model_id: string;
+  provider_id: string;
+  strategy?: string | null;
+}
+
+export interface RankedModelSummary {
+  model_id: string;
+  provider_id: string;
+  capability: number;
+  value: number;
+}
+
+export interface RouteExplainResult {
+  resolved: ResolvedSummary | null;
+  decision_steps: DecisionStep[];
+  ranked_candidates: RankedModelSummary[];
+}
+
 // ── Column config for DataTable ───────────────────────────────
 export interface Column<T = any> {
   key: string;

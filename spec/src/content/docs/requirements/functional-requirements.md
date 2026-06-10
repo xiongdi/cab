@@ -23,16 +23,27 @@ order: 3
 | F-13 | 设置读写            | GET/PUT             | `/api/settings`                |
 | F-14 | 目录同步状态        | GET                 | `/api/settings/catalog-status` |
 | F-15 | 手动同步目录        | POST                | `/api/settings/sync-catalog`   |
+| F-16 | 路由解释            | POST                | `/api/routing/explain`         |
 
 ## Gateway 功能
 
-| ID   | 功能            | 验收条件                                           |
-| ---- | --------------- | -------------------------------------------------- |
-| G-01 | 请求体模型改写  | 转发上游时 JSON `model` 字段替换为目标模型名       |
-| G-02 | 协议转换        | OpenAI↔Anthropic↔Responses 双向 shim               |
-| G-03 | 多 Key 重试     | 429 时轮换 Key，耗尽后 fallback 下一模型           |
-| G-04 | 流式 token 统计 | SSE 流经 `TokenTrackingStream` 写入日志            |
-| G-05 | 模型列表伪装    | `GET /v1/models` 返回已启用模型（含 CAB 路由别名） |
+| ID   | 功能            | 验收条件                                                                         |
+| ---- | --------------- | -------------------------------------------------------------------------------- |
+| G-01 | 请求体模型改写  | 转发上游时 JSON `model` 字段替换为目标模型名                                     |
+| G-02 | 协议转换        | OpenAI↔Anthropic↔Responses 双向 shim                                             |
+| G-03 | 多 Key 重试     | 429 时轮换 Key，耗尽后 fallback 下一模型                                         |
+| G-04 | 流式 token 统计 | SSE 流经 `TokenTrackingStream` 写入日志                                          |
+| G-05 | 模型列表伪装    | `GET /v1/models` 返回已启用模型（含 CAB 路由别名）                               |
+| G-06 | Gateway 鉴权    | 全部 `/v1/*` 须 `Authorization: Bearer {gateway_key}`（`auth_enabled` 时可关闭） |
+
+## 持久化触发点
+
+| 实体     | 文件            | 触发时机                               |
+| -------- | --------------- | -------------------------------------- |
+| Settings | `settings.json` | `update_settings`、provider/model 覆盖 |
+| Agents   | `state.json`    | `update_agent`                         |
+| Routes   | `state.json`    | route create/update/delete             |
+| Logs     | `logs/*.jsonl`  | 每次 proxy 完成或 stream 更新          |
 
 ## 路由解析优先级（`resolve_route`）
 

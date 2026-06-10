@@ -83,12 +83,19 @@ pub fn effective_routing_cost(
     }
 }
 
-pub fn rank_models<'a>(
+#[derive(Debug, Clone)]
+pub struct RankedModelScore<'a> {
+    pub model: &'a Model,
+    pub capability: f64,
+    pub value: f64,
+}
+
+fn score_models<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
     subscribed_provider_ids: Option<&HashSet<String>>,
-) -> Vec<&'a Model> {
+) -> Vec<(&'a Model, f64, f64)> {
     let mut scored: Vec<(&Model, f64, f64)> = models
         .iter()
         .map(|model| {
@@ -141,7 +148,35 @@ pub fn rank_models<'a>(
             .then_with(|| a_model.name.cmp(&b_model.name))
     });
 
-    scored.into_iter().map(|(model, _, _)| model).collect()
+    scored
+}
+
+pub fn rank_models_with_scores<'a>(
+    models: &'a [Model],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> Vec<RankedModelScore<'a>> {
+    score_models(models, strategy, profile, subscribed_provider_ids)
+        .into_iter()
+        .map(|(model, capability, value)| RankedModelScore {
+            model,
+            capability,
+            value,
+        })
+        .collect()
+}
+
+pub fn rank_models<'a>(
+    models: &'a [Model],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> Vec<&'a Model> {
+    score_models(models, strategy, profile, subscribed_provider_ids)
+        .into_iter()
+        .map(|(model, _, _)| model)
+        .collect()
 }
 
 fn min_required_capability(profile: &RequestProfile) -> f64 {

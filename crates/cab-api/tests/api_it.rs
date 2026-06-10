@@ -27,12 +27,17 @@ async fn json_body(response: axum::response::Response) -> Value {
 }
 
 async fn request(
+    store: &InMemoryStore,
     app: &axum::Router,
     method: &str,
     uri: &str,
     body: Option<Value>,
 ) -> axum::response::Response {
-    let mut builder = Request::builder().method(method).uri(uri);
+    let token = store.inner.read().unwrap().settings.gateway_key.clone();
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("authorization", format!("Bearer {token}"));
     let req_body = if let Some(json) = body {
         builder = builder.header("content-type", "application/json");
         Body::from(json.to_string())
@@ -57,8 +62,9 @@ async fn it_settings_get_and_put_roundtrip() {
     std::fs::create_dir_all(&home).expect("temp home");
     unsafe { std::env::set_var("HOME", &home) };
 
-    let app = api_router(InMemoryStore::new());
-    let get = request(&app, "GET", "/api/settings", None).await;
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
+    let get = request(&store, &app, "GET", "/api/settings", None).await;
     assert_eq!(get.status(), StatusCode::OK);
     let mut settings = json_body(get).await;
     assert!(
@@ -69,7 +75,7 @@ async fn it_settings_get_and_put_roundtrip() {
     );
     settings["gateway_port"] = serde_json::json!(3999);
 
-    let put = request(&app, "PUT", "/api/settings", Some(settings)).await;
+    let put = request(&store, &app, "PUT", "/api/settings", Some(settings)).await;
     assert_eq!(put.status(), StatusCode::OK);
     let updated = json_body(put).await;
     assert_eq!(
@@ -80,8 +86,9 @@ async fn it_settings_get_and_put_roundtrip() {
 
 #[tokio::test]
 async fn it_providers_list_returns_catalog() {
-    let app = api_router(store_with_catalog().await);
-    let response = request(&app, "GET", "/api/providers", None).await;
+    let store = store_with_catalog().await;
+    let app = api_router(store.clone());
+    let response = request(&store, &app, "GET", "/api/providers", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert!(!body.as_array().expect("providers").is_empty());
@@ -89,9 +96,11 @@ async fn it_providers_list_returns_catalog() {
 
 #[tokio::test]
 async fn it_routes_crud_lifecycle() {
-    let app = api_router(InMemoryStore::new());
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
 
     let create = request(
+        &store,
         &app,
         "POST",
         "/api/routes",
@@ -111,10 +120,11 @@ async fn it_routes_crud_lifecycle() {
         .and_then(|v| v.as_str())
         .expect("route id");
 
-    let get = request(&app, "GET", &format!("/api/routes/{id}"), None).await;
+    let get = request(&store, &app, "GET", &format!("/api/routes/{id}"), None).await;
     assert_eq!(get.status(), StatusCode::OK);
 
     let update = request(
+        &store,
         &app,
         "PUT",
         &format!("/api/routes/{id}"),
@@ -128,7 +138,7 @@ async fn it_routes_crud_lifecycle() {
         Some("intelligent")
     );
 
-    let list = request(&app, "GET", "/api/routes", None).await;
+    let list = request(&store, &app, "GET", "/api/routes", None).await;
     assert_eq!(list.status(), StatusCode::OK);
     let routes = json_body(list).await;
     assert!(
@@ -139,21 +149,22 @@ async fn it_routes_crud_lifecycle() {
             .any(|r| r.get("id") == Some(&Value::String(id.to_string())))
     );
 
-    let delete = request(&app, "DELETE", &format!("/api/routes/{id}"), None).await;
+    let delete = request(&store, &app, "DELETE", &format!("/api/routes/{id}"), None).await;
     assert_eq!(delete.status(), StatusCode::NO_CONTENT);
 
-    let missing = request(&app, "GET", &format!("/api/routes/{id}"), None).await;
+    let missing = request(&store, &app, "GET", &format!("/api/routes/{id}"), None).await;
     assert_eq!(missing.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
 async fn it_models_and_catalog_endpoints_respond() {
-    let app = api_router(store_with_catalog().await);
+    let store = store_with_catalog().await;
+    let app = api_router(store.clone());
 
-    let models = request(&app, "GET", "/api/models", None).await;
+    let models = request(&store, &app, "GET", "/api/models", None).await;
     assert_eq!(models.status(), StatusCode::OK);
 
-    let catalog = request(&app, "GET", "/api/models/catalog", None).await;
+    let catalog = request(&store, &app, "GET", "/api/models/catalog", None).await;
     assert_eq!(catalog.status(), StatusCode::OK);
     let catalog_body = json_body(catalog).await;
     assert!(catalog_body.is_array() || catalog_body.get("models").is_some());
@@ -161,8 +172,9 @@ async fn it_models_and_catalog_endpoints_respond() {
 
 #[tokio::test]
 async fn it_dashboard_stats_shape() {
-    let app = api_router(InMemoryStore::new());
-    let response = request(&app, "GET", "/api/dashboard/stats", None).await;
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
+    let response = request(&store, &app, "GET", "/api/dashboard/stats", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert!(body.get("total_requests").is_some());
@@ -172,8 +184,9 @@ async fn it_dashboard_stats_shape() {
 
 #[tokio::test]
 async fn it_logs_query_pagination_defaults() {
-    let app = api_router(InMemoryStore::new());
-    let response = request(&app, "GET", "/api/logs", None).await;
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
+    let response = request(&store, &app, "GET", "/api/logs", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert!(body.get("data").and_then(|v| v.as_array()).is_some());
@@ -182,8 +195,9 @@ async fn it_logs_query_pagination_defaults() {
 
 #[tokio::test]
 async fn it_catalog_status_endpoint() {
-    let app = api_router(InMemoryStore::new());
-    let response = request(&app, "GET", "/api/settings/catalog-status", None).await;
+    let store = InMemoryStore::new();
+    let app = api_router(store.clone());
+    let response = request(&store, &app, "GET", "/api/settings/catalog-status", None).await;
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     assert!(body.get("sources").and_then(|v| v.as_array()).is_some());

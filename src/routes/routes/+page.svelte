@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import type { Model, Provider } from '$lib/types';
+  import type { Model, Provider, RouteExplainResult } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Card from '$lib/components/Card.svelte';
   import { i18n } from '$lib/i18n.svelte';
@@ -11,6 +11,13 @@
   let providers = $state<Provider[]>([]);
   let loading = $state(true);
   let expandedStrategies = $state<Record<string, boolean>>({});
+  let previewAgent = $state('codex');
+  let previewModel = $state('auto');
+  let previewPrompt = $state('Explain this Rust error and suggest a fix.');
+  let previewLoading = $state(false);
+  let previewResult = $state<RouteExplainResult | null>(null);
+
+  const PREVIEW_AGENTS = ['codex', 'claude-code', 'opencode', 'kilocode', 'hermes', 'openclaw', 'pi'];
 
   // Strategy metadata
   const STRATEGIES = [
@@ -138,9 +145,110 @@
 
     return mapped;
   }
+
+  async function runRoutingPreview() {
+    previewLoading = true;
+    try {
+      previewResult = await api.routes.explain({
+        agent: previewAgent,
+        model: previewModel,
+        body: {
+          messages: [{ role: 'user', content: previewPrompt }],
+        },
+      });
+    } catch (e) {
+      previewResult = null;
+      toast.error(e instanceof Error ? e.message : i18n.t('routes.preview_failed'));
+    } finally {
+      previewLoading = false;
+    }
+  }
 </script>
 
 <PageHeader title={i18n.t('routes.title')} description={i18n.t('routes.page_desc')} />
+
+<div class="preview-card-wrap">
+<Card padding="24px">
+  <h3 style="margin: 0 0 8px;">{i18n.t('routes.preview_title')}</h3>
+  <p class="preview-desc">{i18n.t('routes.preview_desc')}</p>
+  <div class="preview-form">
+    <label>
+      <span>{i18n.t('routes.preview_agent')}</span>
+      <select bind:value={previewAgent}>
+        {#each PREVIEW_AGENTS as agentId}
+          <option value={agentId}>{agentId}</option>
+        {/each}
+      </select>
+    </label>
+    <label>
+      <span>{i18n.t('routes.preview_model')}</span>
+      <input bind:value={previewModel} placeholder="auto" />
+    </label>
+    <label class="preview-prompt">
+      <span>{i18n.t('routes.preview_prompt')}</span>
+      <textarea bind:value={previewPrompt} rows="2"></textarea>
+    </label>
+    <button class="preview-btn" onclick={runRoutingPreview} disabled={previewLoading}>
+      {previewLoading ? i18n.t('routes.preview_running') : i18n.t('routes.preview_run')}
+    </button>
+  </div>
+
+  {#if previewResult}
+    <div class="preview-result">
+      {#if previewResult.resolved}
+        <div class="preview-block">
+          <strong>{i18n.t('routes.preview_resolved')}</strong>
+          <span>
+            {previewResult.resolved.model_id} · {previewResult.resolved.provider_id}
+            {#if previewResult.resolved.strategy}
+              · {previewResult.resolved.strategy}
+            {/if}
+          </span>
+        </div>
+      {/if}
+      <div class="preview-block">
+        <strong>{i18n.t('routes.preview_steps')}</strong>
+        <ul>
+          {#each previewResult.decision_steps as step}
+            <li class:matched={step.matched} class:missed={!step.matched}>
+              <code>{step.step}</code> — {step.detail}
+            </li>
+          {/each}
+        </ul>
+      </div>
+      {#if previewResult.ranked_candidates.length > 0}
+        <div class="preview-block">
+          <strong>{i18n.t('routes.preview_candidates')}</strong>
+          <div class="pb-table-wrap">
+            <table class="pb-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>{i18n.t('routes.model_name')}</th>
+                  <th>{i18n.t('routes.provider')}</th>
+                  <th>{i18n.t('routes.intel')}</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each previewResult.ranked_candidates as candidate, idx}
+                  <tr>
+                    <td>{idx + 1}</td>
+                    <td>{candidate.model_id}</td>
+                    <td>{candidate.provider_id}</td>
+                    <td>{candidate.capability.toFixed(1)}</td>
+                    <td>{candidate.value.toFixed(2)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
+</Card>
+</div>
 
 {#if loading}
   <div class="strategy-list">
@@ -486,6 +594,84 @@
 
   .meta-badge strong {
     color: var(--accent);
+  }
+
+  .preview-card-wrap {
+    margin-bottom: 24px;
+  }
+
+  .preview-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+  }
+
+  .preview-form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: end;
+  }
+
+  .preview-form label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .preview-form select,
+  .preview-form input,
+  .preview-form textarea {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    padding: 8px 10px;
+    font: inherit;
+  }
+
+  .preview-prompt {
+    grid-column: 1 / -1;
+  }
+
+  .preview-btn {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    background: rgba(99, 102, 241, 0.12);
+    color: #c7d2fe;
+    cursor: pointer;
+  }
+
+  .preview-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .preview-result {
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .preview-block ul {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .preview-block li.matched code {
+    color: #86efac;
+  }
+
+  .preview-block li.missed code {
+    color: #fca5a5;
   }
 
   .provider-badge {
