@@ -624,10 +624,8 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models.insert(
-                "mid".into(),
-                model("mid", "p1", 2.0, 75.0, true),
-            );
+            data.models
+                .insert("mid".into(), model("mid", "p1", 2.0, 75.0, true));
             let name = data.models["mid"].name.clone();
             data.model_endpoints
                 .insert("mid-ep".into(), model_endpoint("mid", &name));
@@ -647,7 +645,10 @@ mod tests {
 
         // All providers have subscribed keys → cost is near-zero → capability dominates
         // Rank: smart(95) > mid(75) > backup(50) > cheap(20)
-        assert!(!resolved.fallback_models.is_empty(), "balanced should return fallbacks");
+        assert!(
+            !resolved.fallback_models.is_empty(),
+            "balanced should return fallbacks"
+        );
         assert_eq!(resolved.model.id, "smart");
         assert_eq!(resolved.fallback_models[0].model.id, "mid");
         assert_eq!(resolved.fallback_models[1].model.id, "backup");
@@ -671,10 +672,8 @@ mod tests {
                 subscribed: false,
                 quota_reset_at: None,
             }];
-            data.models.insert(
-                "mid".into(),
-                model("mid", "p1", 2.0, 75.0, true),
-            );
+            data.models
+                .insert("mid".into(), model("mid", "p1", 2.0, 75.0, true));
             let name = data.models["mid"].name.clone();
             data.model_endpoints
                 .insert("mid-ep".into(), model_endpoint("mid", &name));
@@ -697,7 +696,10 @@ mod tests {
         // backup: 50 / (1.0*3 + 2.0)  = 50/5    = 10
         // mid:    75 / (2.0*3 + 4.0)  = 75/10   = 7.5
         // smart:  95 / (5.0*3 + 10.0) = 95/25   = 3.8
-        assert!(!resolved.fallback_models.is_empty(), "balanced should return fallbacks");
+        assert!(
+            !resolved.fallback_models.is_empty(),
+            "balanced should return fallbacks"
+        );
         assert_eq!(resolved.model.name, "p1/cheap");
         assert_eq!(resolved.fallback_models[0].model.name, "p2/backup");
         assert_eq!(resolved.fallback_models[1].model.name, "p1/mid");

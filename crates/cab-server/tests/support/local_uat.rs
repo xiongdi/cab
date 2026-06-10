@@ -7,7 +7,9 @@ use std::time::Duration;
 
 use cab_db::InMemoryStore;
 
-use super::{TestServer, SUPPORTED_AGENT_IDS, build_authed_client, get_json, put_json, spawn_test_server};
+use super::{
+    SUPPORTED_AGENT_IDS, TestServer, build_authed_client, get_json, put_json, spawn_test_server,
+};
 
 pub const ENV_ENABLE: &str = "CAB_RUN_UAT";
 
@@ -49,10 +51,9 @@ pub async fn spawn_local_server() -> TestServer {
 
 fn read_gateway_key_from_settings() -> String {
     let path = settings_path();
-    let content = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    let json: serde_json::Value =
-        serde_json::from_str(&content).expect("parse settings.json");
+    let content =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let json: serde_json::Value = serde_json::from_str(&content).expect("parse settings.json");
     json.get("gateway_key")
         .and_then(|v| v.as_str())
         .expect("gateway_key in settings")
@@ -66,8 +67,8 @@ pub async fn connect_packaged_server() -> TestServer {
             "CAB_UAT_BASE_URL must be set — run UAT via ./scripts/run-uat.sh (packaged cab-server)"
         )
     });
-    let gateway_key = std::env::var("CAB_UAT_GATEWAY_KEY")
-        .unwrap_or_else(|_| read_gateway_key_from_settings());
+    let gateway_key =
+        std::env::var("CAB_UAT_GATEWAY_KEY").unwrap_or_else(|_| read_gateway_key_from_settings());
     let client = build_authed_client(&gateway_key);
 
     let health = format!("{base_url}/api/dashboard/stats");
@@ -132,10 +133,7 @@ fn provider_has_anthropic_endpoint(provider: &serde_json::Value) -> bool {
                     .get("enabled")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false)
-                    && endpoint
-                        .get("protocol")
-                        .and_then(|v| v.as_str())
-                        == Some("anthropic")
+                    && endpoint.get("protocol").and_then(|v| v.as_str()) == Some("anthropic")
             })
         })
 }
@@ -364,10 +362,7 @@ pub async fn snapshot_agents(server: &TestServer) -> Vec<serde_json::Value> {
 
 pub async fn restore_agents(server: &TestServer, snapshot: &[serde_json::Value]) {
     for agent in snapshot {
-        let id = agent
-            .get("id")
-            .and_then(|v| v.as_str())
-            .expect("agent id");
+        let id = agent.get("id").and_then(|v| v.as_str()).expect("agent id");
         put_json(
             server,
             &format!("/api/agents/{id}"),
@@ -442,9 +437,8 @@ pub async fn post_chat_as_agent(
         status.is_success(),
         "chat completion failed for agent {agent_id} model {model}: {status} {body_text}"
     );
-    serde_json::from_str(&body_text).unwrap_or_else(|e| {
-        panic!("invalid JSON for agent {agent_id}: {e}\nbody: {body_text}")
-    })
+    serde_json::from_str(&body_text)
+        .unwrap_or_else(|e| panic!("invalid JSON for agent {agent_id}: {e}\nbody: {body_text}"))
 }
 
 pub async fn post_messages(
@@ -483,8 +477,9 @@ pub fn assert_anthropic_text(body: &serde_json::Value) {
         .get("content")
         .and_then(|c| c.as_array())
         .is_some_and(|blocks| {
-            blocks.iter().any(|block| {
-                match block.get("type").and_then(|t| t.as_str()) {
+            blocks
+                .iter()
+                .any(|block| match block.get("type").and_then(|t| t.as_str()) {
                     Some("text") => block
                         .get("text")
                         .and_then(|t| t.as_str())
@@ -494,8 +489,7 @@ pub fn assert_anthropic_text(body: &serde_json::Value) {
                         .and_then(|t| t.as_str())
                         .is_some_and(|s| !s.trim().is_empty()),
                     _ => false,
-                }
-            })
+                })
         });
     assert!(
         has_content,

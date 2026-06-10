@@ -448,12 +448,26 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
         // cheap model: $0.1/$0.2 per Mtok
         data.models.insert(
             "cheap-model".into(),
-            make_model("cheap-model", "cheap-provider/cheap", "cheap-provider", 0.1, 0.2, 40.0),
+            make_model(
+                "cheap-model",
+                "cheap-provider/cheap",
+                "cheap-provider",
+                0.1,
+                0.2,
+                40.0,
+            ),
         );
         // mid model: $1/$2 per Mtok
         data.models.insert(
             "mid-model".into(),
-            make_model("mid-model", "cheap-provider/mid", "cheap-provider", 1.0, 2.0, 70.0),
+            make_model(
+                "mid-model",
+                "cheap-provider/mid",
+                "cheap-provider",
+                1.0,
+                2.0,
+                70.0,
+            ),
         );
         // expensive model: $10/$20 per Mtok
         data.models.insert(
@@ -538,9 +552,7 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
     assert!(!steps.is_empty(), "expected decision steps");
 
     // Verify resolved model is the cheapest (capped by cost)
-    let resolved = body
-        .get("resolved")
-        .expect("resolved");
+    let resolved = body.get("resolved").expect("resolved");
     let resolved_model = resolved
         .get("model_id")
         .and_then(|v| v.as_str())
