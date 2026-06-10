@@ -29,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-10
+
+### Changed
+
+- Node.js requirement raised to **24+** (LTS); CI and `.nvmrc` updated.
+- Rust toolchain pinned via `rust-toolchain.toml` (`stable`).
+- `toml` crate upgraded from 0.9 to **1.x** (Codex config generation).
+- GitHub Actions: `actions/checkout@v6`, `actions/upload-artifact@v7`.
+- Rust and npm dependencies refreshed (`uuid`, `http-body-util`, `tempfile`, SvelteKit, `@tauri-apps/api`, etc.).
+
 ## [0.2.1] - 2026-06-10
 
 ### Added
