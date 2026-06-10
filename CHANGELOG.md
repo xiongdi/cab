@@ -29,6 +29,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-06-10
+
+### Fixed
+
+- **Codex**: dynamic authentication via `auth.json` (using ChatGPT OAuth `access_token` mechanism) when in CAB managed modes, eliminating the need to configure `OPENAI_API_KEY` system environment variables.
+- **Codex**: automatic backup of existing OpenAI/ChatGPT login settings and credentials upon enabling managed mode, and seamless restoration when returning to native mode.
+
 ## [0.2.2] - 2026-06-10
 
 ### Changed

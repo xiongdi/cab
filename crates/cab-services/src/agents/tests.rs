@@ -148,14 +148,28 @@ async fn codex_auto_manual_and_native_modes_update_toml_config() {
         .await
         .unwrap();
     let auto = fs::read_to_string(&config_path).unwrap();
-    assert!(auto.contains("model = \"balanced\""));
+    assert!(auto.contains("model = \"gpt-5.5\""));
     assert!(auto.contains("model_provider = \"cab\""));
+    assert!(auto.contains("requires_openai_auth = true"));
+    assert!(!auto.contains("env_key"));
+
+    // Check that auth.json contains the gateway key
+    let auth_path = home.path(".codex/auth.json");
+    let auth_content = fs::read_to_string(&auth_path).unwrap();
+    assert!(auth_content.contains("gw-key"));
+
+    // Write a dummy key/token to auth.json to verify clean-up/restore logic
+    fs::write(
+        &auth_path,
+        "{\"OPENAI_API_KEY\": \"gw-key\", \"tokens\": {\"access_token\": \"gw-key\"}}"
+    ).unwrap();
 
     apply_agent_config(&pool, &agent("codex", "native"), 4567, "gw-key")
         .await
         .unwrap();
     let native = fs::read_to_string(&config_path).unwrap();
     assert!(!native.contains("model_provider = \"cab\""));
+    assert!(!auth_path.exists() || !fs::read_to_string(&auth_path).unwrap().contains("gw-key"));
 }
 
 #[tokio::test]

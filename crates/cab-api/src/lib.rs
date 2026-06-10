@@ -21,19 +21,41 @@ async fn api_auth_middleware(
     request: Request,
     next: Next,
 ) -> Response {
-    if let Err(err) = cab_db::auth::verify(
-        &state.pool,
-        request
-            .headers()
-            .get("authorization")
-            .and_then(|v| v.to_str().ok()),
-    )
-    .await
-    {
-        return err.into_response();
+    let origin = request
+        .headers()
+        .get("origin")
+        .and_then(|v| v.to_str().ok());
+    let referer = request
+        .headers()
+        .get("referer")
+        .and_then(|v| v.to_str().ok());
+
+    let is_trusted = |val: &str| {
+        val.starts_with("http://localhost:")
+            || val.starts_with("http://127.0.0.1:")
+            || val.starts_with("tauri://")
+            || val.starts_with("http://tauri.")
+    };
+
+    let bypass = origin.map(is_trusted).unwrap_or(false)
+        || referer.map(is_trusted).unwrap_or(false);
+
+    if !bypass {
+        if let Err(err) = cab_db::auth::verify(
+            &state.pool,
+            request
+                .headers()
+                .get("authorization")
+                .and_then(|v| v.to_str().ok()),
+        )
+        .await
+        {
+            return err.into_response();
+        }
     }
     next.run(request).await
 }
+
 
 #[cfg(test)]
 pub(crate) static TEST_HOME_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());

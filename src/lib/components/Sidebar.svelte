@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { i18n } from '../i18n.svelte';
+  import pkg from '../../../package.json';
 
   // Svelte 5 derived state for reactive translation items
   const navItems = $derived([
@@ -120,7 +121,7 @@
         <span class="dot dot-active"></span>
         <span class="status-text">{i18n.t('settings.running')}</span>
       </div>
-      <span class="version">v0.1.2</span>
+      <span class="version">v{pkg.version}</span>
     </div>
   </div>
 </aside>

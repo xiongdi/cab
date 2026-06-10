@@ -351,7 +351,7 @@ dependencies = [
 
 [[package]]
 name = "cab-api"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "cab-core",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "cab-core"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "cab-db"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "cab-gateway"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "anyhow",
  "axum",
@@ -428,7 +428,7 @@ dependencies = [
 
 [[package]]
 name = "cab-server"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "axum-server",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "cab-services"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "cab-core",
@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "cab-tauri"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "axum",
  "cab-api",

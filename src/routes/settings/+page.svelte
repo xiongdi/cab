@@ -6,6 +6,9 @@
   import Card from '$lib/components/Card.svelte';
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import pkg from '../../../package.json';
+
+  const appVersion = pkg.version;
 
   let settings = $state<Settings | null>(null);
   let loading = $state(true);
@@ -497,7 +500,7 @@
       <div class="about-grid">
         <div class="about-row">
           <span class="about-label">{i18n.t('settings.version')}</span>
-          <span class="about-value mono">0.1.0</span>
+          <span class="about-value mono">{appVersion}</span>
         </div>
         <div class="about-row">
           <span class="about-label">{i18n.t('settings.runtime')}</span>
