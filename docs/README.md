@@ -21,9 +21,12 @@ Each section has English (`src/content/docs/`) and Simplified Chinese (`src/cont
 ```bash
 cd docs
 npm install
+npx playwright install chromium   # required for Mermaid build-time rendering
 npm run dev    # http://localhost:4321/cab/
 npm run build
 ```
+
+Mermaid diagrams are rendered to **inline SVG at build time** via `rehype-mermaid` + Playwright (no client-side Mermaid JS).
 
 ## Link conventions
 

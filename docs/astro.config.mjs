@@ -1,7 +1,7 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
-import mermaid from 'astro-mermaid';
+import rehypeMermaid from 'rehype-mermaid';
 
 /** @type {import('astro').AstroUserConfig} */
 export default defineConfig({
@@ -12,9 +12,19 @@ export default defineConfig({
 			type: 'shiki',
 			excludeLangs: ['mermaid'],
 		},
+		rehypePlugins: [
+			[
+				rehypeMermaid,
+				{
+					strategy: 'inline-svg',
+					mermaidConfig: {
+						theme: 'neutral',
+					},
+				},
+			],
+		],
 	},
 	integrations: [
-		mermaid({ autoTheme: true, enableLog: false }),
 		starlight({
 			title: 'CAB',
 			description:
