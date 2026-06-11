@@ -1,10 +1,9 @@
-# CAB Installation Guide
-
-[English](INSTALL.md) | [简体中文](INSTALL.zh-CN.md)
-
-This guide covers desktop installer downloads from [GitHub Releases](https://github.com/xiongdi/cab/releases). For building from source, see the [README](../README.md).
-
 ---
+title: Installation
+description: Download and install CAB desktop releases from GitHub.
+---
+
+This guide covers desktop installer downloads from [GitHub Releases](https://github.com/xiongdi/cab/releases). For building from source, see the [project README on GitHub](https://github.com/xiongdi/cab#getting-started).
 
 ## System requirements
 
@@ -16,11 +15,9 @@ This guide covers desktop installer downloads from [GitHub Releases](https://git
 
 **Headless server** (`cab-server`): same OS families; no WebView requirement. Run with `cargo run -p cab-server` or ship the binary from your own build.
 
----
-
 ## Choose the right download
 
-Replace `VERSION` with the release tag without the `v` prefix (e.g. `0.1.2`).
+Replace `VERSION` with the release tag without the `v` prefix (e.g. `0.2.3`).
 
 ### Windows
 
@@ -49,8 +46,6 @@ Replace `VERSION` with the release tag without the `v` prefix (e.g. `0.1.2`).
 
 The `-1` in RPM filenames is the package **release** number (standard RPM convention), not part of the app version.
 
----
-
 ## Quick start after install
 
 1. Launch **CAB** from the Start menu / Applications / app launcher.
@@ -62,8 +57,6 @@ The `-1` in RPM filenames is the package **release** number (standard RPM conven
    ```
 
 4. Use **Agents** in the dashboard to switch agent configs to CAB (Auto or Manual mode).
-
----
 
 ## Troubleshooting
 

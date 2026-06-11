@@ -1,6 +1,6 @@
 # CAB (Coding Agents Bridge)
 
-[English](README.md) | [简体中文](docs/README.zh-CN.md)
+[English](README.md) | [简体中文](https://xiongdi.github.io/cab/zh-cn/) | [Documentation](https://xiongdi.github.io/cab/)
 
 CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed for coding agents and developer workflows. Point your agent CLI at the CAB gateway (`http://localhost:3125/v1` by default); CAB ranks and forwards requests to the best enabled provider/model for each prompt.
 
@@ -57,7 +57,7 @@ graph TD
 
 ## Getting Started
 
-**Install a release:** see the [Installation Guide](docs/INSTALL.md) ([中文](docs/INSTALL.zh-CN.md)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
+**Install a release:** see the [Installation Guide](https://xiongdi.github.io/cab/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/install/)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
 
 ### Prerequisites
 
