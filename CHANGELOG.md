@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-06-11
+
+### Added
+
+- Official documentation site at [xiongdi.github.io/cab](https://xiongdi.github.io/cab/) (Astro + Starlight, bilingual EN / 简体中文).
+- GitHub Pages deployment workflow (`.github/workflows/docs.yml`).
+- Product docs: quick start, routing, agents, providers, gateway auth, architecture, and API reference.
+
+### Changed
+
+- README and release notes now link to the official site instead of in-repo markdown guides.
+
 ## [0.2.3] - 2026-06-10
 
 ### Fixed

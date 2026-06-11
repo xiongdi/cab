@@ -5,6 +5,11 @@ description: Release history for CAB.
 
 CAB follows [Semantic Versioning](https://semver.org/). Full changelog: [CHANGELOG.md on GitHub](https://github.com/xiongdi/cab/blob/main/CHANGELOG.md).
 
+## v0.2.4
+
+- Official docs site at [xiongdi.github.io/cab](https://xiongdi.github.io/cab/) (bilingual, GitHub Pages)
+- Guides and reference: routing, agents, providers, gateway auth, architecture, API
+
 ## v0.2.3
 
 - **Codex**: dynamic auth via `auth.json` (ChatGPT OAuth) in CAB-managed modes

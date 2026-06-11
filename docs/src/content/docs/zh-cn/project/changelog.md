@@ -5,6 +5,11 @@ description: CAB 版本发布记录。
 
 CAB 遵循 [语义化版本](https://semver.org/lang/zh-CN/)。完整日志：[GitHub CHANGELOG.md](https://github.com/xiongdi/cab/blob/main/CHANGELOG.md)。
 
+## v0.2.4
+
+- 官方文档站 [xiongdi.github.io/cab](https://xiongdi.github.io/cab/)（中英双语，GitHub Pages 自动部署）
+- 新增使用指南与参考文档：路由、Agent、提供商、网关认证、架构、API
+
 ## v0.2.3
 
 - **Codex**：CAB 管理模式下通过 `auth.json` 动态认证（ChatGPT OAuth）
