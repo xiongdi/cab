@@ -36,10 +36,6 @@ jobs:
         working-directory: docs
         run: npm ci
 
-      - name: Install Playwright for Mermaid
-        working-directory: docs
-        run: npx playwright install --with-deps chromium
-
       - name: Build site
         working-directory: docs
         run: npm run build
