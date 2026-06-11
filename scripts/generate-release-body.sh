@@ -41,7 +41,7 @@ cat >"$OUTPUT" <<EOF
 
 - Desktop installers for Windows, macOS, and Linux (x64 + ARM64 where applicable).
 - Local LLM gateway for coding agents at \`http://127.0.0.1:3125/v1\`.
-- Full install guide: [English](https://xiongdi.github.io/cab/install/) · [简体中文](https://xiongdi.github.io/cab/zh-cn/install/)
+- Official site: [English](https://xiongdi.github.io/cab/) · [简体中文](https://xiongdi.github.io/cab/zh-cn/)
 
 ---
 

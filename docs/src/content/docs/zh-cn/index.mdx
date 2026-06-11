@@ -1,14 +1,17 @@
 ---
-title: CAB 文档
-description: CAB (Coding Agents Bridge) 官方文档 — 面向编码代理的本地、成本感知型 LLM 网关路由器。
+title: CAB — Coding Agents Bridge
+description: 一个本地网关，连接所有编码代理。智能、成本感知的 LLM 路由。
 template: splash
 hero:
-  tagline: 面向编码代理与开发者工作流的本地、成本感知型 LLM 网关路由。
+  tagline: 一个本地网关，连接所有编码代理。智能、成本感知的 LLM 路由。
   actions:
-    - text: 安装 CAB
-      link: install/
+    - text: 下载 CAB
+      link: getting-started/install/
+      icon: download
+    - text: 快速开始
+      link: getting-started/quick-start/
       icon: right-arrow
-    - text: 在 GitHub 查看
+    - text: GitHub
       link: https://github.com/xiongdi/cab
       icon: external
       variant: minimal
@@ -16,85 +19,71 @@ hero:
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## 什么是 CAB？
+## 为什么选择 CAB？
 
-CAB (Coding Agents Bridge) 是一个面向编码代理和开发者工作流的本地、成本感知型 LLM 网关路由器。将 Agent CLI 指向 CAB 网关（默认 `http://localhost:3125/v1`）；CAB 会按路由策略从已启用的 LLM 提供商与模型中选择目标并转发请求。
-
-## 功能
+每个编码代理都有自己的 API Key、端点和模型列表。CAB 坐在 Agent CLI 与上游 LLM 提供商之间——一个本地网关 `http://127.0.0.1:3125/v1`，为每次请求选择最合适的已启用模型。
 
 <CardGrid stagger>
-	<Card title="OpenAI / Anthropic 网关" icon="rocket">
-		在同一个本地 HTTP 端口暴露 `/v1/chat/completions`、`/v1/messages` 和 `/v1/responses`。
+	<Card title="一个网关，多个 Agent" icon="rocket">
+		Claude Code、Codex、OpenCode、Hermes、Kilo Code、OpenClaw、Pi——全部指向同一个 CAB 本地端点。
 	</Card>
-	<Card title="能力与成本感知路由" icon="setting">
-		根据 Intelligence / Coding / Agentic 指标、token 价格和上下文窗口对模型排序。
+	<Card title="智能路由" icon="setting">
+		选择策略——auto、balanced、intelligent 或 price——CAB 按能力、基准数据和 token 成本排序选模。
 	</Card>
-	<Card title="实时目录同步" icon="document">
-		从 `models.dev` 拉取模型、价格和基准数据。
+	<Card title="桌面控制台" icon="laptop">
+		基于 Tauri + Svelte 的仪表盘，管理提供商、模型、路由、Agent、日志和设置。
 	</Card>
-	<Card title="桌面仪表盘" icon="laptop">
-		基于 Tauri + Svelte 的 UI，用于管理 LLM 提供商、API Key、路由策略、Agent 配置和请求日志。
-	</Card>
-	<Card title="代理配置切换器" icon="approve-check">
-		Auto / Manual 模式可改写 Claude Code、Codex、OpenCode、Hermes、Kilo Code、OpenClaw 和 Pi 的配置。
+	<Card title="OpenAI + Anthropic 兼容" icon="document">
+		同一端口暴露 `/v1/chat/completions`、`/v1/messages`、`/v1/responses`，必要时自动协议转换。
 	</Card>
 </CardGrid>
 
-## 系统架构
+## 工作原理
 
 ```mermaid
-graph TD
-    subgraph Frontend [Desktop GUI / Web View]
-        Svelte[Svelte Frontend] <--> Tauri[Tauri Core]
-    end
-
-    subgraph Backend [cab-server / Daemon]
-        API[cab-api: Management API]
-        Gateway[cab-gateway: HTTP Gateway]
-        Services[cab-services: Application Layer]
-        DB[(cab-db: settings + state + logs)]
-        Core[cab-core: Routing Logic]
-    end
-
-    AgentCLI[Coding Agent CLI] -- "HTTP /v1 + Bearer" --> Gateway
-    Gateway --> Services
-    Services --> Core
-    Services --> DB
-    Gateway -- "Forward" --> LLM[OpenAI / Anthropic]
-    Svelte -- "Configure" --> API
-    API --> Services
+graph LR
+    Agent[编码 Agent CLI] -->|HTTP /v1| CAB[CAB 网关]
+    CAB -->|排序与路由| LLM[OpenAI / Anthropic / …]
+    UI[CAB 仪表盘] -->|配置| CAB
 ```
 
-| Crate          | 作用                                     |
-| -------------- | ---------------------------------------- |
-| `cab-core`     | 类型、请求画像、路由算法                 |
-| `cab-db`       | 存储、`settings.json`、`state.json`、JSONL 日志 |
-| `cab-services` | 目录同步、路由解析、Agent 配置           |
-| `cab-gateway`  | 认证、协议适配、上游转发                 |
-| `cab-api`      | 管理 REST API（`/api/*`）                |
-| `cab-server`   | 无头守护进程（网关 + API + 静态 UI）     |
-| `src`          | Svelte 仪表盘                            |
+1. **安装** CAB，启动桌面应用或无头服务。
+2. **添加提供商**——同步 models.dev 目录并填入 API Key。
+3. **连接 Agent**——切换为自动或手动模式，CAB 自动改写 Agent 配置。
 
-## 快速开始
+## 内置路由策略
 
-**安装发布版：** 请参阅 [安装指南](install/)，在 [GitHub Releases](https://github.com/xiongdi/cab/releases) 下载对应平台的安装包。
+| 策略 | 适用场景 |
+| ---- | -------- |
+| **Auto** | 按任务类型、复杂度、能力与成本动态选模 |
+| **Balanced** | 性价比最优——能力与 3:1 加权 token 成本 |
+| **Intelligent** | 最难的编程任务——AA coding index 最高 |
+| **Price** | 成本最低——始终选最便宜的已启用模型 |
 
-### 前置条件
+详见 [路由策略](guides/routing/)。
 
-- [Rust](https://rustup.rs/)（2024 Edition，`rust-toolchain.toml` 使用 `stable`）
-- [Node.js](https://nodejs.org/)（v24+，LTS）
+## 仪表盘功能
 
-### 桌面 GUI（Tauri）
+| 页面 | 用途 |
+| ---- | ---- |
+| **控制面板** | 网关统计与健康概览 |
+| **提供商** | LLM 目录、API Key、上游端点 |
+| **模型** | 基准数据、定价、启用/禁用 |
+| **路由** | 自定义路由规则与决策预览 |
+| **Agent** | 各编码 Agent 的原生/自动/手动模式 |
+| **日志** | JSONL 请求审计 |
+| **设置** | 端口、网关密钥、日志保留 |
 
-```bash
-npm install
-npm run tauri:dev
-```
+## 开始使用
 
-### 无头服务
-
-```bash
-cargo run -p cab-server
-```
-
-默认网关：`http://127.0.0.1:3125/v1`
+<CardGrid>
+	<Card title="安装" icon="download" link="getting-started/install/">
+		下载 Windows、macOS、Linux 桌面安装包。
+	</Card>
+	<Card title="快速开始" icon="rocket" link="getting-started/quick-start/">
+		五分钟完成从安装到首次路由请求。
+	</Card>
+	<Card title="Agent 配置" icon="approve-check" link="guides/agents/">
+		原生、自动、手动三种模式详解。
+	</Card>
+</CardGrid>

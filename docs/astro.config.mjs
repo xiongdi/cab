@@ -9,7 +9,8 @@ export default defineConfig({
 	integrations: [
 		starlight({
 			title: 'CAB',
-			description: 'Official documentation for CAB (Coding Agents Bridge).',
+			description:
+				'CAB (Coding Agents Bridge) — local LLM gateway and smart router for coding agents.',
 			defaultLocale: 'root',
 			locales: {
 				root: {
@@ -35,12 +36,34 @@ export default defineConfig({
 				{
 					label: 'Getting Started',
 					translations: { 'zh-CN': '快速开始' },
-					items: [{ slug: 'install' }],
+					items: [
+						{ slug: 'getting-started/install' },
+						{ slug: 'getting-started/quick-start' },
+					],
+				},
+				{
+					label: 'Guides',
+					translations: { 'zh-CN': '使用指南' },
+					items: [
+						{ slug: 'guides/providers-and-models' },
+						{ slug: 'guides/routing' },
+						{ slug: 'guides/agents' },
+						{ slug: 'guides/gateway-auth' },
+					],
 				},
 				{
 					label: 'Reference',
 					translations: { 'zh-CN': '参考' },
-					items: [{ slug: 'agents/supported-agents' }],
+					items: [
+						{ slug: 'reference/supported-agents' },
+						{ slug: 'reference/architecture' },
+						{ slug: 'reference/api' },
+					],
+				},
+				{
+					label: 'Project',
+					translations: { 'zh-CN': '项目' },
+					items: [{ slug: 'project/changelog' }],
 				},
 			],
 		}),

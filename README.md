@@ -57,7 +57,7 @@ graph TD
 
 ## Getting Started
 
-**Install a release:** see the [Installation Guide](https://xiongdi.github.io/cab/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/install/)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
+**Install a release:** see the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
 
 ### Prerequisites
 
