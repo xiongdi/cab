@@ -78,6 +78,8 @@ export interface Model {
   coding_index: number;
   agentic_index: number;
   math_index: number;
+  output_speed_tps?: number | null;
+  time_to_first_token_secs?: number | null;
   created_at: string;
   updated_at: string;
   // Catalog metadata
@@ -134,7 +136,7 @@ export interface Route {
   fallback_model_ids: string[];
   fallback_model_names?: string[];
   priority: number;
-  /** one of: auto | cheapest | balanced | intelligent */
+  /** one of: auto | cheapest | balanced | intelligent | speed */
   routing_strategy: string;
   enabled: boolean;
   created_at: string;
@@ -229,6 +231,12 @@ export interface BenchmarkEvaluations {
   hle?: number | null;
 }
 
+export interface BenchmarkPerformance {
+  median_output_tokens_per_second?: number | null;
+  median_time_to_first_token_seconds?: number | null;
+  median_time_to_first_answer_token?: number | null;
+}
+
 export interface BenchmarkModelRecord {
   id: string;
   slug: string;
@@ -236,6 +244,7 @@ export interface BenchmarkModelRecord {
   creator_slug?: string | null;
   creator_name?: string | null;
   evaluations: BenchmarkEvaluations;
+  performance?: BenchmarkPerformance;
 }
 
 /** Three-source model view: models.dev + AA + settings.json */

@@ -56,7 +56,7 @@ Check **Logs** in the dashboard to confirm the routed provider, model, token usa
 
 ## 6. Tune routing (optional)
 
-- Change the agent's strategy in **Agents** (auto / balanced / intelligent / price).
+- Change the agent's strategy in **Agents** (auto / balanced / intelligent / price / speed).
 - Create custom rules in **Routes** with agent patterns and fallback chains.
 - Use **Routes → Explain routing** to preview how a prompt would be resolved.
 

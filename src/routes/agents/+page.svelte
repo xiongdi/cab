@@ -47,6 +47,7 @@
     if (id === 'balanced') return i18n.t('routes.strategies.balanced.label');
     if (id === 'intelligent') return i18n.t('routes.strategies.intelligent.label');
     if (id === 'price') return i18n.t('routes.strategies.cheapest.label');
+    if (id === 'speed') return i18n.t('routes.strategies.speed.label');
     return routes.find((r) => r.id === id)?.name || id;
   }
 
@@ -255,6 +256,7 @@
                         >{i18n.t('agents.system_routes.intelligent')}</option
                       >
                       <option value="price">{i18n.t('agents.system_routes.price')}</option>
+                      <option value="speed">{i18n.t('agents.system_routes.speed')}</option>
                     </optgroup>
 
                     {#if routes.length > 0}

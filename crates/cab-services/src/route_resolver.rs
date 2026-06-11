@@ -121,8 +121,10 @@ pub async fn resolve_route(
     if let Some(route) = routes.first() {
         let strategy = route.routing_strategy.as_str();
 
-        if matches!(strategy, "cheapest" | "intelligent" | "balanced" | "auto")
-            && let Some(resolved) = resolve_by_strategy(catalog, strategy, &request_profile).await?
+        if matches!(
+            strategy,
+            "cheapest" | "intelligent" | "balanced" | "auto" | "speed"
+        ) && let Some(resolved) = resolve_by_strategy(catalog, strategy, &request_profile).await?
         {
             return Ok(resolved);
         }
@@ -264,14 +266,17 @@ async fn resolve_route_by_id(
         "intelligent" => return resolve_by_strategy(catalog, "intelligent", profile).await,
         "balanced" => return resolve_by_strategy(catalog, "balanced", profile).await,
         "auto" => return resolve_by_strategy(catalog, "auto", profile).await,
+        "speed" => return resolve_by_strategy(catalog, "speed", profile).await,
         _ => {}
     }
 
     // Check custom route in store
     if let Some(route) = catalog.route_by_id(route_id).await? {
         let strategy = route.routing_strategy.as_str();
-        if matches!(strategy, "cheapest" | "intelligent" | "balanced" | "auto")
-            && let Some(resolved) = resolve_by_strategy(catalog, strategy, profile).await?
+        if matches!(
+            strategy,
+            "cheapest" | "intelligent" | "balanced" | "auto" | "speed"
+        ) && let Some(resolved) = resolve_by_strategy(catalog, strategy, profile).await?
         {
             return Ok(Some(resolved));
         }
@@ -462,6 +467,8 @@ mod tests {
             coding_index: intelligence,
             agentic_index: intelligence,
             math_index: intelligence,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
             created_at: "now".into(),
             updated_at: "now".into(),
             canonical_slug: Some(format!("{provider_id}/{id}")),

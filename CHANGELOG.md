@@ -29,6 +29,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-06-11
+
+### Added
+
+- **Speed** routing strategy (`speed`): routes to the fastest AA median output speed among enabled models; ties break on lower TTFT, then cost; falls back to **Price** when no speed data is available.
+- AA catalog sync now stores performance metrics (`median_output_tokens_per_second`, `median_time_to_first_token_seconds`) on models.
+- Models page shows AA output speed and time-to-first-token when available.
+
+### Changed
+
+- Routing docs (EN / 简体中文) and Agents UI include the new Speed strategy.
+
 ## [0.2.4] - 2026-06-11
 
 ### Added

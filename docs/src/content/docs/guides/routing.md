@@ -41,6 +41,12 @@ Sorts all enabled models by total token cost (input + output), lowest first. Fil
 
 Best for: budget-constrained workflows and simple tasks.
 
+### Speed
+
+Routes to the highest **AA median output speed** (`median_output_tokens_per_second`) among enabled models. Ties break on lower time-to-first-token, then lower effective cost. Models without AA speed data are deprioritized; if none have data, falls back to **Price**.
+
+Best for: interactive coding, quick completions, and latency-sensitive workflows.
+
 ## Custom route rules
 
 The **Routes** page lets you define rules with:

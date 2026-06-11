@@ -1,6 +1,6 @@
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord,
+    BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
     artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
     load_artificial_analysis_catalog, models_dev_catalog_path, models_dev_catalog_url,
     refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key, write_catalog_file,
@@ -22,6 +22,12 @@ struct ArtificialAnalysisModel {
     slug: String,
     model_creator: ArtificialAnalysisCreator,
     evaluations: BenchmarkEvaluations,
+    #[serde(default)]
+    median_output_tokens_per_second: Option<f64>,
+    #[serde(default)]
+    median_time_to_first_token_seconds: Option<f64>,
+    #[serde(default)]
+    median_time_to_first_answer_token: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,6 +140,11 @@ pub async fn sync_artificial_analysis_catalog(
             creator_slug: Some(model.model_creator.slug),
             creator_name: Some(model.model_creator.name),
             evaluations: model.evaluations,
+            performance: BenchmarkPerformance {
+                median_output_tokens_per_second: model.median_output_tokens_per_second,
+                median_time_to_first_token_seconds: model.median_time_to_first_token_seconds,
+                median_time_to_first_answer_token: model.median_time_to_first_answer_token,
+            },
         })
         .collect::<Vec<_>>();
 

@@ -53,6 +53,14 @@
       glow: 'rgba(168,85,247,0.15)',
       border: 'rgba(168,85,247,0.25)',
     },
+    {
+      id: 'speed',
+      icon: '🚀',
+      color: '#06b6d4',
+      bg: 'rgba(6,182,212,0.06)',
+      glow: 'rgba(6,182,212,0.15)',
+      border: 'rgba(6,182,212,0.25)',
+    },
   ] as const;
 
   onMount(async () => {
@@ -83,6 +91,15 @@
     return Math.max(input * INPUT_OUTPUT_RATIO + output, 0.001);
   }
 
+  function modelOutputSpeed(model: Model): number {
+    const speed = model.output_speed_tps ?? 0;
+    return speed > 0 ? speed : 0;
+  }
+
+  function modelTimeToFirstToken(model: Model): number {
+    return model.time_to_first_token_secs ?? Number.POSITIVE_INFINITY;
+  }
+
   function primaryCapability(
     model: Model,
     task: 'coding' | 'math' | 'agentic' | 'general'
@@ -110,13 +127,19 @@
 
     const previewTask = strategy === 'auto' ? 'coding' : 'coding';
 
+    const hasSpeedData = enabled.some((m) => modelOutputSpeed(m) > 0);
+    const effectiveStrategy =
+      strategy === 'speed' && !hasSpeedData ? 'cheapest' : strategy;
+
     const mapped = enabled.map((m) => {
       let score = 0;
-      if (strategy === 'cheapest') {
+      if (effectiveStrategy === 'cheapest') {
         score = effectiveTokenCost(m);
-      } else if (strategy === 'intelligent') {
+      } else if (effectiveStrategy === 'intelligent') {
         score = m.coding_index;
-      } else if (strategy === 'balanced') {
+      } else if (effectiveStrategy === 'speed') {
+        score = modelOutputSpeed(m);
+      } else if (effectiveStrategy === 'balanced') {
         score = primaryCapability(m, previewTask) / effectiveTokenCost(m);
       } else {
         score =
@@ -130,13 +153,19 @@
     });
 
     mapped.sort((a, b) => {
-      if (strategy === 'cheapest') {
+      if (effectiveStrategy === 'cheapest') {
         if (a.score !== b.score) return a.score - b.score;
         return b.model.coding_index - a.model.coding_index;
-      } else if (strategy === 'intelligent') {
+      } else if (effectiveStrategy === 'intelligent') {
         if (b.score !== a.score) return b.score - a.score;
         return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
-      } else if (strategy === 'balanced' || strategy === 'auto') {
+      } else if (effectiveStrategy === 'speed') {
+        if (b.score !== a.score) return b.score - a.score;
+        const ttftDiff =
+          modelTimeToFirstToken(a.model) - modelTimeToFirstToken(b.model);
+        if (ttftDiff !== 0) return ttftDiff;
+        return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
+      } else if (effectiveStrategy === 'balanced' || effectiveStrategy === 'auto') {
         if (b.score !== a.score) return b.score - a.score;
         return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
       }
@@ -313,7 +342,9 @@
                       <th style="width: 90px;">{i18n.t('routes.provider')}</th>
                       <th>{i18n.t('routes.model_name')}</th>
                       <th style="text-align: right; width: 130px;">{i18n.t('routes.price')}</th>
-                      <th style="text-align: right; width: 70px;">{i18n.t('routes.intel')}</th>
+                      <th style="text-align: right; width: 70px;">
+                        {s.id === 'speed' ? i18n.t('routes.speed') : i18n.t('routes.intel')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -336,7 +367,13 @@
                           ${c.model.input_cost?.toFixed(2)} / ${c.model.output_cost?.toFixed(2)}
                         </td>
                         <td style="text-align: right;" class="mono text-accent">
-                          {c.model.coding_index.toFixed(1)}
+                          {#if s.id === 'speed'}
+                            {(c.model.output_speed_tps ?? 0) > 0
+                              ? `${c.model.output_speed_tps!.toFixed(1)} t/s`
+                              : '—'}
+                          {:else}
+                            {c.model.coding_index.toFixed(1)}
+                          {/if}
                         </td>
                       </tr>
                     {/each}

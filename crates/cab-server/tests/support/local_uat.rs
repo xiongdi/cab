@@ -14,7 +14,7 @@ use super::{
 pub const ENV_ENABLE: &str = "CAB_RUN_UAT";
 
 /// Built-in routing strategies exposed in Agents UI auto mode.
-pub const AUTO_STRATEGIES: &[&str] = &["auto", "balanced", "intelligent", "price"];
+pub const AUTO_STRATEGIES: &[&str] = &["auto", "balanced", "intelligent", "price", "speed"];
 
 pub fn enabled() -> bool {
     std::env::var(ENV_ENABLE).ok().as_deref() == Some("1")

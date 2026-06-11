@@ -147,6 +147,7 @@ pub async fn explain(pool: &InMemoryStore, request: &RouteExplainRequest) -> Rou
         RoutingStrategy::Balanced => "balanced",
         RoutingStrategy::Cheapest => "cheapest",
         RoutingStrategy::Intelligent => "intelligent",
+        RoutingStrategy::Speed => "speed",
     };
 
     let ranked = ranked_candidates(pool, strategy, &profile).await;

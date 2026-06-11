@@ -37,6 +37,8 @@ pub async fn create(store: &InMemoryStore, input: &CreateModel) -> Result<Model,
         coding_index: input.coding_index.unwrap_or(24.0),
         agentic_index: input.agentic_index.unwrap_or(36.0),
         math_index: input.math_index.unwrap_or(30.0),
+        output_speed_tps: input.output_speed_tps,
+        time_to_first_token_secs: input.time_to_first_token_secs,
         created_at: now.clone(),
         updated_at: now,
         canonical_slug: input.canonical_slug.clone(),
@@ -100,6 +102,12 @@ pub async fn update(
         }
         if let Some(ref math_index) = input.math_index {
             m.math_index = *math_index;
+        }
+        if let Some(ref output_speed_tps) = input.output_speed_tps {
+            m.output_speed_tps = Some(*output_speed_tps);
+        }
+        if let Some(ref time_to_first_token_secs) = input.time_to_first_token_secs {
+            m.time_to_first_token_secs = Some(*time_to_first_token_secs);
         }
         if let Some(ref canonical_slug) = input.canonical_slug {
             m.canonical_slug = Some(canonical_slug.clone());
@@ -187,6 +195,7 @@ mod tests {
             knowledge_cutoff: Some("2025-01".into()),
             expiration_date: Some("2026-01".into()),
             links: Some(serde_json::json!({"native_model_id": "native"})),
+            ..Default::default()
         }
     }
 
@@ -273,6 +282,7 @@ mod tests {
                 knowledge_cutoff: Some("2026-01".into()),
                 expiration_date: Some("2027-01".into()),
                 links: Some(serde_json::json!({"native_model_id": "new-native"})),
+                ..Default::default()
             },
         )
         .await

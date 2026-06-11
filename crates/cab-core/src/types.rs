@@ -144,6 +144,10 @@ pub struct Model {
     pub agentic_index: f64,
     #[serde(default = "default_math_index")]
     pub math_index: f64,
+    #[serde(default)]
+    pub output_speed_tps: Option<f64>,
+    #[serde(default)]
+    pub time_to_first_token_secs: Option<f64>,
     pub created_at: String,
     pub updated_at: String,
     // Catalog metadata
@@ -177,6 +181,8 @@ pub struct CreateModel {
     pub coding_index: Option<f64>,
     pub agentic_index: Option<f64>,
     pub math_index: Option<f64>,
+    pub output_speed_tps: Option<f64>,
+    pub time_to_first_token_secs: Option<f64>,
     // Catalog metadata
     pub canonical_slug: Option<String>,
     pub hugging_face_id: Option<String>,
@@ -208,6 +214,8 @@ pub struct UpdateModel {
     pub coding_index: Option<f64>,
     pub agentic_index: Option<f64>,
     pub math_index: Option<f64>,
+    pub output_speed_tps: Option<f64>,
+    pub time_to_first_token_secs: Option<f64>,
     // Catalog metadata
     pub canonical_slug: Option<String>,
     pub hugging_face_id: Option<String>,

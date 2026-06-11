@@ -15,6 +15,16 @@ pub struct BenchmarkCatalogFile {
     pub models: Vec<BenchmarkModelRecord>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BenchmarkPerformance {
+    #[serde(default)]
+    pub median_output_tokens_per_second: Option<f64>,
+    #[serde(default)]
+    pub median_time_to_first_token_seconds: Option<f64>,
+    #[serde(default)]
+    pub median_time_to_first_answer_token: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchmarkModelRecord {
     pub id: String,
@@ -25,6 +35,14 @@ pub struct BenchmarkModelRecord {
     #[serde(default)]
     pub creator_name: Option<String>,
     pub evaluations: BenchmarkEvaluations,
+    #[serde(default)]
+    pub performance: BenchmarkPerformance,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ModelPerformanceMetrics {
+    pub output_speed_tps: Option<f64>,
+    pub time_to_first_token_secs: Option<f64>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -431,6 +449,38 @@ impl BenchmarkCatalog {
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn performance_from_record(record: &BenchmarkModelRecord) -> ModelPerformanceMetrics {
+    ModelPerformanceMetrics {
+        output_speed_tps: record
+            .performance
+            .median_output_tokens_per_second
+            .filter(|speed| *speed > 0.0),
+        time_to_first_token_secs: record.performance.median_time_to_first_token_seconds,
+    }
+}
+
+pub fn resolve_performance_metrics(
+    catalog: Option<&BenchmarkCatalog>,
+    aa_map: &AaModelMapFile,
+    catalog_model_id: &str,
+    canonical_slug: Option<&str>,
+    display_name: Option<&str>,
+    context_length: i64,
+) -> ModelPerformanceMetrics {
+    if let Some(catalog) = catalog {
+        if let Some(record) = catalog.lookup_record(
+            catalog_model_id,
+            canonical_slug,
+            display_name,
+            context_length,
+            aa_map,
+        ) {
+            return performance_from_record(&record);
+        }
+    }
+    ModelPerformanceMetrics::default()
+}
+
 pub fn resolve_intelligence_indices(
     catalog: Option<&BenchmarkCatalog>,
     aa_map: &AaModelMapFile,
@@ -659,6 +709,7 @@ mod tests {
                 tau2: Some(tau2),
                 ..Default::default()
             },
+            performance: BenchmarkPerformance::default(),
         }
     }
 
@@ -872,6 +923,7 @@ mod tests {
                         hle: Some(0.9),
                         ..Default::default()
                     },
+                    performance: BenchmarkPerformance::default(),
                 },
             ],
         });

@@ -127,6 +127,25 @@
     return `models["${entry.catalog_id}"]`;
   }
 
+  function aaPerformanceRows(entry: ModelCatalogEntry): Array<{ label: string; value: string }> {
+    const perf = entry.artificial_analysis?.performance;
+    if (!perf) return [];
+    const rows: Array<{ label: string; value: string }> = [];
+    if (perf.median_output_tokens_per_second != null && perf.median_output_tokens_per_second > 0) {
+      rows.push({
+        label: i18n.t('models.aa_output_speed'),
+        value: `${Number(perf.median_output_tokens_per_second).toFixed(1)} t/s`,
+      });
+    }
+    if (perf.median_time_to_first_token_seconds != null) {
+      rows.push({
+        label: i18n.t('models.aa_ttft'),
+        value: `${Number(perf.median_time_to_first_token_seconds).toFixed(2)} s`,
+      });
+    }
+    return rows;
+  }
+
   function aaScoreRows(entry: ModelCatalogEntry): Array<{ label: string; value: string }> {
     const aa = entry.artificial_analysis;
     if (!aa) return [];
@@ -643,6 +662,19 @@
                       >
                     </div>
                   </div>
+                  {#if aaPerformanceRows(entry).length > 0}
+                    <div class="detail-subsection compact-top">
+                      <h5>{i18n.t('models.aa_performance')}</h5>
+                      <div class="score-grid">
+                        {#each aaPerformanceRows(entry) as score}
+                          <div class="score-card">
+                            <span class="score-label">{score.label}</span>
+                            <span class="score-value mono">{score.value}</span>
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
+                  {/if}
                   {#if aaScoreRows(entry).length > 0}
                     <div class="detail-subsection compact-top">
                       <h5>{i18n.t('models.aa_scores')}</h5>

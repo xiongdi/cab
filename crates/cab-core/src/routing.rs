@@ -9,6 +9,10 @@
 //!
 //! ## Balanced (`balanced`)
 //! Rank by task-primary capability / effective_cost (same 3:1 price weighting).
+//!
+//! ## Speed (`speed`)
+//! Rank by AA median output speed (tokens/s), then TTFT, then cost. Models without speed
+//! data sink to the bottom; if none have speed data, fall back to cheapest.
 
 use std::collections::HashSet;
 
@@ -41,6 +45,7 @@ pub enum RoutingStrategy {
     Balanced,
     Cheapest,
     Intelligent,
+    Speed,
 }
 
 impl RoutingStrategy {
@@ -50,9 +55,18 @@ impl RoutingStrategy {
             "balanced" => Some(Self::Balanced),
             "cheapest" | "price" => Some(Self::Cheapest),
             "intelligent" => Some(Self::Intelligent),
+            "speed" => Some(Self::Speed),
             _ => None,
         }
     }
+}
+
+fn model_output_speed(model: &Model) -> Option<f64> {
+    model.output_speed_tps.filter(|speed| *speed > 0.0)
+}
+
+fn model_time_to_first_token(model: &Model) -> f64 {
+    model.time_to_first_token_secs.unwrap_or(f64::MAX)
 }
 
 /// Build a routing profile from an API JSON body and client agent id.
@@ -96,19 +110,29 @@ fn score_models<'a>(
     profile: &RequestProfile,
     subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<(&'a Model, f64, f64)> {
+    if matches!(strategy, RoutingStrategy::Speed)
+        && !models.iter().any(|model| model_output_speed(model).is_some())
+    {
+        tracing::warn!(
+            "Speed strategy has no models with AA output speed data; falling back to cheapest"
+        );
+        return score_models(models, RoutingStrategy::Cheapest, profile, subscribed_provider_ids);
+    }
+
     let mut scored: Vec<(&Model, f64, f64)> = models
         .iter()
         .map(|model| {
             let routing_cost = effective_routing_cost(model, subscribed_provider_ids);
             let capability = match strategy {
                 RoutingStrategy::Intelligent => model.coding_index,
+                RoutingStrategy::Speed => model_output_speed(model).unwrap_or(0.0),
                 RoutingStrategy::Cheapest => 0.0,
                 RoutingStrategy::Balanced => primary_capability(model, profile.task),
                 RoutingStrategy::Auto => composite_capability(model, profile.task),
             };
             let value = match strategy {
                 RoutingStrategy::Cheapest => -routing_cost,
-                RoutingStrategy::Intelligent => capability,
+                RoutingStrategy::Intelligent | RoutingStrategy::Speed => capability,
                 RoutingStrategy::Balanced | RoutingStrategy::Auto => capability / routing_cost,
             };
             (model, capability, value)
@@ -139,6 +163,15 @@ fn score_models<'a>(
                 b_cap
                     .partial_cmp(a_cap)
                     .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .then_with(|| {
+                if matches!(strategy, RoutingStrategy::Speed) {
+                    model_time_to_first_token(a_model)
+                        .partial_cmp(&model_time_to_first_token(b_model))
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                } else {
+                    std::cmp::Ordering::Equal
+                }
             })
             .then_with(|| {
                 effective_routing_cost(a_model, subscribed_provider_ids)
@@ -468,6 +501,8 @@ mod tests {
             coding_index: scores.1,
             agentic_index: scores.2,
             math_index: scores.3,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
             created_at: String::new(),
             updated_at: String::new(),
             canonical_slug: None,
@@ -555,6 +590,56 @@ mod tests {
             Some(&subscribed_ids),
         );
         assert_eq!(ranked[0].name, "subscribed-flagship");
+    }
+
+    #[test]
+    fn speed_prefers_faster_model() {
+        let mut fast = sample_model("fast", 1.0, 1.0, (50.0, 50.0, 40.0, 40.0));
+        fast.output_speed_tps = Some(200.0);
+        fast.time_to_first_token_secs = Some(0.5);
+        let mut slow = sample_model("slow", 0.1, 0.1, (90.0, 90.0, 80.0, 80.0));
+        slow.output_speed_tps = Some(40.0);
+        slow.time_to_first_token_secs = Some(2.0);
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.5,
+            estimated_input_tokens: 1000,
+        };
+        let models = [slow, fast];
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        assert_eq!(ranked[0].name, "fast");
+    }
+
+    #[test]
+    fn speed_tiebreaks_on_lower_ttft() {
+        let mut a = sample_model("a", 1.0, 1.0, (50.0, 50.0, 40.0, 40.0));
+        a.output_speed_tps = Some(100.0);
+        a.time_to_first_token_secs = Some(1.5);
+        let mut b = sample_model("b", 1.0, 1.0, (50.0, 50.0, 40.0, 40.0));
+        b.output_speed_tps = Some(100.0);
+        b.time_to_first_token_secs = Some(0.8);
+        let profile = RequestProfile {
+            task: TaskKind::General,
+            complexity: 0.2,
+            estimated_input_tokens: 200,
+        };
+        let models = [a, b];
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        assert_eq!(ranked[0].name, "b");
+    }
+
+    #[test]
+    fn speed_without_data_falls_back_to_cheapest() {
+        let cheap = sample_model("cheap", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
+        let pricey = sample_model("pricey", 5.0, 5.0, (90.0, 90.0, 80.0, 80.0));
+        let profile = RequestProfile {
+            task: TaskKind::General,
+            complexity: 0.2,
+            estimated_input_tokens: 200,
+        };
+        let models = [pricey, cheap];
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        assert_eq!(ranked[0].name, "cheap");
     }
 
     #[test]

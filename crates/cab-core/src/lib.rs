@@ -15,7 +15,8 @@ pub use benchmark_catalog::{
     load_artificial_analysis_catalog, load_models_dev_catalog_file, models_dev_catalog_path,
     models_dev_catalog_status, models_dev_catalog_url, models_dev_lab_logo_url,
     models_dev_provider_logo_url, refresh_aa_model_map_exact_matches,
-    resolve_artificial_analysis_api_key, resolve_intelligence_indices, save_aa_model_map,
+    resolve_artificial_analysis_api_key, resolve_intelligence_indices, resolve_performance_metrics,
+    save_aa_model_map,
 };
 pub use config::CabConfig;
 pub use error::CabError;

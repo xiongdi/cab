@@ -558,6 +558,14 @@ pub async fn sync_models_dev_models(
             input_cost,
             None,
         );
+        let performance = cab_core::resolve_performance_metrics(
+            benchmark_catalog,
+            aa_map,
+            &model_name,
+            Some(canonical_id),
+            Some(&display_name),
+            context_length,
+        );
         let configured_enabled = model_enabled_override(settings, &model_name);
         let existing_model = existing_models
             .iter()
@@ -604,6 +612,8 @@ pub async fn sync_models_dev_models(
                 coding_index: Some(indices.coding_index),
                 agentic_index: Some(indices.agentic_index),
                 math_index: Some(indices.math_index),
+                output_speed_tps: performance.output_speed_tps,
+                time_to_first_token_secs: performance.time_to_first_token_secs,
                 canonical_slug: Some(model_name.clone()),
                 hugging_face_id,
                 created,
@@ -641,6 +651,8 @@ pub async fn sync_models_dev_models(
                 coding_index: Some(indices.coding_index),
                 agentic_index: Some(indices.agentic_index),
                 math_index: Some(indices.math_index),
+                output_speed_tps: performance.output_speed_tps,
+                time_to_first_token_secs: performance.time_to_first_token_secs,
                 canonical_slug: Some(model_name),
                 hugging_face_id,
                 created,

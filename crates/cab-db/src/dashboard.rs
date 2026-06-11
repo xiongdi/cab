@@ -102,6 +102,8 @@ mod tests {
             coding_index: 1.0,
             agentic_index: 1.0,
             math_index: 1.0,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
             created_at: "now".into(),
             updated_at: "now".into(),
             canonical_slug: None,
