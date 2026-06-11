@@ -29,6 +29,8 @@ npm run preview
 | `src/content/docs/zh-cn/` | Simplified Chinese pages |
 | `astro.config.mjs` | Site, base path, sidebar, and i18n config |
 
+Use **relative links** in Markdown and hero actions (for example `install/`), not root-absolute paths like `/install/`. With `base: '/cab/'`, root-absolute links skip the project prefix on GitHub Pages.
+
 ## Deployment
 
 Pushes to `main` that touch `docs/**` trigger the [Deploy Docs](../../.github/workflows/docs.yml) workflow, which publishes the built site to GitHub Pages.
