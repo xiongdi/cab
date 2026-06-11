@@ -1,12 +1,20 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import mermaid from 'astro-mermaid';
 
 /** @type {import('astro').AstroUserConfig} */
 export default defineConfig({
 	site: 'https://xiongdi.github.io',
 	base: '/cab/',
+	markdown: {
+		syntaxHighlight: {
+			type: 'shiki',
+			excludeLangs: ['mermaid'],
+		},
+	},
 	integrations: [
+		mermaid({ autoTheme: true, enableLog: false }),
 		starlight({
 			title: 'CAB',
 			description:
