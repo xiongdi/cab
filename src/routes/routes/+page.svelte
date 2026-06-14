@@ -3,13 +3,12 @@
   import { page } from '$app/stores';
   import { api } from '$lib/api';
   import { dataRevision } from '$lib/data-revision.svelte';
-  import type { Model, Provider, RouteExplainResult, RoutableModel } from '$lib/types';
+  import type { ApiKeyConfig, Model, Provider, RankedModelSummary, RouteExplainResult, RoutableModel } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Card from '$lib/components/Card.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { toast } from '$lib/components/Toast.svelte';
 
-  let models = $state<Model[]>([]);
   let routableModels = $state<RoutableModel[]>([]);
   let providers = $state<Provider[]>([]);
   let loading = $state(true);
@@ -73,14 +72,12 @@
     const seq = ++loadSeq;
     if (!options?.silent) loading = true;
     try {
-      const [providersList, modelsList, routableList] = await Promise.all([
+      const [providersList, routableList] = await Promise.all([
         api.providers.list(),
-        api.models.list(),
         api.models.listRoutable(),
       ]);
       if (seq !== loadSeq) return;
       providers = providersList;
-      models = modelsList;
       routableModels = routableList;
       hasLoaded = true;
     } catch (e) {
@@ -107,29 +104,207 @@
 
   // derived provider map for fast lookup
   const providerMap = $derived(new Map(providers.map((p) => [p.id, p])));
-  const serviceProviderByModelId = $derived(
-    new Map(routableModels.map((m) => [m.id, m.service_provider_id]))
-  );
 
-  // Helper to sort models by strategy (mirrors cab-core routing engine)
+  // Helper to sort routes by strategy (mirrors cab-core routing engine)
   const INPUT_OUTPUT_RATIO = 10;
   const INPUT_CACHE_HIT_RATE = 0.9;
 
-  function cacheReadCost(model: Model): number | undefined {
-    const value = model.pricing?.cache_read;
-    return typeof value === 'number' && value >= 0 ? value : undefined;
+  function isKeyRateLimited(key: ApiKeyConfig): boolean {
+    if (!key.quota_reset_at) return false;
+    const resetAt = Date.parse(key.quota_reset_at);
+    return Number.isFinite(resetAt) && resetAt > Date.now();
   }
 
-  function blendedInputCost(model: Model): number {
-    const input = model.input_cost ?? 0;
-    const cacheRead = cacheReadCost(model);
-    if (cacheRead === undefined) return input;
-    return INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input;
+  function providerHasSubscribedKeyConfigured(providerId: string): boolean {
+    const provider = providerMap.get(providerId);
+    if (!provider) return false;
+    return provider.api_keys.some(
+      (key) => key.enabled && key.key.trim().length > 0 && key.subscribed
+    );
   }
 
-  function effectiveTokenCost(model: Model): number {
-    const output = model.output_cost ?? 0;
-    return Math.max(blendedInputCost(model) * INPUT_OUTPUT_RATIO + output, 0.001);
+  function providerHasSubscribedKey(providerId: string): boolean {
+    const provider = providerMap.get(providerId);
+    if (!provider) return false;
+    return provider.api_keys.some(
+      (key) =>
+        key.enabled && key.key.trim().length > 0 && key.subscribed && !isKeyRateLimited(key)
+    );
+  }
+
+  type StrategyCandidate = {
+    route: RoutableModel;
+    model: Model;
+    score: number | null;
+    serviceProviderId: string;
+    displayStrategy: string;
+  };
+
+  type StrategyCandidatePools = {
+    displayStrategy: string;
+    subscribed: StrategyCandidate[];
+    payg: StrategyCandidate[];
+  };
+
+  /** Pure strategy metric — never adjusted for subscription. */
+  function strategyMetricValue(route: RoutableModel, strategy: string): number | null {
+    if (strategy === 'cheapest') {
+      return endpointEffectiveTokenCost(route);
+    }
+    if (strategy === 'intelligent') {
+      return capabilityIndicesMissing(route, strategy) ? null : (route.coding_index ?? null);
+    }
+    if (strategy === 'speed') {
+      return modelOutputSpeed(route) || null;
+    }
+    const previewTask = strategy === 'auto' ? 'coding' : 'coding';
+    const valueCost = catalogEffectiveTokenCost(route);
+    if (strategy === 'balanced') {
+      return capabilityIndicesMissing(route, strategy)
+        ? null
+        : primaryCapability(route, previewTask) / valueCost;
+    }
+    if (strategy === 'auto') {
+      return capabilityIndicesMissing(route, strategy)
+        ? null
+        : (hasCompositeIndices(route)
+            ? compositeCapability(route, previewTask)
+            : primaryCapability(route, previewTask)) / valueCost;
+    }
+    return null;
+  }
+
+  function compareStrategyCandidates(
+    a: { route: RoutableModel; model: Model; score: number | null; serviceProviderId: string },
+    b: { route: RoutableModel; model: Model; score: number | null; serviceProviderId: string },
+    strategy: string
+  ): number {
+    const scoreOf = (s: number | null) => (s == null ? Number.NEGATIVE_INFINITY : s);
+    if (strategy === 'cheapest') {
+      if (a.score !== b.score) return (a.score ?? 0) - (b.score ?? 0);
+      return (
+        a.model.name.localeCompare(b.model.name) ||
+        a.serviceProviderId.localeCompare(b.serviceProviderId)
+      );
+    }
+    if (strategy === 'intelligent') {
+      if (b.score !== a.score) return scoreOf(b.score) - scoreOf(a.score);
+      return endpointEffectiveTokenCost(a.route) - endpointEffectiveTokenCost(b.route);
+    }
+    if (strategy === 'speed') {
+      if (b.score !== a.score) return scoreOf(b.score) - scoreOf(a.score);
+      const ttftDiff = modelTimeToFirstToken(a.model) - modelTimeToFirstToken(b.model);
+      if (ttftDiff !== 0) return ttftDiff;
+      return endpointEffectiveTokenCost(a.route) - endpointEffectiveTokenCost(b.route);
+    }
+    if (strategy === 'balanced' || strategy === 'auto') {
+      if (b.score !== a.score) return scoreOf(b.score) - scoreOf(a.score);
+      return endpointEffectiveTokenCost(a.route) - endpointEffectiveTokenCost(b.route);
+    }
+    return 0;
+  }
+
+  function compareRoutingCandidates(
+    a: { route: RoutableModel; model: Model; score: number | null; serviceProviderId: string },
+    b: { route: RoutableModel; model: Model; score: number | null; serviceProviderId: string },
+    strategy: string
+  ): number {
+    const tier = (providerId: string) => (providerHasSubscribedKey(providerId) ? 0 : 1);
+    const subscribedDiff = tier(a.serviceProviderId) - tier(b.serviceProviderId);
+    if (subscribedDiff !== 0) return subscribedDiff;
+    return compareStrategyCandidates(a, b, strategy);
+  }
+
+  function candidateKey(candidate: {
+    model: Model;
+    serviceProviderId: string;
+  }): string {
+    return `${candidate.model.name}\0${candidate.serviceProviderId}`;
+  }
+
+  function routingRankMap(
+    candidates: StrategyCandidate[],
+    strategy: string
+  ): Map<string, number> {
+    const sorted = [...candidates].sort((a, b) =>
+      compareRoutingCandidates(a, b, strategy)
+    );
+    const ranks = new Map<string, number>();
+    sorted.forEach((candidate, index) => {
+      ranks.set(candidateKey(candidate), index + 1);
+    });
+    return ranks;
+  }
+
+  function resolveCost(
+    primary: number | null | undefined,
+    fallback: number | null | undefined
+  ): number | null {
+    const value = primary ?? fallback;
+    return typeof value === 'number' && value >= 0 ? value : null;
+  }
+
+  function routeInputCost(route: RoutableModel): number | null {
+    return resolveCost(route.endpoint_input_cost, route.input_cost);
+  }
+
+  function routeOutputCost(route: RoutableModel): number | null {
+    return resolveCost(route.endpoint_output_cost, route.output_cost);
+  }
+
+  function hasKnownPricing(route: RoutableModel): boolean {
+    return routeInputCost(route) != null && routeOutputCost(route) != null;
+  }
+
+  function formatPrice(value: number | null): string {
+    return value == null ? '—' : `$${value.toFixed(2)}`;
+  }
+
+  function formatPricePair(route: RoutableModel): string {
+    const input = routeInputCost(route);
+    const output = routeOutputCost(route);
+    if (input == null || output == null) return '—';
+    return `${formatPrice(input)} / ${formatPrice(output)}`;
+  }
+
+  function routeCacheReadCost(route: RoutableModel): number | undefined {
+    const cache = route.endpoint_cache_read_cost ?? route.pricing?.cache_read;
+    return typeof cache === 'number' && cache >= 0 ? cache : undefined;
+  }
+
+  function catalogCacheReadCost(model: Model): number | undefined {
+    const cache = model.pricing?.cache_read;
+    return typeof cache === 'number' && cache >= 0 ? cache : undefined;
+  }
+
+  /** Endpoint-weighted cost (what you pay through this service provider). */
+  function endpointEffectiveTokenCost(route: RoutableModel): number {
+    const input = routeInputCost(route);
+    const output = routeOutputCost(route);
+    if (input == null || output == null) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const cacheRead = routeCacheReadCost(route);
+    const blended =
+      cacheRead !== undefined
+        ? INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input
+        : input;
+    return Math.max(blended * INPUT_OUTPUT_RATIO + output, 0.001);
+  }
+
+  /** Catalog list-price cost (used for 性价比 — same for a model regardless of provider). */
+  function catalogEffectiveTokenCost(model: Model): number {
+    const input = model.input_cost;
+    const output = model.output_cost;
+    if (input == null || output == null) {
+      return Number.POSITIVE_INFINITY;
+    }
+    const cacheRead = catalogCacheReadCost(model);
+    const blended =
+      cacheRead !== undefined
+        ? INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input
+        : input;
+    return Math.max(blended * INPUT_OUTPUT_RATIO + output, 0.001);
   }
 
   function modelOutputSpeed(model: Model): number {
@@ -141,106 +316,218 @@
     return model.time_to_first_token_secs ?? Number.POSITIVE_INFINITY;
   }
 
+  function capabilityIndicesMissing(model: Model, strategy: string): boolean {
+    if (strategy === 'cheapest') return false;
+    if (strategy === 'intelligent') return model.coding_index == null;
+    if (strategy === 'speed') return (model.output_speed_tps ?? 0) <= 0;
+    return model.coding_index == null && model.overall_intelligence == null;
+  }
+
+  function hasCompositeIndices(model: Model): boolean {
+    return (
+      model.overall_intelligence != null &&
+      model.coding_index != null &&
+      model.agentic_index != null &&
+      model.math_index != null
+    );
+  }
+
+  function compositeCapability(model: Model, task: 'coding' | 'math' | 'agentic' | 'general'): number {
+    const overall = model.overall_intelligence!;
+    const coding = model.coding_index!;
+    const agentic = model.agentic_index!;
+    const math = model.math_index!;
+    const weighted = (parts: [number, number][]) =>
+      parts.reduce((sum, [score, weight]) => sum + score * weight, 0);
+    if (task === 'coding') {
+      return weighted([
+        [coding, 0.55],
+        [overall, 0.22],
+        [agentic, 0.13],
+        [math, 0.1],
+      ]);
+    }
+    if (task === 'math') {
+      return weighted([
+        [math, 0.58],
+        [overall, 0.24],
+        [coding, 0.1],
+        [agentic, 0.08],
+      ]);
+    }
+    if (task === 'agentic') {
+      return weighted([
+        [agentic, 0.42],
+        [overall, 0.28],
+        [coding, 0.22],
+        [math, 0.08],
+      ]);
+    }
+    return weighted([
+      [overall, 0.45],
+      [coding, 0.22],
+      [math, 0.18],
+      [agentic, 0.15],
+    ]);
+  }
+
   function primaryCapability(
     model: Model,
     task: 'coding' | 'math' | 'agentic' | 'general'
   ): number {
-    if (task === 'coding') return model.coding_index;
-    if (task === 'math') return model.math_index ?? model.overall_intelligence;
-    if (task === 'agentic') return model.agentic_index;
-    return model.overall_intelligence;
+    if (task === 'coding') return model.coding_index ?? model.overall_intelligence ?? 0;
+    if (task === 'math') return model.math_index ?? model.overall_intelligence ?? 0;
+    if (task === 'agentic') return model.agentic_index ?? model.overall_intelligence ?? 0;
+    return model.overall_intelligence ?? 0;
   }
 
-  function resolveModelsForStrategy(strategy: string, list: Model[]) {
-    const routableIds = new Set(routableModels.map((m) => m.id));
+  function resolveRoutesForStrategy(
+    strategy: string,
+    routes: RoutableModel[]
+  ): StrategyCandidatePools {
+    const enabled = routes.filter(hasKnownPricing);
+    const empty: StrategyCandidatePools = {
+      displayStrategy: strategy,
+      subscribed: [],
+      payg: [],
+    };
+    if (enabled.length === 0) return empty;
 
-    // Filter routable models with valid pricing
-    const enabled = list.filter(
-      (m) =>
-        routableIds.has(m.id) &&
-        (m.input_cost ?? 0) >= 0 &&
-        (m.output_cost ?? 0) >= 0
-    );
-
-    if (enabled.length === 0) return [];
-
-    const previewTask = strategy === 'auto' ? 'coding' : 'coding';
-
-    const hasSpeedData = enabled.some((m) => modelOutputSpeed(m) > 0);
-    const effectiveStrategy =
+    const hasSpeedData = enabled.some((r) => modelOutputSpeed(r) > 0);
+    const displayStrategy =
       strategy === 'speed' && !hasSpeedData ? 'cheapest' : strategy;
 
-    const mapped = enabled.map((m) => {
-      let score = 0;
-      if (effectiveStrategy === 'cheapest') {
-        score = effectiveTokenCost(m);
-      } else if (effectiveStrategy === 'intelligent') {
-        score = m.coding_index;
-      } else if (effectiveStrategy === 'speed') {
-        score = modelOutputSpeed(m);
-      } else if (effectiveStrategy === 'balanced') {
-        score = primaryCapability(m, previewTask) / effectiveTokenCost(m);
-      } else {
-        score =
-          (m.coding_index * 0.55 +
-            m.overall_intelligence * 0.22 +
-            m.agentic_index * 0.13 +
-            (m.math_index ?? 30) * 0.1) /
-          effectiveTokenCost(m);
-      }
-      return {
-        model: m,
-        score,
-        serviceProviderId: serviceProviderByModelId.get(m.id) ?? m.provider_id,
-      };
-    });
+    const mapped: StrategyCandidate[] = enabled.map((r) => ({
+      route: r,
+      model: r,
+      score: strategyMetricValue(r, displayStrategy),
+      serviceProviderId: r.service_provider_id,
+      displayStrategy,
+    }));
 
-    mapped.sort((a, b) => {
-      if (effectiveStrategy === 'cheapest') {
-        if (a.score !== b.score) return a.score - b.score;
-        return b.model.coding_index - a.model.coding_index;
-      } else if (effectiveStrategy === 'intelligent') {
-        if (b.score !== a.score) return b.score - a.score;
-        return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
-      } else if (effectiveStrategy === 'speed') {
-        if (b.score !== a.score) return b.score - a.score;
-        const ttftDiff =
-          modelTimeToFirstToken(a.model) - modelTimeToFirstToken(b.model);
-        if (ttftDiff !== 0) return ttftDiff;
-        return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
-      } else if (effectiveStrategy === 'balanced' || effectiveStrategy === 'auto') {
-        if (b.score !== a.score) return b.score - a.score;
-        return effectiveTokenCost(a.model) - effectiveTokenCost(b.model);
-      }
-      return 0;
-    });
+    const sortPool = (pool: StrategyCandidate[]) =>
+      pool.sort((a, b) => compareStrategyCandidates(a, b, displayStrategy));
 
-    return mapped;
+    return {
+      displayStrategy,
+      subscribed: sortPool(
+        mapped.filter((c) => providerHasSubscribedKeyConfigured(c.serviceProviderId))
+      ),
+      payg: sortPool(
+        mapped.filter((c) => !providerHasSubscribedKeyConfigured(c.serviceProviderId))
+      ),
+    };
+  }
+
+  const hasConfiguredSubscription = $derived(
+    providers.some((p) => p.enabled && providerHasSubscribedKeyConfigured(p.id))
+  );
+  const hasActiveSubscription = $derived(
+    providers.some((p) => p.enabled && providerHasSubscribedKey(p.id))
+  );
+  const subscriptionQuotaPaused = $derived(
+    hasConfiguredSubscription && !hasActiveSubscription
+  );
+
+  function collapsedPoolLimits(
+    subscribedLen: number,
+    paygLen: number,
+    previewLimit: number
+  ): { subscribed: number; payg: number } {
+    if (subscribedLen === 0) {
+      return { subscribed: 0, payg: Math.min(paygLen, previewLimit) };
+    }
+    if (paygLen === 0) {
+      return { subscribed: Math.min(subscribedLen, previewLimit), payg: 0 };
+    }
+    let subscribed = Math.min(subscribedLen, 3);
+    let payg = Math.min(paygLen, previewLimit - subscribed);
+    if (payg === 0) {
+      subscribed = Math.min(subscribedLen, previewLimit - 1);
+      payg = 1;
+    }
+    return { subscribed, payg };
+  }
+
+  function flattenCandidatePools(
+    pools: StrategyCandidatePools,
+    expanded: boolean,
+    previewLimit = 5
+  ): { label: string | null; items: StrategyCandidate[]; rankOffset: number }[] {
+    const groups: { label: string | null; items: StrategyCandidate[]; rankOffset: number }[] =
+      [];
+    let rankOffset = 0;
+
+    if (expanded) {
+      if (pools.subscribed.length > 0) {
+        groups.push({
+          label: i18n.t('routes.subscribed_pool'),
+          items: pools.subscribed,
+          rankOffset,
+        });
+        rankOffset += pools.subscribed.length;
+      }
+      if (pools.payg.length > 0) {
+        groups.push({
+          label: i18n.t('routes.payg_pool'),
+          items: pools.payg,
+          rankOffset,
+        });
+      }
+      return groups;
+    }
+
+    const limits = collapsedPoolLimits(
+      pools.subscribed.length,
+      pools.payg.length,
+      previewLimit
+    );
+    if (limits.subscribed > 0) {
+      const items = pools.subscribed.slice(0, limits.subscribed);
+      groups.push({ label: i18n.t('routes.subscribed_pool'), items, rankOffset });
+      rankOffset += items.length;
+    }
+    if (limits.payg > 0) {
+      const items = pools.payg.slice(0, limits.payg);
+      groups.push({ label: i18n.t('routes.payg_pool'), items, rankOffset });
+    }
+    return groups;
+  }
+
+  function groupPreviewCandidates(candidates: RankedModelSummary[]) {
+    const subscribed = candidates.filter((c) =>
+      providerHasSubscribedKeyConfigured(c.provider_id)
+    );
+    const payg = candidates.filter(
+      (c) => !providerHasSubscribedKeyConfigured(c.provider_id)
+    );
+    return { subscribed, payg };
   }
 
   function strategyMetricLabel(strategyId: string): string {
     if (strategyId === 'speed') return i18n.t('routes.speed');
     if (strategyId === 'cheapest') return i18n.t('routes.composite_price');
-    if (strategyId === 'balanced') return i18n.t('routes.value_score');
+    if (strategyId === 'balanced' || strategyId === 'auto') return i18n.t('routes.value_score');
     return i18n.t('routes.intel');
   }
 
   function formatStrategyMetric(
     strategyId: string,
-    candidate: { model: Model; score: number }
+    candidate: { model: Model; score: number | null }
   ): string {
+    if (candidate.score == null || capabilityIndicesMissing(candidate.model, strategyId)) {
+      return '—';
+    }
     if (strategyId === 'speed') {
-      return (candidate.model.output_speed_tps ?? 0) > 0
-        ? `${candidate.model.output_speed_tps!.toFixed(1)} t/s`
-        : '—';
+      return `${candidate.score.toFixed(1)} t/s`;
     }
     if (strategyId === 'cheapest') {
       return `$${candidate.score.toFixed(2)}`;
     }
-    if (strategyId === 'balanced') {
+    if (strategyId === 'balanced' || strategyId === 'auto') {
       return candidate.score.toFixed(2);
     }
-    return candidate.model.coding_index.toFixed(1);
+    return candidate.score.toFixed(1);
   }
 
   async function runRoutingPreview() {
@@ -314,8 +601,18 @@
         </ul>
       </div>
       {#if previewResult.ranked_candidates.length > 0}
+        {@const previewPools = groupPreviewCandidates(previewResult.ranked_candidates)}
+        {@const previewRankById = new Map(
+          previewResult.ranked_candidates.map((candidate, index) => [
+            `${candidate.model_id}\0${candidate.provider_id}`,
+            index + 1,
+          ])
+        )}
         <div class="preview-block">
           <strong>{i18n.t('routes.preview_candidates')}</strong>
+          {#if subscriptionQuotaPaused}
+            <p class="pool-quota-note">{i18n.t('routes.subscription_quota_paused')}</p>
+          {/if}
           <div class="pb-table-wrap">
             <table class="pb-table">
               <thead>
@@ -324,19 +621,55 @@
                   <th>{i18n.t('routes.model_name')}</th>
                   <th>{i18n.t('routes.provider')}</th>
                   <th>{i18n.t('routes.intel')}</th>
-                  <th>Value</th>
+                  <th>{i18n.t('routes.value_score')}</th>
                 </tr>
               </thead>
               <tbody>
-                {#each previewResult.ranked_candidates as candidate, idx}
-                  <tr>
-                    <td>{idx + 1}</td>
-                    <td>{candidate.model_id}</td>
-                    <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
-                    <td>{candidate.capability.toFixed(1)}</td>
-                    <td>{candidate.value.toFixed(2)}</td>
+                {#if previewPools.subscribed.length > 0}
+                  <tr class="pool-divider">
+                    <td colspan="5">{i18n.t('routes.subscribed_pool')}</td>
                   </tr>
-                {/each}
+                  {#each previewPools.subscribed as candidate}
+                    <tr>
+                      <td>{previewRankById.get(`${candidate.model_id}\0${candidate.provider_id}`) ?? '—'}</td>
+                      <td>
+                        <div class="c-model-row">
+                          <span>{candidate.model_id}</span>
+                          <span
+                            class="subscribed-tag"
+                            class:paused={!providerHasSubscribedKey(candidate.provider_id)}
+                            title={providerHasSubscribedKey(candidate.provider_id)
+                              ? i18n.t('routes.subscribed_tag_tip')
+                              : i18n.t('routes.subscribed_tag_paused_tip')}
+                          >
+                            {i18n.t('routes.subscribed_tag')}
+                          </span>
+                        </div>
+                      </td>
+                      <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
+                      <td>{candidate.capability != null ? candidate.capability.toFixed(1) : '—'}</td>
+                      <td>{candidate.value != null ? candidate.value.toFixed(2) : '—'}</td>
+                    </tr>
+                  {/each}
+                {/if}
+                {#if previewPools.payg.length > 0}
+                  <tr class="pool-divider">
+                    <td colspan="5">{i18n.t('routes.payg_pool')}</td>
+                  </tr>
+                  {#each previewPools.payg as candidate}
+                    <tr>
+                      <td>{previewRankById.get(`${candidate.model_id}\0${candidate.provider_id}`) ?? '—'}</td>
+                      <td>
+                        <div class="c-model-row">
+                          <span>{candidate.model_id}</span>
+                        </div>
+                      </td>
+                      <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
+                      <td>{candidate.capability != null ? candidate.capability.toFixed(1) : '—'}</td>
+                      <td>{candidate.value != null ? candidate.value.toFixed(2) : '—'}</td>
+                    </tr>
+                  {/each}
+                {/if}
               </tbody>
             </table>
           </div>
@@ -356,7 +689,8 @@
 {:else}
   <div class="strategy-list">
     {#each STRATEGIES as s}
-      {@const candidates = resolveModelsForStrategy(s.id, models)}
+      {@const pools = resolveRoutesForStrategy(s.id, routableModels)}
+      {@const totalCandidates = pools.subscribed.length + pools.payg.length}
       <div
         class="strategy-card-wrapper"
         style="--sc:{s.color}; --glow:{s.glow}; --sborder:{s.border}"
@@ -399,9 +733,16 @@
           <!-- Candidates Pool -->
           <div class="pool-block">
             <span class="pb-title">{i18n.t('routes.candidate_range')}</span>
-            {#if candidates.length > 0}
+            {#if totalCandidates > 0}
               {@const isExpanded = expandedStrategies[s.id] ?? false}
-              {@const visibleCandidates = isExpanded ? candidates : candidates.slice(0, 5)}
+              {@const poolGroups = flattenCandidatePools(pools, isExpanded)}
+              {@const routingRanks = routingRankMap(
+                [...pools.subscribed, ...pools.payg],
+                pools.displayStrategy
+              )}
+              {#if subscriptionQuotaPaused}
+                <p class="pool-quota-note">{i18n.t('routes.subscription_quota_paused')}</p>
+              {/if}
               <div class="pb-table-wrap">
                 <table class="pb-table">
                   <thead>
@@ -411,38 +752,58 @@
                       <th>{i18n.t('routes.model_name')}</th>
                       <th style="text-align: right; width: 130px;">{i18n.t('routes.price')}</th>
                       <th style="text-align: right; width: 70px;">
-                        {strategyMetricLabel(s.id)}
+                        {strategyMetricLabel(pools.displayStrategy)}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {#each visibleCandidates as c, idx}
-                      {@const provider = providerMap.get(c.serviceProviderId)}
-                      <tr>
-                        <td class="mono text-muted" style="text-align: center;">{idx + 1}</td>
-                        <td>
-                          <span class="provider-badge">
-                            {provider ? provider.name : c.serviceProviderId}
-                          </span>
-                        </td>
-                        <td>
-                          <div class="c-model-cell">
-                            <span class="c-name">{c.model.display_name}</span>
-                            <span class="c-slug mono">{c.model.name}</span>
-                          </div>
-                        </td>
-                        <td style="text-align: right;" class="mono text-secondary">
-                          ${c.model.input_cost?.toFixed(2)} / ${c.model.output_cost?.toFixed(2)}
-                        </td>
-                        <td style="text-align: right;" class="mono text-accent">
-                          {formatStrategyMetric(s.id, c)}
-                        </td>
+                    {#each poolGroups as group}
+                      <tr class="pool-divider">
+                        <td colspan="5">{group.label}</td>
                       </tr>
+                      {#each group.items as c, idx}
+                        {@const provider = providerMap.get(c.serviceProviderId)}
+                        <tr>
+                          <td class="mono text-muted" style="text-align: center;">
+                            {routingRanks.get(candidateKey(c)) ?? '—'}
+                          </td>
+                          <td>
+                            <span class="provider-badge">
+                              {provider ? provider.name : c.serviceProviderId}
+                            </span>
+                          </td>
+                          <td>
+                            <div class="c-model-cell">
+                              <div class="c-model-row">
+                                <span class="c-name">{c.model.display_name}</span>
+                                {#if providerHasSubscribedKeyConfigured(c.serviceProviderId)}
+                                  <span
+                                    class="subscribed-tag"
+                                    class:paused={!providerHasSubscribedKey(c.serviceProviderId)}
+                                    title={providerHasSubscribedKey(c.serviceProviderId)
+                                      ? i18n.t('routes.subscribed_tag_tip')
+                                      : i18n.t('routes.subscribed_tag_paused_tip')}
+                                  >
+                                    {i18n.t('routes.subscribed_tag')}
+                                  </span>
+                                {/if}
+                              </div>
+                              <span class="c-slug mono">{c.model.name}</span>
+                            </div>
+                          </td>
+                          <td style="text-align: right;" class="mono text-secondary">
+                            {formatPricePair(c.route)}
+                          </td>
+                          <td style="text-align: right;" class="mono text-accent">
+                            {formatStrategyMetric(c.displayStrategy, c)}
+                          </td>
+                        </tr>
+                      {/each}
                     {/each}
                   </tbody>
                 </table>
               </div>
-              {#if candidates.length > 5}
+              {#if totalCandidates > 5}
                 <div style="display:flex; justify-content:center; margin-top: 8px;">
                   <button
                     class="btn btn-ghost btn-xs"
@@ -452,7 +813,7 @@
                     {#if isExpanded}
                       {i18n.t('routes.show_less')}
                     {:else}
-                      {i18n.tParams('routes.show_all_candidates', { count: candidates.length })}
+                      {i18n.tParams('routes.show_all_candidates', { count: totalCandidates })}
                     {/if}
                   </button>
                 </div>
@@ -470,6 +831,32 @@
 {/if}
 
 <style>
+  .pool-quota-note {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .pool-divider td {
+    padding: 10px 12px 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+  }
+
+  .pool-divider:first-child td {
+    border-top: none;
+  }
+
   .strategy-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -641,8 +1028,34 @@
     gap: 1px;
   }
 
+  .c-model-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .c-name {
     font-weight: 500;
+  }
+
+  .subscribed-tag {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.28);
+    letter-spacing: 0.02em;
+  }
+
+  .subscribed-tag.paused {
+    color: #fcd34d;
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.35);
   }
 
   .c-slug {

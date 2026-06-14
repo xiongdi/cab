@@ -2,6 +2,7 @@ use axum::response::Response;
 use cab_core::types::ApiKeyConfig;
 use cab_core::{CabError, ordered_api_keys, resolve_quota_reset_at};
 use reqwest::Client;
+use std::collections::HashSet;
 
 use crate::router::ResolvedModel;
 
@@ -21,7 +22,19 @@ fn is_responses_path(path_suffix: &str) -> bool {
     path_suffix == "responses"
 }
 
-fn target_model_name(resolved: &ResolvedModel, fallback: &str) -> String {
+async fn upstream_native_model_id(
+    pool: &cab_db::InMemoryStore,
+    resolved: &ResolvedModel,
+    fallback: &str,
+) -> String {
+    if let Ok(Some(ep)) =
+        cab_db::endpoint::find_for_model_provider(pool, &resolved.model.name, &resolved.provider_id)
+            .await
+        && !ep.native_model_id.trim().is_empty()
+    {
+        return ep.native_model_id.clone();
+    }
+
     resolved
         .model
         .links
@@ -146,8 +159,17 @@ pub async fn execute_with_fallback(
     let all_models = std::iter::once(primary).chain(fallbacks.iter());
 
     let mut last_error = CabError::Proxy("No models available".to_string());
+    let mut exhausted_subscribed_providers: HashSet<String> = HashSet::new();
 
     for resolved in all_models {
+        if exhausted_subscribed_providers.contains(&resolved.provider_id) {
+            tracing::info!(
+                "Skipping model {} — subscribed provider {} already exhausted",
+                resolved.model.name,
+                resolved.provider_id
+            );
+            continue;
+        }
         if resolved.endpoint_candidates.is_empty() {
             tracing::warn!(
                 "No endpoint matches model {} protocol {}",
@@ -176,6 +198,8 @@ pub async fn execute_with_fallback(
         }
 
         let mut model_error = None;
+        let upstream_model_id =
+            upstream_native_model_id(pool, resolved, &resolved.model.name).await;
 
         'keys: for api_key in keys {
             let mut endpoint_error = None;
@@ -195,28 +219,31 @@ pub async fn execute_with_fallback(
                 let is_responses_path = is_responses_path(&request.path_suffix);
                 let needs_responses_shim =
                     endpoint.protocol != "openai-responses" && is_responses_path;
+                let needs_messages_to_responses_shim =
+                    endpoint.protocol == "openai-responses" && is_messages_path;
+
+                let client_protocol = if is_messages_path {
+                    crate::protocol::PROTOCOL_ANTHROPIC
+                } else if is_responses_path {
+                    crate::protocol::PROTOCOL_OPENAI_RESPONSES
+                } else {
+                    crate::protocol::PROTOCOL_OPENAI_CHAT
+                };
 
                 let mut rewritten_body = request.body.clone();
                 if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&request.body) {
-                    let mut converted_val = if endpoint.protocol == "anthropic"
-                        && request.path_suffix == "chat/completions"
-                    {
-                        crate::protocol::openai_to_anthropic(&json_val)
-                    } else if endpoint.protocol != "anthropic" && is_messages_path {
-                        crate::protocol::anthropic_to_openai_chat_request(&json_val)
-                    } else if endpoint.protocol != "openai-responses" && is_responses_path {
-                        crate::protocol::responses_to_chat_request(&json_val)
-                    } else {
-                        json_val.clone()
-                    };
+                    let mut converted_val = crate::protocol::convert_request(
+                        client_protocol,
+                        &endpoint.protocol,
+                        &json_val,
+                    );
 
                     if let Some(obj) = converted_val.as_object_mut() {
-                        let target_model_name = target_model_name(resolved, &resolved.model.name);
                         obj.insert(
                             "model".to_string(),
-                            serde_json::Value::String(target_model_name),
+                            serde_json::Value::String(upstream_model_id.clone()),
                         );
-                        if needs_responses_shim {
+                        if needs_responses_shim || needs_messages_to_responses_shim {
                             obj.insert("stream".to_string(), serde_json::Value::Bool(false));
                         }
                     }
@@ -225,7 +252,7 @@ pub async fn execute_with_fallback(
                     }
                 }
 
-                let upstream_stream = if needs_responses_shim {
+                let upstream_stream = if needs_responses_shim || needs_messages_to_responses_shim {
                     false
                 } else {
                     request.stream
@@ -260,6 +287,23 @@ pub async fn execute_with_fallback(
                         ));
                     }
                     Err(CabError::ProviderError {
+                        status,
+                        body,
+                        retry_after: _,
+                    }) if status == 400 => {
+                        tracing::warn!(
+                            "Provider {} endpoint {} returned 400 for model {}: {body}",
+                            resolved.provider_name,
+                            endpoint.url,
+                            resolved.model.name
+                        );
+                        endpoint_error = Some(CabError::ProviderError {
+                            status,
+                            body: body.clone(),
+                            retry_after: None,
+                        });
+                    }
+                    Err(CabError::ProviderError {
                         status: 429,
                         body,
                         retry_after,
@@ -274,16 +318,16 @@ pub async fn execute_with_fallback(
                         )
                         .await;
                         tracing::warn!(
-                            "Provider {} key returned 429 for model {}, trying next key/model",
+                            "Provider {} subscription key returned 429 — skipping all models for this provider",
                             resolved.provider_name,
-                            resolved.model.name
                         );
-                        endpoint_error = Some(CabError::ProviderError {
+                        model_error = Some(CabError::ProviderError {
                             status: 429,
                             body,
                             retry_after,
                         });
-                        break;
+                        exhausted_subscribed_providers.insert(resolved.provider_id.clone());
+                        break 'keys;
                     }
                     Err(CabError::ProviderError {
                         status,
@@ -315,12 +359,6 @@ pub async fn execute_with_fallback(
 
             if let Some(e) = endpoint_error {
                 model_error = Some(e);
-                if matches!(
-                    &model_error,
-                    Some(CabError::ProviderError { status: 429, .. })
-                ) {
-                    continue 'keys;
-                }
             }
         }
 
@@ -340,86 +378,77 @@ async fn convert_success_response(
 ) -> Response {
     let is_messages_path = is_messages_path(&request.path_suffix);
     let is_responses_path = is_responses_path(&request.path_suffix);
+    let client_protocol = if is_messages_path {
+        crate::protocol::PROTOCOL_ANTHROPIC
+    } else if is_responses_path {
+        crate::protocol::PROTOCOL_OPENAI_RESPONSES
+    } else {
+        crate::protocol::PROTOCOL_OPENAI_CHAT
+    };
 
-    if endpoint.protocol == "anthropic"
-        && request.path_suffix == "chat/completions"
-        && !request.stream
-    {
-        let (parts, body) = response.into_parts();
-        return match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-            Ok(body_bytes) => {
-                if let Ok(anthropic_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes)
-                {
-                    let openai_json = crate::protocol::anthropic_to_openai(&anthropic_json);
-                    match serde_json::to_vec(&openai_json) {
-                        Ok(new_body_bytes) => {
-                            Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
-                        }
-                        Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
-                    }
-                } else {
-                    Response::from_parts(parts, axum::body::Body::from(body_bytes))
-                }
-            }
-            Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
-        };
+    if client_protocol == endpoint.protocol {
+        return response;
     }
 
-    if endpoint.protocol != "anthropic" && is_messages_path && !request.stream {
-        let (parts, body) = response.into_parts();
-        return match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-            Ok(body_bytes) => {
-                if let Ok(openai_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    let anthropic_json =
-                        crate::protocol::openai_chat_to_anthropic_messages(&openai_json);
-                    match serde_json::to_vec(&anthropic_json) {
-                        Ok(new_body_bytes) => {
-                            Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
-                        }
-                        Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
-                    }
-                } else {
-                    Response::from_parts(parts, axum::body::Body::from(body_bytes))
-                }
-            }
-            Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
-        };
+    let is_sse = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|v| v.contains("text/event-stream"))
+        .unwrap_or(false);
+
+    if request.stream && is_sse {
+        let (mut parts, body) = response.into_parts();
+        let upstream = body.into_data_stream();
+        let converted = crate::protocol::convert_sse_stream(
+            &endpoint.protocol,
+            client_protocol,
+            upstream,
+            resolved.model.name.clone(),
+        );
+        parts.headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            "text/event-stream".parse().unwrap(),
+        );
+        return Response::from_parts(parts, axum::body::Body::from_stream(converted));
     }
 
-    if endpoint.protocol != "openai-responses" && is_responses_path {
-        let (parts, body) = response.into_parts();
-        return match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
-            Ok(body_bytes) => {
-                if let Ok(openai_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-                    let responses_json =
-                        crate::protocol::chat_to_responses(&openai_json, &resolved.model.name);
-                    if request.stream {
-                        let sse = crate::protocol::responses_to_sse_stream(&responses_json);
-                        let mut response = Response::from_parts(parts, axum::body::Body::from(sse));
-                        response.headers_mut().insert(
-                            axum::http::header::CONTENT_TYPE,
-                            "text/event-stream".parse().unwrap(),
-                        );
-                        response
-                    } else {
-                        match serde_json::to_vec(&responses_json) {
-                            Ok(new_body_bytes) => {
-                                Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
-                            }
-                            Err(_) => {
-                                Response::from_parts(parts, axum::body::Body::from(body_bytes))
-                            }
-                        }
-                    }
-                } else {
-                    Response::from_parts(parts, axum::body::Body::from(body_bytes))
+    let (parts, body) = response.into_parts();
+    match axum::body::to_bytes(body, 10 * 1024 * 1024).await {
+        Ok(body_bytes) => {
+            if let Ok(upstream_json) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+                if request.stream {
+                    let sse = crate::protocol::synthesize_sse_from_response(
+                        &endpoint.protocol,
+                        client_protocol,
+                        &upstream_json,
+                        resolved.model.name.clone(),
+                    );
+                    let mut out = Response::from_parts(parts, axum::body::Body::from(sse));
+                    out.headers_mut().insert(
+                        axum::http::header::CONTENT_TYPE,
+                        "text/event-stream".parse().unwrap(),
+                    );
+                    return out;
                 }
+                let converted = crate::protocol::convert_response(
+                    &endpoint.protocol,
+                    client_protocol,
+                    &upstream_json,
+                    &resolved.model.name,
+                );
+                match serde_json::to_vec(&converted) {
+                    Ok(new_body_bytes) => {
+                        Response::from_parts(parts, axum::body::Body::from(new_body_bytes))
+                    }
+                    Err(_) => Response::from_parts(parts, axum::body::Body::from(body_bytes)),
+                }
+            } else {
+                Response::from_parts(parts, axum::body::Body::from(body_bytes))
             }
-            Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
-        };
+        }
+        Err(_) => Response::from_parts(parts, axum::body::Body::empty()),
     }
-
-    response
 }
 
 #[cfg(test)]
@@ -497,6 +526,35 @@ mod tests {
         }))
     }
 
+    async fn openai_responses_success(
+        State(recorder): State<Recorder>,
+        body: Bytes,
+    ) -> impl IntoResponse {
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        recorder.bodies.lock().unwrap().push(json);
+        Json(serde_json::json!({
+            "id": "resp_1",
+            "model": "native-model",
+            "output_text": "responses answer",
+            "output": [{
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "responses answer"}]
+            }],
+            "usage": {"input_tokens": 4, "output_tokens": 6}
+        }))
+    }
+
+    async fn openai_stream() -> impl IntoResponse {
+        (
+            [("content-type", "text/event-stream")],
+            "data: {\"choices\":[{\"delta\":{\"content\":\"stream \"},\"finish_reason\":null}]}\n\n\
+data: {\"choices\":[{\"delta\":{\"content\":\"answer\"},\"finish_reason\":null}]}\n\n\
+data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"completion_tokens\":2}}\n\n\
+data: [DONE]\n\n",
+        )
+    }
+
     async fn bad_gateway() -> impl IntoResponse {
         (StatusCode::BAD_GATEWAY, "temporary upstream failure")
     }
@@ -532,10 +590,10 @@ mod tests {
                 input_cost: Some(1.0),
                 output_cost: Some(1.0),
                 enabled: true,
-                overall_intelligence: 50.0,
-                coding_index: 50.0,
-                agentic_index: 50.0,
-                math_index: 50.0,
+                overall_intelligence: Some(50.0),
+                coding_index: Some(50.0),
+                agentic_index: Some(50.0),
+                math_index: Some(50.0),
                 output_speed_tps: None,
                 time_to_first_token_secs: None,
                 created_at: "now".into(),
@@ -663,6 +721,148 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn messages_request_can_use_responses_endpoint_with_input_conversion() {
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/responses", post(openai_responses_success))
+                .with_state(recorder.clone()),
+            recorder,
+        )
+        .await;
+        let primary = model(
+            "provider/model",
+            "openai-responses",
+            vec![endpoint(
+                "responses",
+                "openai-responses",
+                &server.base_url,
+            )],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"provider/model","system":"sys","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "v1/messages".into(),
+        };
+
+        let (response, _, _) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            &[],
+            &request,
+        )
+        .await
+        .unwrap();
+        let json = response_json(response).await;
+
+        assert_eq!(json["content"][0]["text"], "responses answer");
+        let bodies = server.recorder.bodies.lock().unwrap();
+        assert!(bodies[0].get("input").is_some());
+        assert!(bodies[0].get("messages").is_none());
+        assert_eq!(bodies[0]["instructions"], "sys");
+        assert_eq!(bodies[0]["input"][0]["content"], "hi");
+        assert_eq!(bodies[0]["stream"], false);
+    }
+
+    #[tokio::test]
+    async fn messages_stream_request_can_use_responses_endpoint_with_anthropic_sse() {
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/responses", post(openai_responses_success))
+                .with_state(recorder.clone()),
+            recorder,
+        )
+        .await;
+        let primary = model(
+            "provider/model",
+            "openai-responses",
+            vec![endpoint(
+                "responses",
+                "openai-responses",
+                &server.base_url,
+            )],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"provider/model","messages":[{"role":"user","content":"hi"}],"stream":true}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: true,
+            path_suffix: "v1/messages".into(),
+        };
+
+        let (response, _, _) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            &[],
+            &request,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let sse = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(sse.contains("event: message_start"));
+        assert!(sse.contains(r#""text":"responses answer""#));
+        assert!(sse.contains("event: message_stop"));
+    }
+
+    #[tokio::test]
+    async fn messages_stream_request_converts_openai_sse_to_anthropic() {
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(openai_stream))
+                .with_state(recorder.clone()),
+            recorder,
+        )
+        .await;
+        let primary = model(
+            "provider/model",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &server.base_url)],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"provider/model","system":"sys","messages":[{"role":"user","content":"hi"}],"stream":true}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: true,
+            path_suffix: "v1/messages".into(),
+        };
+
+        let (response, _, _) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            &[],
+            &request,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let sse = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(sse.contains("event: message_start"));
+        assert!(sse.contains("event: content_block_delta"));
+        assert!(sse.contains(r#""text":"stream ""#));
+        assert!(sse.contains(r#""text":"answer""#));
+        assert!(sse.contains("event: message_stop"));
+    }
+
+    #[tokio::test]
     async fn responses_request_can_use_chat_endpoint_with_non_streaming_shim() {
         let recorder = Recorder::default();
         let server = spawn_router(
@@ -753,6 +953,70 @@ mod tests {
 
         assert_eq!(json["choices"][0]["message"]["content"], "openai answer");
         assert_eq!(server.recorder.bodies.lock().unwrap().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn subscribed_provider_429_falls_back_to_next_provider() {
+        let sub_recorder = Recorder::default();
+        let sub_server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(rate_limited))
+                .with_state(sub_recorder.clone()),
+            sub_recorder,
+        )
+        .await;
+        let payg_recorder = Recorder::default();
+        let payg_server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(openai_success))
+                .with_state(payg_recorder.clone()),
+            payg_recorder,
+        )
+        .await;
+
+        let mut primary = model(
+            "minimax/MiniMax-M3",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &sub_server.base_url)],
+        );
+        primary.provider_id = "minimax".into();
+        primary.provider_name = "MiniMax".into();
+        primary.api_keys = vec![ApiKeyConfig {
+            key: "sub-key".into(),
+            enabled: true,
+            subscribed: true,
+            quota_reset_at: None,
+        }];
+
+        let mut fallback = model(
+            "deepseek/deepseek-v4-flash",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &payg_server.base_url)],
+        );
+        fallback.provider_id = "opencode-go".into();
+        fallback.provider_name = "OpenCode Go".into();
+
+        let request = ProxyRequest {
+            body: Bytes::from_static(br#"{"model":"auto","messages":[{"role":"user","content":"hi"}]}"#),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "chat/completions".into(),
+        };
+
+        let (response, provider, routed_model) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            std::slice::from_ref(&fallback),
+            &request,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(provider, "OpenCode Go");
+        assert_eq!(routed_model, "deepseek/deepseek-v4-flash");
+        let json = response_json(response).await;
+        assert_eq!(json["choices"][0]["message"]["content"], "openai answer");
     }
 
     #[tokio::test]

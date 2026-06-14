@@ -18,6 +18,9 @@ pub trait RouteCatalog: Send + Sync {
         &self,
         model_name: &str,
     ) -> Result<Vec<String>, CabError>;
+    async fn list_routable_entries(
+        &self,
+    ) -> Result<Vec<crate::routability::RoutableModelEntry>, CabError>;
 }
 
 #[async_trait]
@@ -48,7 +51,10 @@ impl RouteCatalog for InMemoryStore {
         Ok(routable
             .into_iter()
             .filter(|m| {
-                m.input_cost.unwrap_or(0.0) >= 0.0 && m.output_cost.unwrap_or(0.0) >= 0.0
+                matches!(
+                    (m.input_cost, m.output_cost),
+                    (Some(i), Some(o)) if i >= 0.0 && o >= 0.0
+                )
             })
             .collect())
     }
@@ -82,6 +88,14 @@ impl RouteCatalog for InMemoryStore {
         model_name: &str,
     ) -> Result<Vec<String>, CabError> {
         crate::endpoint::enabled_provider_tags_for_model(self, model_name)
+            .await
+            .map_err(CabError::Database)
+    }
+
+    async fn list_routable_entries(
+        &self,
+    ) -> Result<Vec<crate::routability::RoutableModelEntry>, CabError> {
+        crate::routability::list_routable_model_entries(self)
             .await
             .map_err(CabError::Database)
     }

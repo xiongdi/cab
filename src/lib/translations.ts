@@ -263,6 +263,10 @@ export const translations = {
       mechanism_label: '调度机制：',
       candidate_range: '当前策略候选范围 (默认显示前 5 名)',
       rank: '排名',
+      subscribed_pool: '订阅池',
+      payg_pool: '按量池',
+      subscription_quota_paused:
+        '订阅密钥配额恢复中，路由暂与按量池一同排序；恢复后将自动优先订阅池',
       provider: '提供商',
       model_name: '模型',
       price: '价格 ($/1M)',
@@ -270,6 +274,9 @@ export const translations = {
       speed: '输出速度',
       composite_price: '综合价格',
       value_score: '性价比',
+      subscribed_tag: '订阅',
+      subscribed_tag_tip: '该提供商配置了订阅密钥，路由时优先于按量提供商',
+      subscribed_tag_paused_tip: '已配置订阅密钥，当前处于限流冷却，恢复后将重新优先路由',
       no_models: '暂无可路由模型（请先启用 提供商及其模型）',
       load_failed: '加载路由数据失败',
       preview_title: '路由决策预览',
@@ -713,6 +720,10 @@ export const translations = {
       mechanism_label: 'Mechanism: ',
       candidate_range: 'Candidate Range (Top 5 by Default)',
       rank: 'Rank',
+      subscribed_pool: 'Subscribed',
+      payg_pool: 'Pay-as-you-go',
+      subscription_quota_paused:
+        'Subscription key quota is recovering; routing uses pay-as-you-go order until it clears',
       provider: 'Provider',
       model_name: 'Model',
       price: 'Price ($/1M)',
@@ -720,6 +731,11 @@ export const translations = {
       speed: 'Speed',
       composite_price: 'Composite price',
       value_score: 'Value score',
+      subscribed_tag: 'Subscribed',
+      subscribed_tag_tip:
+        'This provider has a subscription key configured and routes before pay-as-you-go providers',
+      subscribed_tag_paused_tip:
+        'Subscription key is configured but in rate-limit cooldown; routing priority resumes after recovery',
       no_models: 'No enabled models/providers available',
       load_failed: 'Failed to load routing data',
       preview_title: 'Routing Preview',

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::model_scores::{ModelIntelligenceIndices, infer_intelligence_indices};
+use crate::model_scores::ModelIntelligenceIndices;
 
 const AA_MODELS_URL: &str = "https://artificialanalysis.ai/api/v2/data/llms/models";
 const MODELS_DEV_CATALOG_URL: &str = "https://models.dev/catalog.json";
@@ -488,8 +488,8 @@ pub fn resolve_intelligence_indices(
     canonical_slug: Option<&str>,
     display_name: Option<&str>,
     context_length: i64,
-    input_cost: Option<f64>,
-    description: Option<&str>,
+    _input_cost: Option<f64>,
+    _description: Option<&str>,
 ) -> ModelIntelligenceIndices {
     if let Some(catalog) = catalog {
         if let Some(indices) = catalog.lookup(
@@ -501,26 +501,21 @@ pub fn resolve_intelligence_indices(
         ) {
             return indices;
         }
-        return ModelIntelligenceIndices {
-            overall_intelligence: 0.0,
-            coding_index: 0.0,
-            agentic_index: 0.0,
-            math_index: 0.0,
-        };
+        return ModelIntelligenceIndices::missing();
     }
-    infer_intelligence_indices(catalog_model_id, context_length, input_cost, description)
+    ModelIntelligenceIndices::missing()
 }
 
 pub fn indices_from_evaluations(eval: &BenchmarkEvaluations) -> ModelIntelligenceIndices {
     let overall = eval
         .artificial_analysis_intelligence_index
-        .unwrap_or_else(|| eval.artificial_analysis_math_index.unwrap_or(30.0).max(1.0));
+        .map(clamp_score);
 
     let coding = eval
         .artificial_analysis_coding_index
-        .or_else(|| eval.livecodebench.map(|v| v * 100.0))
-        .or_else(|| eval.scicode.map(|v| v * 100.0))
-        .unwrap_or(overall * 0.8);
+        .map(clamp_score)
+        .or_else(|| eval.livecodebench.map(|v| clamp_score(v * 100.0)))
+        .or_else(|| eval.scicode.map(|v| clamp_score(v * 100.0)));
 
     let mut agentic_scores = Vec::new();
     if let Some(v) = eval.tau2 {
@@ -537,20 +532,20 @@ pub fn indices_from_evaluations(eval: &BenchmarkEvaluations) -> ModelIntelligenc
     }
 
     let agentic = if agentic_scores.is_empty() {
-        overall * 1.05
+        None
     } else {
-        agentic_scores.iter().sum::<f64>() / agentic_scores.len() as f64
+        Some(clamp_score(
+            agentic_scores.iter().sum::<f64>() / agentic_scores.len() as f64,
+        ))
     };
 
-    let math = eval
-        .artificial_analysis_math_index
-        .unwrap_or(overall * 0.85);
+    let math = eval.artificial_analysis_math_index.map(clamp_score);
 
     ModelIntelligenceIndices {
-        overall_intelligence: clamp_score(overall),
-        coding_index: clamp_score(coding),
-        agentic_index: clamp_score(agentic),
-        math_index: clamp_score(math),
+        overall_intelligence: overall,
+        coding_index: coding,
+        agentic_index: agentic,
+        math_index: math,
     }
 }
 
@@ -725,9 +720,9 @@ mod tests {
         let indices = catalog
             .lookup("minimax/minimax-m3", None, None, 128_000, &aa_map)
             .expect("match");
-        assert_eq!(indices.overall_intelligence, 48.5);
-        assert_eq!(indices.coding_index, 44.0);
-        assert!((indices.agentic_index - 59.0).abs() < f64::EPSILON);
+        assert_eq!(indices.overall_intelligence, Some(48.5));
+        assert_eq!(indices.coding_index, Some(44.0));
+        assert!((indices.agentic_index.unwrap() - 59.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -748,8 +743,8 @@ mod tests {
         let indices = catalog
             .lookup("minimax/minimax-m1", None, None, 1_000_000, &aa_map)
             .expect("match");
-        assert_eq!(indices.overall_intelligence, 24.4);
-        assert_eq!(indices.coding_index, 14.5);
+        assert_eq!(indices.overall_intelligence, Some(24.4));
+        assert_eq!(indices.coding_index, Some(14.5));
     }
 
     #[test]
@@ -771,7 +766,7 @@ mod tests {
             Some(0.14),
             None,
         );
-        assert_eq!(resolved.overall_intelligence, 39.0);
+        assert_eq!(resolved.overall_intelligence, Some(39.0));
     }
 
     #[test]
@@ -793,9 +788,7 @@ mod tests {
             Some(0.2),
             None,
         );
-        assert_eq!(resolved.overall_intelligence, 0.0);
-        assert_eq!(resolved.coding_index, 0.0);
-        assert_eq!(resolved.agentic_index, 0.0);
+        assert!(resolved.is_missing());
     }
 
     #[test]
@@ -954,10 +947,10 @@ mod tests {
                 &AaModelMapFile::default(),
             )
             .unwrap();
-        assert_eq!(fallback.overall_intelligence, 40.0);
-        assert_eq!(fallback.coding_index, 42.0);
-        assert_eq!(fallback.math_index, 40.0);
-        assert_eq!(fallback.agentic_index, 60.0);
+        assert_eq!(fallback.overall_intelligence, None);
+        assert_eq!(fallback.coding_index, Some(42.0));
+        assert_eq!(fallback.math_index, Some(40.0));
+        assert_eq!(fallback.agentic_index, Some(60.0));
         let clamped = indices_from_evaluations(&BenchmarkEvaluations {
             artificial_analysis_intelligence_index: Some(120.0),
             artificial_analysis_coding_index: Some(0.0),
@@ -965,10 +958,10 @@ mod tests {
             tau2: Some(2.0),
             ..Default::default()
         });
-        assert_eq!(clamped.overall_intelligence, 100.0);
-        assert_eq!(clamped.coding_index, 1.0);
-        assert_eq!(clamped.agentic_index, 100.0);
-        assert_eq!(clamped.math_index, 1.0);
+        assert_eq!(clamped.overall_intelligence, Some(100.0));
+        assert_eq!(clamped.coding_index, Some(1.0));
+        assert_eq!(clamped.agentic_index, Some(100.0));
+        assert_eq!(clamped.math_index, Some(1.0));
     }
 
     #[test]

@@ -2,7 +2,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
 use cab_core::CabError;
-use cab_core::types::Settings;
+use cab_core::types::UpdateSettings;
 use cab_core::{
     CatalogSourceStatus, aa_model_map_status, artificial_analysis_catalog_status,
     models_dev_catalog_status,
@@ -63,9 +63,9 @@ pub async fn sync_catalog(State(state): State<ApiState>) -> Result<impl IntoResp
 
 pub async fn update_settings(
     State(state): State<ApiState>,
-    Json(input): Json<Settings>,
+    Json(input): Json<UpdateSettings>,
 ) -> Result<impl IntoResponse, CabError> {
-    let settings = cab_db::settings::update(&state.pool, &input)
+    let settings = cab_db::settings::apply_update(&state.pool, &input)
         .await
         .map_err(CabError::Database)?;
 
@@ -103,20 +103,36 @@ mod tests {
         let current = get_settings(State(state.clone())).await.unwrap();
         assert_eq!(json_body(current).await["gateway_port"], 3125);
 
-        let mut settings = cab_db::settings::default_settings();
-        settings.gateway_port = 4567;
-        settings.gateway_key = "updated-key".into();
-        let updated = update_settings(State(state.clone()), Json(settings))
-            .await
-            .unwrap();
+        cab_db::settings::set_provider_override(
+            &state.pool,
+            "provider-1",
+            cab_core::types::ProviderUserSettings {
+                enabled: Some(true),
+                api_key: Some("keep-me".into()),
+                api_keys: None,
+                endpoints: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        let updated = update_settings(
+            State(state.clone()),
+            Json(UpdateSettings {
+                gateway_port: Some(4567),
+                gateway_key: Some("updated-key".into()),
+                ..Default::default()
+            }),
+        )
+        .await
+        .unwrap();
         let json = json_body(updated).await;
         assert_eq!(json["gateway_port"], 4567);
+        let stored = cab_db::settings::get(&state.pool).await.unwrap();
+        assert_eq!(stored.gateway_key, "updated-key");
         assert_eq!(
-            cab_db::settings::get(&state.pool)
-                .await
-                .unwrap()
-                .gateway_key,
-            "updated-key"
+            stored.providers["provider-1"].api_key.as_deref(),
+            Some("keep-me")
         );
 
         let status = get_catalog_status(State(state)).await.unwrap();

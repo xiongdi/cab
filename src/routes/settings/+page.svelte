@@ -85,8 +85,6 @@
         log_retention_days: formRetention,
         gateway_key: formKey,
         artificial_analysis_api_key: formArtificialAnalysisKey.trim() || null,
-        providers: settings?.providers,
-        models: settings?.models,
       };
       settings = await api.settings.update(data);
       if (showSyncToast) {

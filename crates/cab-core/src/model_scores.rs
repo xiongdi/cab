@@ -4,10 +4,37 @@
 /// should rely on Artificial Analysis data and display missing values as empty.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ModelIntelligenceIndices {
-    pub overall_intelligence: f64,
-    pub coding_index: f64,
-    pub agentic_index: f64,
-    pub math_index: f64,
+    pub overall_intelligence: Option<f64>,
+    pub coding_index: Option<f64>,
+    pub agentic_index: Option<f64>,
+    pub math_index: Option<f64>,
+}
+
+impl ModelIntelligenceIndices {
+    pub fn missing() -> Self {
+        Self {
+            overall_intelligence: None,
+            coding_index: None,
+            agentic_index: None,
+            math_index: None,
+        }
+    }
+
+    pub fn is_missing(&self) -> bool {
+        self.overall_intelligence.is_none()
+            && self.coding_index.is_none()
+            && self.agentic_index.is_none()
+            && self.math_index.is_none()
+    }
+
+    fn present(overall: f64, coding: f64, agentic: f64, math: f64) -> Self {
+        Self {
+            overall_intelligence: Some(overall),
+            coding_index: Some(coding),
+            agentic_index: Some(agentic),
+            math_index: Some(math),
+        }
+    }
 }
 
 pub fn infer_intelligence_indices(
@@ -154,16 +181,38 @@ pub fn infer_intelligence_indices(
         }
     }
 
-    ModelIntelligenceIndices {
-        overall_intelligence: clamp_score(overall),
-        coding_index: clamp_score(coding),
-        agentic_index: clamp_score(agentic),
-        math_index: clamp_score(overall * 0.88),
-    }
+    ModelIntelligenceIndices::present(
+        clamp_score(overall),
+        clamp_score(coding),
+        clamp_score(agentic),
+        clamp_score(overall * 0.88),
+    )
 }
 
-pub fn is_default_indices(overall: f64, coding: f64, agentic: f64) -> bool {
-    approx_eq(overall, 30.0) && approx_eq(coding, 24.0) && approx_eq(agentic, 36.0)
+/// AA benchmark data is incomplete or unavailable for this model.
+pub fn capability_indices_missing(model: &crate::types::Model) -> bool {
+    model.overall_intelligence.is_none()
+        || model.coding_index.is_none()
+        || model.agentic_index.is_none()
+        || model.math_index.is_none()
+}
+
+/// Legacy persisted rows used all-zero f64 fields as a missing sentinel.
+pub fn normalize_legacy_missing_indices(model: &mut crate::types::Model) {
+    if matches!(
+        (
+            model.overall_intelligence,
+            model.coding_index,
+            model.agentic_index,
+            model.math_index
+        ),
+        (Some(0.0), Some(0.0), Some(0.0), Some(0.0))
+    ) {
+        model.overall_intelligence = None;
+        model.coding_index = None;
+        model.agentic_index = None;
+        model.math_index = None;
+    }
 }
 
 fn contains_any(haystack: &str, needles: &[&str]) -> bool {
@@ -172,10 +221,6 @@ fn contains_any(haystack: &str, needles: &[&str]) -> bool {
 
 fn clamp_score(value: f64) -> f64 {
     value.clamp(1.0, 100.0)
-}
-
-fn approx_eq(a: f64, b: f64) -> bool {
-    (a - b).abs() < f64::EPSILON
 }
 
 #[cfg(test)]
@@ -193,13 +238,86 @@ mod tests {
         assert!(r1.overall_intelligence > chat.overall_intelligence);
         assert!(coder.coding_index > chat.coding_index);
         assert!(chat.overall_intelligence > flash.overall_intelligence);
-        assert_ne!(chat.overall_intelligence, 30.0);
-        assert_ne!(r1.overall_intelligence, 30.0);
+        assert_ne!(chat.overall_intelligence, Some(30.0));
+        assert_ne!(r1.overall_intelligence, Some(30.0));
     }
 
     #[test]
-    fn default_placeholder_is_detected() {
-        assert!(is_default_indices(30.0, 24.0, 36.0));
-        assert!(!is_default_indices(55.0, 24.0, 36.0));
+    fn capability_indices_missing_detects_aa_absence() {
+        use crate::types::Model;
+        let missing = Model {
+            id: "x".into(),
+            name: "vendor/new".into(),
+            display_name: "new".into(),
+            provider_id: "vendor".into(),
+            protocol: "openai-chat".into(),
+            context_length: 128000,
+            input_cost: Some(1.0),
+            output_cost: Some(2.0),
+            enabled: true,
+            overall_intelligence: None,
+            coding_index: None,
+            agentic_index: None,
+            math_index: None,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        };
+        assert!(capability_indices_missing(&missing));
+    }
+
+    #[test]
+    fn normalize_legacy_zero_sentinel() {
+        use crate::types::Model;
+        let mut legacy = Model {
+            id: "x".into(),
+            name: "vendor/new".into(),
+            display_name: "new".into(),
+            provider_id: "vendor".into(),
+            protocol: "openai-chat".into(),
+            context_length: 128000,
+            input_cost: Some(1.0),
+            output_cost: Some(2.0),
+            enabled: true,
+            overall_intelligence: Some(0.0),
+            coding_index: Some(0.0),
+            agentic_index: Some(0.0),
+            math_index: Some(0.0),
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        };
+        normalize_legacy_missing_indices(&mut legacy);
+        assert!(capability_indices_missing(&legacy));
     }
 }

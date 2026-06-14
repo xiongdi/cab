@@ -651,6 +651,25 @@
         }
       ]
     },
+    "opencode-go": {
+      "default_protocol": "openai-chat",
+      "endpoints": [
+        {
+          "protocol": "openai-chat",
+          "url": "https://opencode.ai/zen/go/v1",
+          "label": "OpenAI Chat Completions",
+          "priority": 60,
+          "enabled": true
+        },
+        {
+          "protocol": "anthropic",
+          "url": "https://opencode.ai/zen/go/v1",
+          "label": "Anthropic Messages",
+          "priority": 55,
+          "enabled": true
+        }
+      ]
+    },
     "openai": {
       "default_protocol": "openai-chat",
       "endpoints": [

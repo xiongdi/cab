@@ -10,11 +10,17 @@ pub struct ModelEndpoint {
     pub provider_name: String,
     pub provider_tag: String,
     pub native_model_id: String,
+    /// Upstream wire protocol for this model on this provider (from models.dev per-model npm).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_protocol: Option<String>,
     pub quantization: String,
-    pub input_cost: f64,
-    pub output_cost: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_cost: Option<f64>,
     pub cache_read_cost: Option<f64>,
-    pub context_length: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_length: Option<i64>,
     pub max_completion_tokens: Option<i64>,
     pub status: i64,
     pub uptime_30m: Option<f64>,
@@ -48,6 +54,19 @@ pub async fn provider_summary(
         })
         .collect();
     Ok(list)
+}
+
+pub async fn find_for_model_provider(
+    store: &InMemoryStore,
+    model_id: &str,
+    provider_tag: &str,
+) -> Result<Option<ModelEndpoint>, String> {
+    let inner = store.inner.read().map_err(|e| e.to_string())?;
+    Ok(inner
+        .model_endpoints
+        .values()
+        .find(|ep| ep.model_id == model_id && ep.provider_tag == provider_tag)
+        .cloned())
 }
 
 pub async fn list_for_model(
@@ -112,7 +131,21 @@ pub async fn set_provider_enabled(
 ) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     for ep in inner.model_endpoints.values_mut() {
-        if ep.provider_name == provider_name {
+        if ep.provider_name == provider_name || ep.provider_tag == provider_name {
+            ep.enabled = enabled;
+        }
+    }
+    Ok(())
+}
+
+pub async fn set_provider_tag_enabled(
+    store: &InMemoryStore,
+    provider_tag: &str,
+    enabled: bool,
+) -> Result<(), String> {
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    for ep in inner.model_endpoints.values_mut() {
+        if ep.provider_tag == provider_tag {
             ep.enabled = enabled;
         }
     }
@@ -145,11 +178,12 @@ mod tests {
             provider_name: provider_name.into(),
             provider_tag: format!("{provider_name}/{model_id}"),
             native_model_id: model_id.into(),
+            upstream_protocol: None,
             quantization: "unknown".into(),
-            input_cost: 1.0,
-            output_cost: 2.0,
+            input_cost: Some(1.0),
+            output_cost: Some(2.0),
             cache_read_cost: Some(0.5),
-            context_length: 128000,
+            context_length: Some(128000),
             max_completion_tokens: Some(4096),
             status: 1,
             uptime_30m: Some(99.0),

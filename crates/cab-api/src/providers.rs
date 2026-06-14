@@ -115,6 +115,12 @@ pub async fn update_provider(
         .await
         .map_err(CabError::Database)?;
 
+    if input.enabled.is_some() {
+        cab_db::endpoint::set_provider_tag_enabled(&state.pool, &id, enabled)
+            .await
+            .map_err(CabError::Database)?;
+    }
+
     Ok(Json(provider))
 }
 
@@ -272,11 +278,12 @@ mod handler_and_catalog_tests {
                     provider_name: "Provider One".into(),
                     provider_tag: "provider-1".into(),
                     native_model_id: "model-one".into(),
+                    upstream_protocol: None,
                     quantization: "unknown".into(),
-                    input_cost: 1.0,
-                    output_cost: 2.0,
+                    input_cost: Some(1.0),
+                    output_cost: Some(2.0),
                     cache_read_cost: None,
-                    context_length: 128000,
+                    context_length: Some(128000),
                     max_completion_tokens: Some(4096),
                     status: 1,
                     uptime_30m: None,
@@ -624,7 +631,7 @@ mod handler_and_catalog_tests {
                 .iter()
                 .any(|endpoint| endpoint.provider_tag == "reseller"
                     && !endpoint.enabled
-                    && endpoint.input_cost == 3.0)
+                    && endpoint.input_cost == Some(3.0))
         );
 
         let updated = sync_models_dev_models(

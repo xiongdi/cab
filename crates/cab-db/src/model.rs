@@ -1,21 +1,38 @@
 use crate::InMemoryStore;
 use cab_core::types::{CreateModel, Model, UpdateModel};
 
+fn normalize_model(model: &mut Model) {
+    cab_core::normalize_legacy_missing_indices(model);
+}
+
 pub async fn list(store: &InMemoryStore) -> Result<Vec<Model>, String> {
     let inner = store.inner.read().map_err(|e| e.to_string())?;
     let mut list: Vec<Model> = inner.models.values().cloned().collect();
+    drop(inner);
+    for model in &mut list {
+        normalize_model(model);
+    }
     list.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(list)
 }
 
 pub async fn get_by_id(store: &InMemoryStore, id: &str) -> Result<Option<Model>, String> {
     let inner = store.inner.read().map_err(|e| e.to_string())?;
-    Ok(inner.models.get(id).cloned())
+    let mut found = inner.models.get(id).cloned();
+    drop(inner);
+    if let Some(model) = &mut found {
+        normalize_model(model);
+    }
+    Ok(found)
 }
 
 pub async fn get_by_name(store: &InMemoryStore, name: &str) -> Result<Option<Model>, String> {
     let inner = store.inner.read().map_err(|e| e.to_string())?;
-    let found = inner.models.values().find(|m| m.name == name).cloned();
+    let mut found = inner.models.values().find(|m| m.name == name).cloned();
+    drop(inner);
+    if let Some(model) = &mut found {
+        normalize_model(model);
+    }
     Ok(found)
 }
 
@@ -33,10 +50,10 @@ pub async fn create(store: &InMemoryStore, input: &CreateModel) -> Result<Model,
         input_cost: input.input_cost,
         output_cost: input.output_cost,
         enabled: input.enabled.unwrap_or(true),
-        overall_intelligence: input.overall_intelligence.unwrap_or(30.0),
-        coding_index: input.coding_index.unwrap_or(24.0),
-        agentic_index: input.agentic_index.unwrap_or(36.0),
-        math_index: input.math_index.unwrap_or(30.0),
+        overall_intelligence: input.overall_intelligence,
+        coding_index: input.coding_index,
+        agentic_index: input.agentic_index,
+        math_index: input.math_index,
         output_speed_tps: input.output_speed_tps,
         time_to_first_token_secs: input.time_to_first_token_secs,
         created_at: now.clone(),
@@ -82,32 +99,32 @@ pub async fn update(
         if let Some(ref context_length) = input.context_length {
             m.context_length = *context_length;
         }
-        if let Some(ref input_cost) = input.input_cost {
-            m.input_cost = Some(*input_cost);
+        if let Some(input_cost) = input.input_cost {
+            m.input_cost = input_cost;
         }
-        if let Some(ref output_cost) = input.output_cost {
-            m.output_cost = Some(*output_cost);
+        if let Some(output_cost) = input.output_cost {
+            m.output_cost = output_cost;
         }
         if let Some(ref enabled) = input.enabled {
             m.enabled = *enabled;
         }
-        if let Some(ref overall_intelligence) = input.overall_intelligence {
-            m.overall_intelligence = *overall_intelligence;
+        if let Some(overall_intelligence) = input.overall_intelligence {
+            m.overall_intelligence = overall_intelligence;
         }
-        if let Some(ref coding_index) = input.coding_index {
-            m.coding_index = *coding_index;
+        if let Some(coding_index) = input.coding_index {
+            m.coding_index = coding_index;
         }
-        if let Some(ref agentic_index) = input.agentic_index {
-            m.agentic_index = *agentic_index;
+        if let Some(agentic_index) = input.agentic_index {
+            m.agentic_index = agentic_index;
         }
-        if let Some(ref math_index) = input.math_index {
-            m.math_index = *math_index;
+        if let Some(math_index) = input.math_index {
+            m.math_index = math_index;
         }
-        if let Some(ref output_speed_tps) = input.output_speed_tps {
-            m.output_speed_tps = Some(*output_speed_tps);
+        if let Some(output_speed_tps) = input.output_speed_tps {
+            m.output_speed_tps = output_speed_tps;
         }
-        if let Some(ref time_to_first_token_secs) = input.time_to_first_token_secs {
-            m.time_to_first_token_secs = Some(*time_to_first_token_secs);
+        if let Some(time_to_first_token_secs) = input.time_to_first_token_secs {
+            m.time_to_first_token_secs = time_to_first_token_secs;
         }
         if let Some(ref canonical_slug) = input.canonical_slug {
             m.canonical_slug = Some(canonical_slug.clone());
@@ -208,7 +225,7 @@ mod tests {
             .unwrap();
         assert_eq!(full.id, "provider-alpha-model");
         assert_eq!(full.display_name, "Display Provider/Alpha Model");
-        assert_eq!(full.overall_intelligence, 80.0);
+        assert_eq!(full.overall_intelligence, Some(80.0));
         assert_eq!(full.links.as_ref().unwrap()["native_model_id"], "native");
 
         let defaults = create(
@@ -226,10 +243,10 @@ mod tests {
         .unwrap();
         assert_eq!(defaults.id, "beta-model");
         assert!(defaults.enabled);
-        assert_eq!(defaults.overall_intelligence, 30.0);
-        assert_eq!(defaults.coding_index, 24.0);
-        assert_eq!(defaults.agentic_index, 36.0);
-        assert_eq!(defaults.math_index, 30.0);
+        assert!(defaults.overall_intelligence.is_none());
+        assert!(defaults.coding_index.is_none());
+        assert!(defaults.agentic_index.is_none());
+        assert!(defaults.math_index.is_none());
 
         assert_eq!(
             get_by_id(&store, "provider-alpha-model")
@@ -261,13 +278,13 @@ mod tests {
                 provider_id: Some("provider-2".into()),
                 protocol: Some("openai-responses".into()),
                 context_length: Some(64000),
-                input_cost: Some(3.0),
-                output_cost: Some(4.0),
+                input_cost: Some(Some(3.0)),
+                output_cost: Some(Some(4.0)),
                 enabled: Some(false),
-                overall_intelligence: Some(1.0),
-                coding_index: Some(2.0),
-                agentic_index: Some(3.0),
-                math_index: Some(4.0),
+                overall_intelligence: Some(Some(1.0)),
+                coding_index: Some(Some(2.0)),
+                agentic_index: Some(Some(3.0)),
+                math_index: Some(Some(4.0)),
                 canonical_slug: Some("new-canonical".into()),
                 hugging_face_id: Some("new/hf".into()),
                 created: Some(456),
@@ -297,7 +314,7 @@ mod tests {
         assert_eq!(updated.input_cost, Some(3.0));
         assert_eq!(updated.output_cost, Some(4.0));
         assert!(!updated.enabled);
-        assert_eq!(updated.overall_intelligence, 1.0);
+        assert_eq!(updated.overall_intelligence, Some(1.0));
         assert_eq!(
             updated.links.as_ref().unwrap()["native_model_id"],
             "new-native"

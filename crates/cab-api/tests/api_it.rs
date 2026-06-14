@@ -74,6 +74,8 @@ async fn it_settings_get_and_put_roundtrip() {
             .is_some()
     );
     settings["gateway_port"] = serde_json::json!(3999);
+    settings.as_object_mut().unwrap().remove("providers");
+    settings.as_object_mut().unwrap().remove("models");
 
     let put = request(&store, &app, "PUT", "/api/settings", Some(settings)).await;
     assert_eq!(put.status(), StatusCode::OK);

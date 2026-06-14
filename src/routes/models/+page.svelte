@@ -272,7 +272,8 @@
     }
   }
 
-  function formatEndpointCost(value: number): string {
+  function formatEndpointCost(value: number | null | undefined): string {
+    if (value == null || value < 0) return '—';
     return `$${value.toFixed(4)}`;
   }
 

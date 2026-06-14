@@ -36,14 +36,10 @@ impl AgentIntegration for Integration {
                     "ANTHROPIC_AUTH_TOKEN".to_string(),
                     Value::String(gateway_key.to_string()),
                 );
-                if mode == "manual" {
-                    env_map.insert(
-                        "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY".to_string(),
-                        Value::String("1".to_string()),
-                    );
-                } else {
-                    env_map.remove("CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY");
-                }
+                env_map.insert(
+                    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY".to_string(),
+                    Value::String("1".to_string()),
+                );
                 // Manual/auto: do not pin a model — CC chooses, CAB routes in auto mode.
                 env_map.remove("ANTHROPIC_MODEL");
                 env_map.remove("ANTHROPIC_SMALL_FAST_MODEL");

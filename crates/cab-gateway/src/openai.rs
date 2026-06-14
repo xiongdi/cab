@@ -42,20 +42,24 @@ pub async fn handle_list_models(
         .await
         .map_err(CabError::Database)?;
 
-    // Sort models by overall_intelligence descending (highest intelligence/capability first)
-    models.sort_by(|a, b| {
-        b.overall_intelligence
-            .partial_cmp(&a.overall_intelligence)
-            .unwrap_or(std::cmp::Ordering::Equal)
-    });
-
     let providers = cab_db::provider::list(&state.pool)
         .await
         .map_err(CabError::Database)?;
     let active_provider_ids: std::collections::HashSet<String> = providers
-        .into_iter()
-        .map(|p| p.id)
+        .iter()
+        .filter(|provider| provider.enabled && cab_core::provider_has_configured_key(provider))
+        .map(|provider| provider.id.clone())
         .collect();
+
+    // Sort by intelligence descending; models without AA scores sort last.
+    models.sort_by(|a, b| match (b.overall_intelligence, a.overall_intelligence) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(b_score), Some(a_score)) => b_score
+            .partial_cmp(&a_score)
+            .unwrap_or(std::cmp::Ordering::Equal),
+    });
 
     let mut model_list = Vec::new();
     for model in models {
@@ -123,6 +127,14 @@ pub async fn handle_list_models(
         }
     }
 
+    for (id, display_name) in claude_code_gateway_model_stubs() {
+        model_list.push(codex_compatible_model(
+            id,
+            display_name,
+            "cab · CAB auto-routes requests in auto mode",
+        ));
+    }
+
     Ok(Json(serde_json::json!({
         "object": "list",
         "data": model_list,
@@ -152,6 +164,21 @@ fn format_cost(cost: Option<f64>) -> String {
 
 fn claude_code_discovery_alias(model_name: &str) -> String {
     format!("claude/cab/{model_name}")
+}
+
+/// Native Claude Code model IDs accepted for gateway validation (requests auto-route in CAB).
+fn claude_code_gateway_model_stubs() -> &'static [(&'static str, &'static str)] {
+    &[
+        ("claude-opus-4-8", "Opus 4.8 (CAB auto)"),
+        ("claude-opus-4-8[1m]", "Opus 4.8 1M (CAB auto)"),
+        ("claude-opus-4-7", "Opus 4.7 (CAB auto)"),
+        ("claude-opus-4-6", "Opus 4.6 (CAB auto)"),
+        ("claude-opus-4-5", "Opus 4.5 (CAB auto)"),
+        ("claude-sonnet-4-6", "Sonnet 4.6 (CAB auto)"),
+        ("claude-sonnet-4-5", "Sonnet 4.5 (CAB auto)"),
+        ("claude-haiku-4-5", "Haiku 4.5 (CAB auto)"),
+        ("claude/cab/auto", "CAB Auto strategy"),
+    ]
 }
 
 fn codex_compatible_model(id: &str, display_name: &str, owned_by: &str) -> serde_json::Value {
@@ -358,10 +385,10 @@ data: [DONE]\n",
             input_cost,
             output_cost,
             enabled,
-            overall_intelligence,
-            coding_index: 0.0,
-            agentic_index: 0.0,
-            math_index: 0.0,
+            overall_intelligence: Some(overall_intelligence),
+            coding_index: Some(0.0),
+            agentic_index: Some(0.0),
+            math_index: Some(0.0),
             output_speed_tps: None,
             time_to_first_token_secs: None,
             created_at: "now".into(),
@@ -391,11 +418,12 @@ data: [DONE]\n",
             provider_name: "provider".into(),
             provider_tag: "provider/tag".into(),
             native_model_id: model_id.into(),
+            upstream_protocol: None,
             quantization: "unknown".into(),
-            input_cost: 0.0,
-            output_cost: 0.0,
+            input_cost: Some(0.0),
+            output_cost: Some(0.0),
             cache_read_cost: None,
-            context_length: 128000,
+            context_length: Some(128000),
             max_completion_tokens: None,
             status: 1,
             uptime_30m: None,
@@ -675,8 +703,8 @@ data: [DONE]\n",
             .collect::<Vec<_>>();
 
         assert_eq!(
-            ids,
-            vec![
+            ids[..6],
+            [
                 "p1/high-model",
                 "claude/cab/p1/high-model",
                 "high-model",
@@ -685,6 +713,8 @@ data: [DONE]\n",
                 "low-model"
             ]
         );
+        assert!(ids.contains(&"claude-opus-4-8[1m]"));
+        assert!(ids.contains(&"claude/cab/auto"));
         assert_eq!(json["models"], json["data"]);
         assert_eq!(json["has_more"], false);
         assert_eq!(data[0]["slug"], "p1/high-model");

@@ -131,11 +131,145 @@ pub fn effective_routing_cost(
     }
 }
 
+fn provider_is_subscribed(
+    provider_id: &str,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> bool {
+    subscribed_provider_ids
+        .map(|ids| ids.contains(provider_id))
+        .unwrap_or(false)
+}
+
+fn subscribed_sort_key(
+    provider_id: &str,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> u8 {
+    if provider_is_subscribed(provider_id, subscribed_provider_ids) {
+        0
+    } else {
+        1
+    }
+}
+
+/// A routable (model, service-provider) pair with endpoint-specific pricing.
+#[derive(Debug, Clone)]
+pub struct RouteCandidate<'a> {
+    pub model: &'a Model,
+    pub service_provider_id: &'a str,
+    pub input_cost: f64,
+    pub output_cost: f64,
+    pub cache_read_cost: Option<f64>,
+}
+
+pub fn effective_routing_cost_for_candidate(
+    candidate: &RouteCandidate<'_>,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> f64 {
+    if subscribed_provider_ids
+        .map(|ids| ids.contains(candidate.service_provider_id))
+        .unwrap_or(false)
+    {
+        MIN_COST_EPSILON
+    } else {
+        effective_token_cost(
+            Some(candidate.input_cost),
+            Some(candidate.output_cost),
+            candidate.cache_read_cost,
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RankedRouteCandidate<'a> {
+    pub model: &'a Model,
+    pub service_provider_id: &'a str,
+    pub capability: f64,
+    pub value: f64,
+}
+
 #[derive(Debug, Clone)]
 pub struct RankedModelScore<'a> {
     pub model: &'a Model,
     pub capability: f64,
     pub value: f64,
+}
+
+struct ScoreParts {
+    capability: f64,
+    value: f64,
+}
+
+fn all_composite_indices_present(model: &Model) -> bool {
+    model.overall_intelligence.is_some()
+        && model.coding_index.is_some()
+        && model.agentic_index.is_some()
+        && model.math_index.is_some()
+}
+
+fn task_capability_available(model: &Model, task: TaskKind) -> bool {
+    match task {
+        TaskKind::Coding => {
+            model.coding_index.is_some() || model.overall_intelligence.is_some()
+        }
+        TaskKind::Math => model.math_index.is_some() || model.overall_intelligence.is_some(),
+        TaskKind::Agentic => {
+            model.agentic_index.is_some() || model.overall_intelligence.is_some()
+        }
+        TaskKind::General => model.overall_intelligence.is_some(),
+    }
+}
+
+/// Whether a model can participate in scoring for the given strategy and task.
+pub fn model_routable_for_strategy(model: &Model, strategy: RoutingStrategy, task: TaskKind) -> bool {
+    match strategy {
+        RoutingStrategy::Cheapest => true,
+        RoutingStrategy::Intelligent => model.coding_index.is_some(),
+        RoutingStrategy::Speed => model_output_speed(model).is_some(),
+        RoutingStrategy::Balanced | RoutingStrategy::Auto => task_capability_available(model, task),
+    }
+}
+
+fn score_parts(
+    model: &Model,
+    strategy: RoutingStrategy,
+    task: TaskKind,
+    endpoint_cost: f64,
+) -> ScoreParts {
+    let value_cost = match strategy {
+        RoutingStrategy::Balanced | RoutingStrategy::Auto => effective_token_cost_for_model(model),
+        _ => endpoint_cost,
+    };
+
+    if !model_routable_for_strategy(model, strategy, task) {
+        let value = match strategy {
+            RoutingStrategy::Cheapest => -endpoint_cost,
+            _ => f64::NEG_INFINITY,
+        };
+        return ScoreParts {
+            capability: f64::NEG_INFINITY,
+            value,
+        };
+    }
+
+    let capability = match strategy {
+        RoutingStrategy::Intelligent => model.coding_index.unwrap_or(0.0),
+        RoutingStrategy::Speed => model_output_speed(model).unwrap_or(0.0),
+        RoutingStrategy::Cheapest => 0.0,
+        RoutingStrategy::Balanced => primary_capability_loose(model, task),
+        RoutingStrategy::Auto => {
+            if all_composite_indices_present(model) {
+                composite_capability(model, task)
+            } else {
+                primary_capability_loose(model, task)
+            }
+        }
+    };
+    let value = match strategy {
+        RoutingStrategy::Cheapest => -endpoint_cost,
+        RoutingStrategy::Intelligent | RoutingStrategy::Speed => capability,
+        RoutingStrategy::Balanced | RoutingStrategy::Auto => capability / value_cost,
+    };
+    ScoreParts { capability, value }
 }
 
 fn score_models<'a>(
@@ -156,20 +290,9 @@ fn score_models<'a>(
     let mut scored: Vec<(&Model, f64, f64)> = models
         .iter()
         .map(|model| {
-            let routing_cost = effective_routing_cost(model, subscribed_provider_ids);
-            let capability = match strategy {
-                RoutingStrategy::Intelligent => model.coding_index,
-                RoutingStrategy::Speed => model_output_speed(model).unwrap_or(0.0),
-                RoutingStrategy::Cheapest => 0.0,
-                RoutingStrategy::Balanced => primary_capability(model, profile.task),
-                RoutingStrategy::Auto => composite_capability(model, profile.task),
-            };
-            let value = match strategy {
-                RoutingStrategy::Cheapest => -routing_cost,
-                RoutingStrategy::Intelligent | RoutingStrategy::Speed => capability,
-                RoutingStrategy::Balanced | RoutingStrategy::Auto => capability / routing_cost,
-            };
-            (model, capability, value)
+            let routing_cost = effective_token_cost_for_model(model);
+            let parts = score_parts(model, strategy, profile.task, routing_cost);
+            (model, parts.capability, parts.value)
         })
         .collect();
 
@@ -180,19 +303,25 @@ fn score_models<'a>(
             scored = models
                 .iter()
                 .map(|model| {
-                    let routing_cost = effective_routing_cost(model, subscribed_provider_ids);
-                    let capability = composite_capability(model, profile.task);
-                    let value = capability / routing_cost;
-                    (model, capability, value)
+                    let routing_cost = effective_token_cost_for_model(model);
+                    let parts = score_parts(model, strategy, profile.task, routing_cost);
+                    (model, parts.capability, parts.value)
                 })
                 .collect();
         }
     }
 
     scored.sort_by(|(a_model, a_cap, a_val), (b_model, b_cap, b_val)| {
-        b_val
-            .partial_cmp(a_val)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        subscribed_sort_key(&a_model.provider_id, subscribed_provider_ids)
+            .cmp(&subscribed_sort_key(
+                &b_model.provider_id,
+                subscribed_provider_ids,
+            ))
+            .then_with(|| {
+                b_val
+                    .partial_cmp(a_val)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .then_with(|| {
                 b_cap
                     .partial_cmp(a_cap)
@@ -208,14 +337,144 @@ fn score_models<'a>(
                 }
             })
             .then_with(|| {
-                effective_routing_cost(a_model, subscribed_provider_ids)
-                    .partial_cmp(&effective_routing_cost(b_model, subscribed_provider_ids))
+                effective_token_cost_for_model(a_model)
+                    .partial_cmp(&effective_token_cost_for_model(b_model))
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
             .then_with(|| a_model.name.cmp(&b_model.name))
     });
 
     scored
+}
+
+fn score_route_candidates<'a>(
+    candidates: &'a [RouteCandidate<'a>],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> Vec<(&'a Model, &'a str, f64, f64)> {
+    if matches!(strategy, RoutingStrategy::Speed)
+        && !candidates
+            .iter()
+            .any(|c| model_output_speed(c.model).is_some())
+    {
+        tracing::warn!(
+            "Speed strategy has no models with AA output speed data; falling back to cheapest"
+        );
+        return score_route_candidates(
+            candidates,
+            RoutingStrategy::Cheapest,
+            profile,
+            subscribed_provider_ids,
+        );
+    }
+
+    let mut scored: Vec<(&Model, &str, f64, f64, f64)> = candidates
+        .iter()
+        .map(|candidate| {
+            let endpoint_cost = effective_token_cost(
+                Some(candidate.input_cost),
+                Some(candidate.output_cost),
+                candidate.cache_read_cost,
+            );
+            let parts = score_parts(candidate.model, strategy, profile.task, endpoint_cost);
+            (
+                candidate.model,
+                candidate.service_provider_id,
+                parts.capability,
+                parts.value,
+                endpoint_cost,
+            )
+        })
+        .collect();
+
+    if matches!(strategy, RoutingStrategy::Auto) {
+        let min_required = min_required_capability(profile);
+        scored.retain(|(_, _, capability, _, _)| *capability >= min_required);
+        if scored.is_empty() {
+            scored = candidates
+                .iter()
+                .map(|candidate| {
+                    let routing_cost = effective_token_cost(
+                        Some(candidate.input_cost),
+                        Some(candidate.output_cost),
+                        candidate.cache_read_cost,
+                    );
+                    let parts = score_parts(candidate.model, strategy, profile.task, routing_cost);
+                    (
+                        candidate.model,
+                        candidate.service_provider_id,
+                        parts.capability,
+                        parts.value,
+                        routing_cost,
+                    )
+                })
+                .collect();
+        }
+    }
+
+    scored.sort_by(
+        |(a_model, a_provider, a_cap, a_val, a_cost), (b_model, b_provider, b_cap, b_val, b_cost)| {
+            subscribed_sort_key(a_provider, subscribed_provider_ids)
+                .cmp(&subscribed_sort_key(b_provider, subscribed_provider_ids))
+                .then_with(|| {
+                    b_val
+                        .partial_cmp(a_val)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| {
+                    b_cap
+                        .partial_cmp(a_cap)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
+                .then_with(|| {
+                    if matches!(strategy, RoutingStrategy::Speed) {
+                        model_time_to_first_token(a_model)
+                            .partial_cmp(&model_time_to_first_token(b_model))
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    } else {
+                        std::cmp::Ordering::Equal
+                    }
+                })
+                .then_with(|| a_cost.partial_cmp(b_cost).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| a_model.name.cmp(&b_model.name))
+                .then_with(|| a_provider.cmp(b_provider))
+        },
+    );
+
+    scored
+        .into_iter()
+        .map(|(model, provider, capability, value, _)| (model, provider, capability, value))
+        .collect()
+}
+
+pub fn rank_route_candidates_with_scores<'a>(
+    candidates: &'a [RouteCandidate<'a>],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> Vec<RankedRouteCandidate<'a>> {
+    score_route_candidates(candidates, strategy, profile, subscribed_provider_ids)
+        .into_iter()
+        .map(|(model, service_provider_id, capability, value)| RankedRouteCandidate {
+            model,
+            service_provider_id,
+            capability,
+            value,
+        })
+        .collect()
+}
+
+pub fn rank_route_candidates<'a>(
+    candidates: &'a [RouteCandidate<'a>],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+    subscribed_provider_ids: Option<&HashSet<String>>,
+) -> Vec<(&'a Model, &'a str)> {
+    score_route_candidates(candidates, strategy, profile, subscribed_provider_ids)
+        .into_iter()
+        .map(|(model, provider, _, _)| (model, provider))
+        .collect()
 }
 
 pub fn rank_models_with_scores<'a>(
@@ -262,40 +521,45 @@ fn min_required_capability(profile: &RequestProfile) -> f64 {
     floor + profile.complexity * (ceiling - floor)
 }
 
-fn primary_capability(model: &Model, task: TaskKind) -> f64 {
+fn primary_capability_loose(model: &Model, task: TaskKind) -> f64 {
     match task {
-        TaskKind::Coding => model.coding_index,
-        TaskKind::Math => model.math_index,
-        TaskKind::Agentic => model.agentic_index,
+        TaskKind::Coding => model.coding_index.or(model.overall_intelligence),
+        TaskKind::Math => model.math_index.or(model.overall_intelligence),
+        TaskKind::Agentic => model.agentic_index.or(model.overall_intelligence),
         TaskKind::General => model.overall_intelligence,
     }
+    .expect("task_capability_available should be checked before scoring")
 }
 
 fn composite_capability(model: &Model, task: TaskKind) -> f64 {
+    let overall = model.overall_intelligence.expect("complete indices");
+    let coding = model.coding_index.expect("complete indices");
+    let agentic = model.agentic_index.expect("complete indices");
+    let math = model.math_index.expect("complete indices");
     match task {
         TaskKind::Coding => weighted_score(&[
-            (model.coding_index, 0.55),
-            (model.overall_intelligence, 0.22),
-            (model.agentic_index, 0.13),
-            (model.math_index, 0.10),
+            (coding, 0.55),
+            (overall, 0.22),
+            (agentic, 0.13),
+            (math, 0.10),
         ]),
         TaskKind::Math => weighted_score(&[
-            (model.math_index, 0.58),
-            (model.overall_intelligence, 0.24),
-            (model.coding_index, 0.10),
-            (model.agentic_index, 0.08),
+            (math, 0.58),
+            (overall, 0.24),
+            (coding, 0.10),
+            (agentic, 0.08),
         ]),
         TaskKind::Agentic => weighted_score(&[
-            (model.agentic_index, 0.42),
-            (model.overall_intelligence, 0.28),
-            (model.coding_index, 0.22),
-            (model.math_index, 0.08),
+            (agentic, 0.42),
+            (overall, 0.28),
+            (coding, 0.22),
+            (math, 0.08),
         ]),
         TaskKind::General => weighted_score(&[
-            (model.overall_intelligence, 0.45),
-            (model.coding_index, 0.22),
-            (model.math_index, 0.18),
-            (model.agentic_index, 0.15),
+            (overall, 0.45),
+            (coding, 0.22),
+            (math, 0.18),
+            (agentic, 0.15),
         ]),
     }
 }
@@ -531,10 +795,10 @@ mod tests {
             input_cost: Some(input),
             output_cost: Some(output),
             enabled: true,
-            overall_intelligence: scores.0,
-            coding_index: scores.1,
-            agentic_index: scores.2,
-            math_index: scores.3,
+            overall_intelligence: Some(scores.0),
+            coding_index: Some(scores.1),
+            agentic_index: Some(scores.2),
+            math_index: Some(scores.3),
             output_speed_tps: None,
             time_to_first_token_secs: None,
             created_at: String::new(),
@@ -614,6 +878,41 @@ mod tests {
     }
 
     #[test]
+    fn intelligent_ranks_by_coding_when_math_index_missing() {
+        let mut partial = sample_model("partial-aa", 1.0, 1.0, (50.0, 47.5, 40.0, 0.0));
+        partial.math_index = None;
+        let complete = sample_model("complete-aa", 1.0, 1.0, (39.0, 32.8, 54.0, 82.0));
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.2,
+            estimated_input_tokens: 200,
+        };
+        let models = [complete, partial];
+        let ranked = rank_models(&models, RoutingStrategy::Intelligent, &profile, None);
+        assert_eq!(ranked[0].name, "partial-aa");
+        assert_eq!(ranked[1].name, "complete-aa");
+    }
+
+    #[test]
+    fn balanced_sorts_missing_aa_indices_last() {
+        let mut missing = sample_model("no-aa", 0.5, 0.5, (0.0, 0.0, 0.0, 0.0));
+        missing.overall_intelligence = None;
+        missing.coding_index = None;
+        missing.agentic_index = None;
+        missing.math_index = None;
+        let scored = sample_model("scored", 2.0, 2.0, (60.0, 65.0, 55.0, 50.0));
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.5,
+            estimated_input_tokens: 1000,
+        };
+        let models = [missing, scored];
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
+        assert_eq!(ranked[0].name, "scored");
+        assert_eq!(ranked[1].name, "no-aa");
+    }
+
+    #[test]
     fn subscribed_provider_beats_expensive_payg_model() {
         let mut cheap = sample_model("cheap-payg", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
         cheap.provider_id = "payg".into();
@@ -634,6 +933,28 @@ mod tests {
             Some(&subscribed_ids),
         );
         assert_eq!(ranked[0].name, "subscribed-flagship");
+    }
+
+    #[test]
+    fn subscribed_tier_ranks_before_higher_capability_payg_on_intelligent() {
+        let mut payg = sample_model("payg-smart", 0.5, 0.5, (90.0, 90.0, 80.0, 80.0));
+        payg.provider_id = "payg".into();
+        let mut subscribed = sample_model("subscribed-basic", 2.0, 2.0, (40.0, 40.0, 35.0, 35.0));
+        subscribed.provider_id = "subscribed-vendor".into();
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.5,
+            estimated_input_tokens: 1000,
+        };
+        let models = [payg, subscribed];
+        let subscribed_ids = HashSet::from(["subscribed-vendor".to_string()]);
+        let ranked = rank_models(
+            &models,
+            RoutingStrategy::Intelligent,
+            &profile,
+            Some(&subscribed_ids),
+        );
+        assert_eq!(ranked[0].name, "subscribed-basic");
     }
 
     #[test]

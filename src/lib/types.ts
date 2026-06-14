@@ -74,10 +74,10 @@ export interface Model {
   input_cost?: number;
   output_cost?: number;
   enabled: boolean;
-  overall_intelligence: number;
-  coding_index: number;
-  agentic_index: number;
-  math_index: number;
+  overall_intelligence?: number | null;
+  coding_index?: number | null;
+  agentic_index?: number | null;
+  math_index?: number | null;
   output_speed_tps?: number | null;
   time_to_first_token_secs?: number | null;
   created_at: string;
@@ -102,6 +102,10 @@ export interface Model {
 /** Model with the gateway provider that would actually serve requests. */
 export interface RoutableModel extends Model {
   service_provider_id: string;
+  /** Per-provider pricing; falls back to model-level pricing when absent (older API). */
+  endpoint_input_cost?: number | null;
+  endpoint_output_cost?: number | null;
+  endpoint_cache_read_cost?: number | null;
 }
 
 export interface ModelEndpoint {
@@ -112,10 +116,10 @@ export interface ModelEndpoint {
   provider_tag: string;
   native_model_id: string;
   quantization: string;
-  input_cost: number;
-  output_cost: number;
-  cache_read_cost?: number;
-  context_length: number;
+  input_cost?: number | null;
+  output_cost?: number | null;
+  cache_read_cost?: number | null;
+  context_length?: number | null;
   max_completion_tokens?: number;
   status: number; // 0 = ok, negative = degraded
   uptime_30m?: number;
@@ -344,8 +348,11 @@ export interface ResolvedSummary {
 export interface RankedModelSummary {
   model_id: string;
   provider_id: string;
-  capability: number;
-  value: number;
+  /** Service provider has an active subscription API key. */
+  subscribed?: boolean;
+  /** Absent when AA benchmark data is not available (not the same as 0). */
+  capability?: number | null;
+  value?: number | null;
 }
 
 export interface RouteExplainResult {

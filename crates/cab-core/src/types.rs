@@ -39,6 +39,19 @@ pub fn provider_has_subscribed_key(api_keys: &[ApiKeyConfig]) -> bool {
     })
 }
 
+/// True when the provider has at least one enabled key configured (ignores quota cooldown).
+pub fn provider_has_configured_key(provider: &Provider) -> bool {
+    provider.api_keys.iter().any(|k| k.is_usable()) || !provider.api_key.trim().is_empty()
+}
+
+/// True when the provider can accept a request right now (skips quota-cooled keys).
+pub fn provider_has_available_key(provider: &Provider) -> bool {
+    if !provider.enabled {
+        return false;
+    }
+    !ordered_api_keys(&provider.api_keys).is_empty() || !provider.api_key.trim().is_empty()
+}
+
 /// Prefer subscribed keys, then any other enabled key; skip keys still rate-limited.
 pub fn select_preferred_api_key(api_keys: &[ApiKeyConfig]) -> Option<String> {
     ordered_api_keys(api_keys).into_iter().next()
@@ -139,11 +152,15 @@ pub struct Model {
     pub input_cost: Option<f64>,
     pub output_cost: Option<f64>,
     pub enabled: bool,
-    pub overall_intelligence: f64,
-    pub coding_index: f64,
-    pub agentic_index: f64,
-    #[serde(default = "default_math_index")]
-    pub math_index: f64,
+    /// Absent when AA benchmark data is unavailable (distinct from a score of 0).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overall_intelligence: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coding_index: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agentic_index: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub math_index: Option<f64>,
     #[serde(default)]
     pub output_speed_tps: Option<f64>,
     #[serde(default)]
@@ -207,15 +224,17 @@ pub struct UpdateModel {
     pub provider_id: Option<String>,
     pub protocol: Option<String>,
     pub context_length: Option<i64>,
-    pub input_cost: Option<f64>,
-    pub output_cost: Option<f64>,
+    /// Outer `None` = leave unchanged; inner `None` = clear.
+    pub input_cost: Option<Option<f64>>,
+    pub output_cost: Option<Option<f64>>,
     pub enabled: Option<bool>,
-    pub overall_intelligence: Option<f64>,
-    pub coding_index: Option<f64>,
-    pub agentic_index: Option<f64>,
-    pub math_index: Option<f64>,
-    pub output_speed_tps: Option<f64>,
-    pub time_to_first_token_secs: Option<f64>,
+    /// Outer `None` = leave unchanged; inner `None` = clear benchmark score.
+    pub overall_intelligence: Option<Option<f64>>,
+    pub coding_index: Option<Option<f64>>,
+    pub agentic_index: Option<Option<f64>>,
+    pub math_index: Option<Option<f64>>,
+    pub output_speed_tps: Option<Option<f64>>,
+    pub time_to_first_token_secs: Option<Option<f64>>,
     // Catalog metadata
     pub canonical_slug: Option<String>,
     pub hugging_face_id: Option<String>,
@@ -231,10 +250,6 @@ pub struct UpdateModel {
     pub knowledge_cutoff: Option<String>,
     pub expiration_date: Option<String>,
     pub links: Option<serde_json::Value>,
-}
-
-fn default_math_index() -> f64 {
-    30.0
 }
 
 // ──────────────────────────── Route ────────────────────────────
@@ -386,6 +401,17 @@ pub struct Settings {
     pub models: HashMap<String, ModelUserSettings>,
 }
 
+/// Partial settings update — gateway fields only. Provider/model overrides use dedicated APIs.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct UpdateSettings {
+    pub gateway_port: Option<i64>,
+    pub log_retention_days: Option<i64>,
+    pub gateway_key: Option<String>,
+    pub auth_enabled: Option<bool>,
+    /// Outer None = field omitted; inner None = clear the key.
+    pub artificial_analysis_api_key: Option<Option<String>>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PersistedState {
     pub version: u32,
@@ -442,8 +468,12 @@ pub struct ResolvedSummary {
 pub struct RankedModelSummary {
     pub model_id: String,
     pub provider_id: String,
-    pub capability: f64,
-    pub value: f64,
+    #[serde(default)]
+    pub subscribed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capability: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

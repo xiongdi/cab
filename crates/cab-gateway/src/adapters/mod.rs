@@ -60,14 +60,27 @@ pub async fn handle_proxied_request(
     )
     .await?;
 
-    let provider = cab_db::provider::get_by_id(&state.pool, &resolved.model.provider_id)
+    let provider = cab_db::provider::get_by_id(&state.pool, &resolved.provider_id)
         .await
         .map_err(CabError::Database)?
         .ok_or_else(|| {
-            CabError::NotFound(format!("Provider {} not found", resolved.model.provider_id))
+            CabError::NotFound(format!("Provider {} not found", resolved.provider_id))
         })?;
 
-    let endpoint_candidates = pick_endpoints_for_protocol(&provider, adapter.protocol());
+    let endpoint_meta = cab_db::endpoint::find_for_model_provider(
+        &state.pool,
+        &resolved.model.name,
+        &resolved.provider_id,
+    )
+    .await
+    .map_err(CabError::Database)?;
+
+    let upstream_protocol = endpoint_meta
+        .as_ref()
+        .and_then(|ep| ep.upstream_protocol.as_deref())
+        .unwrap_or_else(|| adapter.protocol());
+
+    let endpoint_candidates = pick_endpoints_for_protocol(&provider, upstream_protocol);
 
     let mut primary = resolved.as_primary_model();
     primary.endpoint_candidates = endpoint_candidates;

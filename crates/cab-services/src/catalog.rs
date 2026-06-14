@@ -52,16 +52,25 @@ struct ModelsDevLimit {
 }
 
 pub fn protocol_for_models_dev_provider(provider: &ModelsDevProvider) -> String {
-    let npm = provider
-        .npm
-        .as_deref()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
-    let api = provider
-        .api
-        .as_deref()
-        .unwrap_or_default()
-        .to_ascii_lowercase();
+    protocol_from_npm_and_api(provider.npm.as_deref(), provider.api.as_deref())
+}
+
+/// Per-model upstream protocol on a models.dev provider (e.g. opencode-go MiniMax → anthropic).
+pub fn upstream_protocol_for_models_dev_model(
+    provider: &ModelsDevProvider,
+    model: &ModelsDevModel,
+) -> String {
+    if let Some(override_meta) = model.extra.get("provider") {
+        if let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str()) {
+            return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
+        }
+    }
+    protocol_for_models_dev_provider(provider)
+}
+
+fn protocol_from_npm_and_api(npm: Option<&str>, api: Option<&str>) -> String {
+    let npm = npm.unwrap_or_default().to_ascii_lowercase();
+    let api = api.unwrap_or_default().to_ascii_lowercase();
     if npm.contains("anthropic") || api.contains("anthropic") {
         "anthropic".to_string()
     } else {
@@ -93,6 +102,46 @@ fn build_architecture_json(model: &ModelsDevModel) -> serde_json::Value {
         "structured_output": model.structured_output,
         "open_weights": model.open_weights,
     })
+}
+
+pub fn normalize_minimax_vendor_cost(
+    provider_id: &str,
+    native_model_id: &str,
+    cost: &ModelsDevCost,
+) -> ModelsDevCost {
+    if provider_id != "minimax" {
+        return cost.clone();
+    }
+    // models.dev lists M3 at pre-discount list price; MiniMax paygo is permanently 50% off (≤512k).
+    // https://platform.minimax.io/docs/guides/pricing-paygo
+    if native_model_id == "MiniMax-M3"
+        && cost.input == Some(0.6)
+        && cost.output == Some(2.4)
+    {
+        return ModelsDevCost {
+            input: Some(0.3),
+            output: Some(1.2),
+            cache_read: cost.cache_read.map(|v| {
+                if (v - 0.12).abs() < f64::EPSILON {
+                    0.06
+                } else {
+                    v
+                }
+            }),
+            cache_write: cost.cache_write,
+        };
+    }
+    cost.clone()
+}
+
+fn models_dev_cost_for_provider_model(
+    provider_id: &str,
+    model: &ModelsDevModel,
+) -> Option<ModelsDevCost> {
+    model
+        .cost
+        .as_ref()
+        .map(|cost| normalize_minimax_vendor_cost(provider_id, &model.id, cost))
 }
 
 pub fn build_pricing_json(cost: Option<&ModelsDevCost>) -> Option<serde_json::Value> {
@@ -178,7 +227,7 @@ fn add_served_model_lookup_keys(
     let served = ServedModelRef {
         provider_id: provider_id.to_string(),
         native_model_id: model.id.clone(),
-        cost: model.cost.clone(),
+        cost: models_dev_cost_for_provider_model(provider_id, model),
     };
     let mut keys = vec![
         model.id.clone(),
@@ -275,8 +324,11 @@ pub async fn sync_model_endpoints(
                 continue;
             }
 
-            let cost = model.cost.as_ref();
+            let normalized_cost = models_dev_cost_for_provider_model(provider_id, model);
+            let cost = normalized_cost.as_ref();
             let limit = model.limit.as_ref();
+            let upstream_protocol =
+                upstream_protocol_for_models_dev_model(provider, model);
             let endpoint = cab_db::endpoint::ModelEndpoint {
                 id: format!("{canonical}::{provider_id}"),
                 model_id: canonical.clone(),
@@ -287,11 +339,12 @@ pub async fn sync_model_endpoints(
                     .unwrap_or_else(|| provider.name.clone()),
                 provider_tag: provider_id.clone(),
                 native_model_id: model.id.clone(),
+                upstream_protocol: Some(upstream_protocol),
                 quantization: "unknown".to_string(),
-                input_cost: cost.and_then(|c| c.input).unwrap_or(0.0),
-                output_cost: cost.and_then(|c| c.output).unwrap_or(0.0),
+                input_cost: cost.and_then(|c| c.input),
+                output_cost: cost.and_then(|c| c.output),
                 cache_read_cost: cost.and_then(|c| c.cache_read),
-                context_length: limit.and_then(|l| l.context).unwrap_or(0),
+                context_length: limit.and_then(|l| l.context),
                 max_completion_tokens: limit.and_then(|l| l.output),
                 status: 0,
                 uptime_30m: None,
@@ -620,15 +673,15 @@ pub async fn sync_models_dev_models(
                     defaults,
                 )),
                 context_length: Some(context_length),
-                input_cost,
-                output_cost,
+                input_cost: Some(input_cost),
+                output_cost: Some(output_cost),
                 enabled: Some(configured_enabled.unwrap_or(existing.enabled)),
                 overall_intelligence: Some(indices.overall_intelligence),
                 coding_index: Some(indices.coding_index),
                 agentic_index: Some(indices.agentic_index),
                 math_index: Some(indices.math_index),
-                output_speed_tps: performance.output_speed_tps,
-                time_to_first_token_secs: performance.time_to_first_token_secs,
+                output_speed_tps: Some(performance.output_speed_tps),
+                time_to_first_token_secs: Some(performance.time_to_first_token_secs),
                 canonical_slug: Some(model_name.clone()),
                 hugging_face_id,
                 created,
@@ -662,10 +715,10 @@ pub async fn sync_models_dev_models(
                 input_cost,
                 output_cost,
                 enabled: Some(configured_enabled.unwrap_or(false)),
-                overall_intelligence: Some(indices.overall_intelligence),
-                coding_index: Some(indices.coding_index),
-                agentic_index: Some(indices.agentic_index),
-                math_index: Some(indices.math_index),
+                overall_intelligence: indices.overall_intelligence,
+                coding_index: indices.coding_index,
+                agentic_index: indices.agentic_index,
+                math_index: indices.math_index,
                 output_speed_tps: performance.output_speed_tps,
                 time_to_first_token_secs: performance.time_to_first_token_secs,
                 canonical_slug: Some(model_name),
@@ -731,7 +784,11 @@ pub async fn sync_on_startup(pool: &InMemoryStore) -> Result<usize, CabError> {
 
 #[cfg(test)]
 mod resolve_canonical_model_name_tests {
-    use super::{ModelsDevModel, resolve_canonical_model_name};
+    use super::{
+        ModelsDevCost, ModelsDevModel, ModelsDevProvider,
+        normalize_minimax_vendor_cost, resolve_canonical_model_name,
+        upstream_protocol_for_models_dev_model,
+    };
 
     fn model(id: &str) -> ModelsDevModel {
         serde_json::from_value(serde_json::json!({ "id": id })).unwrap()
@@ -752,5 +809,53 @@ mod resolve_canonical_model_name_tests {
         );
 
         assert_eq!(resolved.as_deref(), Some("deepseek/deepseek-v4-pro"));
+    }
+
+    #[test]
+    fn minimax_m3_vendor_cost_uses_effective_paygo_discount() {
+        let list = ModelsDevCost {
+            input: Some(0.6),
+            output: Some(2.4),
+            cache_read: Some(0.12),
+            cache_write: None,
+        };
+        let effective =
+            normalize_minimax_vendor_cost("minimax", "MiniMax-M3", &list);
+        assert_eq!(effective.input, Some(0.3));
+        assert_eq!(effective.output, Some(1.2));
+        assert_eq!(effective.cache_read, Some(0.06));
+
+        let unchanged =
+            normalize_minimax_vendor_cost("opencode-go", "minimax-m3", &list);
+        assert_eq!(unchanged.input, Some(0.6));
+    }
+
+    #[test]
+    fn opencode_go_model_npm_selects_upstream_protocol() {
+        let provider: ModelsDevProvider = serde_json::from_value(serde_json::json!({
+            "name": "OpenCode Go",
+            "api": "https://opencode.ai/zen/go/v1",
+            "npm": "@ai-sdk/openai-compatible",
+            "models": {}
+        }))
+        .unwrap();
+        let anthropic_model: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "minimax-m3",
+            "provider": { "npm": "@ai-sdk/anthropic" }
+        }))
+        .unwrap();
+        let chat_model: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "deepseek-v4-flash"
+        }))
+        .unwrap();
+
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &anthropic_model),
+            "anthropic"
+        );
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &chat_model),
+            "openai-chat"
+        );
     }
 }

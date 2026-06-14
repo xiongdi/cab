@@ -20,18 +20,25 @@ pub use benchmark_catalog::{
 };
 pub use config::CabConfig;
 pub use error::CabError;
-pub use model_scores::{ModelIntelligenceIndices, infer_intelligence_indices, is_default_indices};
+pub use model_scores::{
+    ModelIntelligenceIndices, capability_indices_missing, infer_intelligence_indices,
+    normalize_legacy_missing_indices,
+};
 pub use provider_defaults::{
     ProviderDefaultsCatalog, load_provider_defaults, resolve_provider_default_protocol,
     resolve_provider_endpoints,
 };
 pub use routing::{
-    BALANCED_INPUT_OUTPUT_RATIO, INPUT_CACHE_HIT_RATE, RankedModelScore, RequestProfile,
-    RoutingStrategy, blended_input_cost, build_request_profile, cache_read_cost_from_model,
-    effective_routing_cost, effective_token_cost, effective_token_cost_for_model, rank_models,
-    rank_models_with_scores,
+    BALANCED_INPUT_OUTPUT_RATIO, INPUT_CACHE_HIT_RATE, RankedModelScore, RankedRouteCandidate,
+    RequestProfile, RouteCandidate, RoutingStrategy, blended_input_cost, build_request_profile,
+    cache_read_cost_from_model, effective_routing_cost, effective_routing_cost_for_candidate,
+    effective_token_cost, effective_token_cost_for_model, model_routable_for_strategy, rank_models,
+    rank_models_with_scores, rank_route_candidates, rank_route_candidates_with_scores,
 };
 pub use subscription_quota::{
     DEFAULT_QUOTA_RESET_SECS, extract_retry_after, is_key_rate_limited, resolve_quota_reset_at,
 };
-pub use types::{ordered_api_keys, provider_has_subscribed_key, select_preferred_api_key};
+pub use types::{
+    ordered_api_keys, provider_has_available_key, provider_has_configured_key,
+    provider_has_subscribed_key, select_preferred_api_key,
+};
