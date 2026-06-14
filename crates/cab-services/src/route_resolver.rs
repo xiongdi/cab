@@ -313,11 +313,41 @@ async fn resolve_model(
         return Ok(None);
     };
 
-    let Some(provider) = catalog.provider_by_id(&model.provider_id).await? else {
+    if !model.enabled {
+        return Ok(None);
+    }
+
+    if let Some(resolved) =
+        try_resolve_with_provider(catalog, &model, &model.provider_id).await?
+    {
+        return Ok(Some(resolved));
+    }
+
+    let tags = catalog
+        .enabled_provider_tags_for_model(&model.name)
+        .await?;
+    for tag in tags {
+        if tag == model.provider_id {
+            continue;
+        }
+        if let Some(resolved) = try_resolve_with_provider(catalog, &model, &tag).await? {
+            return Ok(Some(resolved));
+        }
+    }
+
+    Ok(None)
+}
+
+async fn try_resolve_with_provider(
+    catalog: &impl RouteCatalog,
+    model: &Model,
+    provider_id: &str,
+) -> Result<Option<ResolvedModel>, cab_core::CabError> {
+    let Some(provider) = catalog.provider_by_id(provider_id).await? else {
         return Ok(None);
     };
 
-    if !provider.enabled || provider.api_key.trim().is_empty() || !model.enabled {
+    if !provider.enabled || provider.api_key.trim().is_empty() {
         return Ok(None);
     }
 
@@ -329,7 +359,7 @@ async fn resolve_model(
         api_keys: provider.api_keys.clone(),
         endpoint_candidates: pick_endpoints_for_protocol(&provider, &model.protocol),
         provider_api_key: active_provider_api_key(&provider),
-        provider_name: provider.name,
+        provider_name: provider.name.clone(),
         provider_routing,
     }))
 }
@@ -346,25 +376,29 @@ async fn resolve_model_by_name(
         return Ok(None);
     };
 
-    let Some(provider) = catalog.provider_by_id(&model.provider_id).await? else {
-        return Ok(None);
-    };
-
-    if !provider.enabled || provider.api_key.trim().is_empty() || !model.enabled {
+    if !model.enabled {
         return Ok(None);
     }
 
-    let provider_routing = catalog.enabled_provider_tags_for_model(&model.name).await?;
-    Ok(Some(ResolvedModel {
-        model_protocol: model.protocol.clone(),
-        model: model.clone(),
-        provider_id: provider.id.clone(),
-        api_keys: provider.api_keys.clone(),
-        endpoint_candidates: pick_endpoints_for_protocol(&provider, &model.protocol),
-        provider_api_key: active_provider_api_key(&provider),
-        provider_name: provider.name,
-        provider_routing,
-    }))
+    if let Some(resolved) =
+        try_resolve_with_provider(catalog, &model, &model.provider_id).await?
+    {
+        return Ok(Some(resolved));
+    }
+
+    let tags = catalog
+        .enabled_provider_tags_for_model(&model.name)
+        .await?;
+    for tag in tags {
+        if tag == model.provider_id {
+            continue;
+        }
+        if let Some(resolved) = try_resolve_with_provider(catalog, &model, &tag).await? {
+            return Ok(Some(resolved));
+        }
+    }
+
+    Ok(None)
 }
 
 // Removed hardcoded benchmarks; scores come from the synced catalog.

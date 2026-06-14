@@ -158,19 +158,7 @@ pub fn run_openclaw_config(args: Vec<String>) -> Result<(), std::io::Error> {
 }
 
 pub async fn collect_enabled_models(pool: &cab_db::InMemoryStore) -> Vec<cab_core::types::Model> {
-    let Ok(all_models) = cab_db::model::list(pool).await else {
-        return Vec::new();
-    };
-    let active_providers = match cab_db::provider::list(pool).await {
-        Ok(providers) => providers
-            .into_iter()
-            .filter(|p| p.enabled && (!p.api_key.is_empty() || p.id == "provider-ollama"))
-            .map(|p| p.id)
-            .collect::<std::collections::HashSet<_>>(),
-        Err(_) => std::collections::HashSet::new(),
-    };
-    all_models
-        .into_iter()
-        .filter(|m| m.enabled && active_providers.contains(&m.provider_id))
-        .collect()
+    cab_db::routability::list_routable_models(pool)
+        .await
+        .unwrap_or_default()
 }

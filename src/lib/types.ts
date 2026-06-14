@@ -99,6 +99,11 @@ export interface Model {
   links?: any;
 }
 
+/** Model with the gateway provider that would actually serve requests. */
+export interface RoutableModel extends Model {
+  service_provider_id: string;
+}
+
 export interface ModelEndpoint {
   id: string;
   model_id: string;

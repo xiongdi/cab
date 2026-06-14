@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use async_trait::async_trait;
 use cab_core::CabError;
 use cab_core::types::{Agent, Model, Provider, Route};
@@ -43,23 +41,14 @@ impl RouteCatalog for InMemoryStore {
     }
 
     async fn enabled_models(&self) -> Result<Vec<Model>, CabError> {
-        let all_models = crate::model::list(self).await.map_err(CabError::Database)?;
-        let all_providers = crate::provider::list(self)
+        let routable = crate::routability::list_routable_models(self)
             .await
             .map_err(CabError::Database)?;
-        let active_provider_ids: HashSet<String> = all_providers
-            .into_iter()
-            .filter(|p| p.enabled && (!p.api_key.is_empty() || p.id == "provider-ollama"))
-            .map(|p| p.id)
-            .collect();
 
-        Ok(all_models
+        Ok(routable
             .into_iter()
             .filter(|m| {
-                m.enabled
-                    && active_provider_ids.contains(&m.provider_id)
-                    && m.input_cost.unwrap_or(0.0) >= 0.0
-                    && m.output_cost.unwrap_or(0.0) >= 0.0
+                m.input_cost.unwrap_or(0.0) >= 0.0 && m.output_cost.unwrap_or(0.0) >= 0.0
             })
             .collect())
     }

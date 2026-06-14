@@ -221,6 +221,21 @@ fn resolve_canonical_model_name(
             }
         }
     }
+
+    // Resellers like opencode-go use bare slugs (deepseek-v4-pro) while catalog.models
+    // stores vendor-qualified ids (deepseek/deepseek-v4-pro).
+    if !model.id.contains('/') {
+        let suffix = format!("/{}", model.id);
+        let normalized_suffix = normalize_models_dev_model_key(&suffix);
+        for key in models_data.keys() {
+            if key.ends_with(&suffix)
+                || normalize_models_dev_model_key(key).ends_with(&normalized_suffix)
+            {
+                return Some(key.clone());
+            }
+        }
+    }
+
     None
 }
 
@@ -712,4 +727,30 @@ pub async fn auto_seed_known_models(
 /// Startup helper used by cab-server and Tauri.
 pub async fn sync_on_startup(pool: &InMemoryStore) -> Result<usize, CabError> {
     sync_models_dev_catalog(pool).await
+}
+
+#[cfg(test)]
+mod resolve_canonical_model_name_tests {
+    use super::{ModelsDevModel, resolve_canonical_model_name};
+
+    fn model(id: &str) -> ModelsDevModel {
+        serde_json::from_value(serde_json::json!({ "id": id })).unwrap()
+    }
+
+    #[test]
+    fn maps_bare_opencode_go_slug_to_vendor_qualified_catalog_id() {
+        let mut models_data = std::collections::HashMap::new();
+        models_data.insert(
+            "deepseek/deepseek-v4-pro".to_string(),
+            model("deepseek/deepseek-v4-pro"),
+        );
+
+        let resolved = resolve_canonical_model_name(
+            "opencode-go",
+            &model("deepseek-v4-pro"),
+            &models_data,
+        );
+
+        assert_eq!(resolved.as_deref(), Some("deepseek/deepseek-v4-pro"));
+    }
 }

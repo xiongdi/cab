@@ -8,6 +8,7 @@ pub mod log_store;
 pub mod model;
 pub mod provider;
 pub mod route;
+pub mod routability;
 pub mod settings;
 pub mod state;
 

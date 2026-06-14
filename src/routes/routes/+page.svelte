@@ -1,13 +1,16 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { afterNavigate } from '$app/navigation';
+  import { page } from '$app/stores';
   import { api } from '$lib/api';
-  import type { Model, Provider, RouteExplainResult } from '$lib/types';
+  import { dataRevision } from '$lib/data-revision.svelte';
+  import type { Model, Provider, RouteExplainResult, RoutableModel } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Card from '$lib/components/Card.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { toast } from '$lib/components/Toast.svelte';
 
   let models = $state<Model[]>([]);
+  let routableModels = $state<RoutableModel[]>([]);
   let providers = $state<Provider[]>([]);
   let loading = $state(true);
   let expandedStrategies = $state<Record<string, boolean>>({});
@@ -63,32 +66,70 @@
     },
   ] as const;
 
-  onMount(async () => {
-    loading = true;
+  let hasLoaded = $state(false);
+  let loadSeq = 0;
+
+  async function loadRouteData(options?: { silent?: boolean }) {
+    const seq = ++loadSeq;
+    if (!options?.silent) loading = true;
     try {
-      const [providersList, modelsList] = await Promise.all([
+      const [providersList, modelsList, routableList] = await Promise.all([
         api.providers.list(),
         api.models.list(),
+        api.models.listRoutable(),
       ]);
+      if (seq !== loadSeq) return;
       providers = providersList;
       models = modelsList;
+      routableModels = routableList;
+      hasLoaded = true;
     } catch (e) {
+      if (seq !== loadSeq) return;
       toast.error(e instanceof Error ? e.message : i18n.t('routes.load_failed'));
     } finally {
-      loading = false;
+      if (seq !== loadSeq) return;
+      if (!options?.silent) loading = false;
     }
+  }
+
+  afterNavigate(({ to }) => {
+    if (to?.url.pathname === '/routes') {
+      loadRouteData({ silent: hasLoaded });
+    }
+  });
+
+  $effect(() => {
+    void dataRevision.models;
+    void dataRevision.providers;
+    if (!hasLoaded || $page.url.pathname !== '/routes') return;
+    loadRouteData({ silent: true });
   });
 
   // derived provider map for fast lookup
   const providerMap = $derived(new Map(providers.map((p) => [p.id, p])));
+  const serviceProviderByModelId = $derived(
+    new Map(routableModels.map((m) => [m.id, m.service_provider_id]))
+  );
 
   // Helper to sort models by strategy (mirrors cab-core routing engine)
-  const INPUT_OUTPUT_RATIO = 3;
+  const INPUT_OUTPUT_RATIO = 10;
+  const INPUT_CACHE_HIT_RATE = 0.9;
+
+  function cacheReadCost(model: Model): number | undefined {
+    const value = model.pricing?.cache_read;
+    return typeof value === 'number' && value >= 0 ? value : undefined;
+  }
+
+  function blendedInputCost(model: Model): number {
+    const input = model.input_cost ?? 0;
+    const cacheRead = cacheReadCost(model);
+    if (cacheRead === undefined) return input;
+    return INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input;
+  }
 
   function effectiveTokenCost(model: Model): number {
-    const input = model.input_cost ?? 0;
     const output = model.output_cost ?? 0;
-    return Math.max(input * INPUT_OUTPUT_RATIO + output, 0.001);
+    return Math.max(blendedInputCost(model) * INPUT_OUTPUT_RATIO + output, 0.001);
   }
 
   function modelOutputSpeed(model: Model): number {
@@ -111,14 +152,12 @@
   }
 
   function resolveModelsForStrategy(strategy: string, list: Model[]) {
-    // Find active provider IDs: enabled
-    const activeProviderIds = new Set(providers.filter((p) => p.enabled).map((p) => p.id));
+    const routableIds = new Set(routableModels.map((m) => m.id));
 
-    // Filter active and non-negative priced models
+    // Filter routable models with valid pricing
     const enabled = list.filter(
       (m) =>
-        m.enabled &&
-        activeProviderIds.has(m.provider_id) &&
+        routableIds.has(m.id) &&
         (m.input_cost ?? 0) >= 0 &&
         (m.output_cost ?? 0) >= 0
     );
@@ -149,7 +188,11 @@
             (m.math_index ?? 30) * 0.1) /
           effectiveTokenCost(m);
       }
-      return { model: m, score };
+      return {
+        model: m,
+        score,
+        serviceProviderId: serviceProviderByModelId.get(m.id) ?? m.provider_id,
+      };
     });
 
     mapped.sort((a, b) => {
@@ -173,6 +216,31 @@
     });
 
     return mapped;
+  }
+
+  function strategyMetricLabel(strategyId: string): string {
+    if (strategyId === 'speed') return i18n.t('routes.speed');
+    if (strategyId === 'cheapest') return i18n.t('routes.composite_price');
+    if (strategyId === 'balanced') return i18n.t('routes.value_score');
+    return i18n.t('routes.intel');
+  }
+
+  function formatStrategyMetric(
+    strategyId: string,
+    candidate: { model: Model; score: number }
+  ): string {
+    if (strategyId === 'speed') {
+      return (candidate.model.output_speed_tps ?? 0) > 0
+        ? `${candidate.model.output_speed_tps!.toFixed(1)} t/s`
+        : '—';
+    }
+    if (strategyId === 'cheapest') {
+      return `$${candidate.score.toFixed(2)}`;
+    }
+    if (strategyId === 'balanced') {
+      return candidate.score.toFixed(2);
+    }
+    return candidate.model.coding_index.toFixed(1);
   }
 
   async function runRoutingPreview() {
@@ -228,7 +296,7 @@
         <div class="preview-block">
           <strong>{i18n.t('routes.preview_resolved')}</strong>
           <span>
-            {previewResult.resolved.model_id} · {previewResult.resolved.provider_id}
+            {previewResult.resolved.model_id} · {providerMap.get(previewResult.resolved.provider_id)?.name ?? previewResult.resolved.provider_id}
             {#if previewResult.resolved.strategy}
               · {previewResult.resolved.strategy}
             {/if}
@@ -264,7 +332,7 @@
                   <tr>
                     <td>{idx + 1}</td>
                     <td>{candidate.model_id}</td>
-                    <td>{candidate.provider_id}</td>
+                    <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
                     <td>{candidate.capability.toFixed(1)}</td>
                     <td>{candidate.value.toFixed(2)}</td>
                   </tr>
@@ -343,18 +411,18 @@
                       <th>{i18n.t('routes.model_name')}</th>
                       <th style="text-align: right; width: 130px;">{i18n.t('routes.price')}</th>
                       <th style="text-align: right; width: 70px;">
-                        {s.id === 'speed' ? i18n.t('routes.speed') : i18n.t('routes.intel')}
+                        {strategyMetricLabel(s.id)}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {#each visibleCandidates as c, idx}
-                      {@const provider = providerMap.get(c.model.provider_id)}
+                      {@const provider = providerMap.get(c.serviceProviderId)}
                       <tr>
                         <td class="mono text-muted" style="text-align: center;">{idx + 1}</td>
                         <td>
                           <span class="provider-badge">
-                            {provider ? provider.name : c.model.provider_id}
+                            {provider ? provider.name : c.serviceProviderId}
                           </span>
                         </td>
                         <td>
@@ -367,13 +435,7 @@
                           ${c.model.input_cost?.toFixed(2)} / ${c.model.output_cost?.toFixed(2)}
                         </td>
                         <td style="text-align: right;" class="mono text-accent">
-                          {#if s.id === 'speed'}
-                            {(c.model.output_speed_tps ?? 0) > 0
-                              ? `${c.model.output_speed_tps!.toFixed(1)} t/s`
-                              : '—'}
-                          {:else}
-                            {c.model.coding_index.toFixed(1)}
-                          {/if}
+                          {formatStrategyMetric(s.id, c)}
                         </td>
                       </tr>
                     {/each}

@@ -4,11 +4,12 @@
 //! 1. Parse request text → estimate complexity + task kind (coding / math / agentic / general).
 //! 2. Score each enabled model with a task-weighted capability blend (AA indices on `Model`).
 //! 3. Require minimum capability that rises with complexity (simple → cheap OK, hard → flagship).
-//! 4. Rank by value = capability / effective_cost, where effective_cost uses a 3:1 input:output ratio.
+//! 4. Rank by value = capability / effective_cost, where effective_cost blends input cache
+//!    (90% hit rate when cache_read is available) and uses a 10:1 input:output token ratio.
 //!    Providers with a subscribed API key use near-zero marginal cost (prepaid quota).
 //!
 //! ## Balanced (`balanced`)
-//! Rank by task-primary capability / effective_cost (same 3:1 price weighting).
+//! Rank by task-primary capability / effective_cost (same 10:1 price weighting).
 //!
 //! ## Speed (`speed`)
 //! Rank by AA median output speed (tokens/s), then TTFT, then cost. Models without speed
@@ -19,7 +20,10 @@ use std::collections::HashSet;
 use crate::types::Model;
 
 /// Typical prompt:completion token ratio for coding agents (input-heavy).
-pub const BALANCED_INPUT_OUTPUT_RATIO: f64 = 3.0;
+pub const BALANCED_INPUT_OUTPUT_RATIO: f64 = 10.0;
+
+/// Assumed prompt cache hit rate when `cache_read` pricing is available.
+pub const INPUT_CACHE_HIT_RATE: f64 = 0.9;
 
 const MIN_COST_EPSILON: f64 = 0.001;
 
@@ -77,10 +81,40 @@ pub fn build_request_profile(body: &serde_json::Value, agent: &str) -> RequestPr
     classify_request(&text, agent, message_count, has_tools)
 }
 
-pub fn effective_token_cost(input_cost: Option<f64>, output_cost: Option<f64>) -> f64 {
-    let input = input_cost.unwrap_or(0.0).max(0.0);
+pub fn cache_read_cost_from_model(model: &Model) -> Option<f64> {
+    model
+        .pricing
+        .as_ref()
+        .and_then(|pricing| pricing.get("cache_read"))
+        .and_then(|value| value.as_f64())
+        .filter(|cost| *cost >= 0.0)
+}
+
+pub fn blended_input_cost(input: f64, cache_read: Option<f64>) -> f64 {
+    let input = input.max(0.0);
+    match cache_read {
+        Some(cache_read) => INPUT_CACHE_HIT_RATE * cache_read + (1.0 - INPUT_CACHE_HIT_RATE) * input,
+        None => input,
+    }
+}
+
+pub fn effective_token_cost(
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    cache_read_cost: Option<f64>,
+) -> f64 {
+    let input = input_cost.unwrap_or(0.0);
     let output = output_cost.unwrap_or(0.0).max(0.0);
-    (input * BALANCED_INPUT_OUTPUT_RATIO + output).max(MIN_COST_EPSILON)
+    let blended_input = blended_input_cost(input, cache_read_cost);
+    (blended_input * BALANCED_INPUT_OUTPUT_RATIO + output).max(MIN_COST_EPSILON)
+}
+
+pub fn effective_token_cost_for_model(model: &Model) -> f64 {
+    effective_token_cost(
+        model.input_cost,
+        model.output_cost,
+        cache_read_cost_from_model(model),
+    )
 }
 
 pub fn effective_routing_cost(
@@ -93,7 +127,7 @@ pub fn effective_routing_cost(
     {
         MIN_COST_EPSILON
     } else {
-        effective_token_cost(model.input_cost, model.output_cost)
+        effective_token_cost_for_model(model)
     }
 }
 
@@ -523,8 +557,18 @@ mod tests {
     }
 
     #[test]
-    fn effective_token_cost_weights_input_three_to_one() {
-        assert!((effective_token_cost(Some(1.0), Some(1.0)) - 4.0).abs() < f64::EPSILON);
+    fn effective_token_cost_weights_input_ten_to_one() {
+        assert!(
+            (effective_token_cost(Some(1.0), Some(1.0), None) - 11.0).abs() < f64::EPSILON
+        );
+    }
+
+    #[test]
+    fn effective_token_cost_applies_cache_hit_rate() {
+        // input 1.0, cache_read 0.1 → blended 0.19, + output 1.0 → 0.19*10+1 = 2.9
+        assert!(
+            (effective_token_cost(Some(1.0), Some(1.0), Some(0.1)) - 2.9).abs() < f64::EPSILON
+        );
     }
 
     #[test]
@@ -566,7 +610,7 @@ mod tests {
         };
         let models = [a, b];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
-        assert_eq!(ranked[0].name, "b");
+        assert_eq!(ranked[0].name, "a");
     }
 
     #[test]

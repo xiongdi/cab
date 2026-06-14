@@ -26,8 +26,9 @@ pub use provider_defaults::{
     resolve_provider_endpoints,
 };
 pub use routing::{
-    BALANCED_INPUT_OUTPUT_RATIO, RankedModelScore, RequestProfile, RoutingStrategy,
-    build_request_profile, effective_routing_cost, effective_token_cost, rank_models,
+    BALANCED_INPUT_OUTPUT_RATIO, INPUT_CACHE_HIT_RATE, RankedModelScore, RequestProfile,
+    RoutingStrategy, blended_input_cost, build_request_profile, cache_read_cost_from_model,
+    effective_routing_cost, effective_token_cost, effective_token_cost_for_model, rank_models,
     rank_models_with_scores,
 };
 pub use subscription_quota::{

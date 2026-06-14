@@ -126,6 +126,7 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         )
         // Models
         .route("/api/models", get(models::list_models))
+        .route("/api/models/routable", get(models::list_routable_models))
         .route("/api/models/catalog", get(models::list_model_catalog))
         .route("/api/models", post(models::create_model))
         .route("/api/models/{id}", get(models::get_model))

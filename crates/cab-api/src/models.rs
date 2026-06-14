@@ -82,6 +82,15 @@ pub async fn list_models(State(state): State<ApiState>) -> Result<impl IntoRespo
     Ok(Json(models))
 }
 
+pub async fn list_routable_models(
+    State(state): State<ApiState>,
+) -> Result<impl IntoResponse, CabError> {
+    let models = cab_db::routability::list_routable_model_entries(&state.pool)
+        .await
+        .map_err(CabError::Database)?;
+    Ok(Json(models))
+}
+
 pub async fn get_model(
     State(state): State<ApiState>,
     Path(id): Path<String>,

@@ -29,6 +29,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-06-14
+
+### Added
+
+- **`GET /api/models/routable`**: lists enabled models with the **service provider** that would actually serve requests (native vendor or enabled reseller gateway such as OpenCode Go).
+- **Routability layer** (`cab-db::routability`): resolves reseller endpoints, suffix-matches bare model slugs to canonical catalog IDs, and drives routing for models enabled only on gateway providers.
+- Routes page **strategy metric columns**: composite price (Cheapest) and value score (Balanced); provider column shows the serving gateway, not the model vendor.
+- **`data-revision`** store so Models/Providers toggles refresh Routes candidates without a full reload.
+
+### Changed
+
+- **Effective token cost** for Auto / Balanced / Cheapest: **10:1** input:output weighting with **90%** assumed prompt-cache hit rate when `cache_read` pricing exists (`blended_input×10 + output`).
+- Routing resolver and OpenAI model list accept reseller-routable models when the native vendor is disabled.
+- UI copy: unified **提供商** label; strategy descriptions updated for the new cost formula (EN / 简体中文).
+
+### Fixed
+
+- Reseller-only enabled models (e.g. DeepSeek V4 via OpenCode Go) now appear in routing candidates and resolve correctly at request time.
+
 ## [0.2.5] - 2026-06-11
 
 ### Added

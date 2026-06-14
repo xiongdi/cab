@@ -5,6 +5,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { dataRevision } from '$lib/data-revision.svelte';
   import CatalogLogo from '$lib/components/CatalogLogo.svelte';
   import { modelLabId } from '$lib/models-dev';
 
@@ -265,6 +266,7 @@
           .replace('{name}', ep.provider_name)
           .replace('{status}', !ep.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled'))
       );
+      dataRevision.touchModels();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : i18n.t('common.error'));
     }
@@ -290,6 +292,7 @@
           .replace('{name}', displayName(entry))
           .replace('{status}', statusText)
       );
+      dataRevision.touchModels();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : i18n.t('common.error'));
     }

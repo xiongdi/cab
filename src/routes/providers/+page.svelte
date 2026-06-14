@@ -5,6 +5,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { dataRevision } from '$lib/data-revision.svelte';
   import CatalogLogo from '$lib/components/CatalogLogo.svelte';
   import { modelLabId } from '$lib/models-dev';
 
@@ -190,6 +191,7 @@
     try {
       await api.providers.update(provider.id, { enabled: newEnabled });
       toast.success(i18n.t('providers.status_updated').replace('{name}', provider.name));
+      dataRevision.touchProviders();
       await loadData();
     } catch (e) {
       enabledDrafts[provider.id] = currentEnabled;
@@ -208,6 +210,7 @@
       enabledDrafts[provider.id] = false;
       try {
         await api.providers.update(provider.id, { api_keys: keysToSave, enabled: false });
+        dataRevision.touchProviders();
         await loadData();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : i18n.t('providers.status_update_failed'));
@@ -218,6 +221,7 @@
     try {
       await api.providers.update(provider.id, { api_keys: keysToSave });
       toast.success(i18n.t('providers.keys_saved').replace('{name}', provider.name));
+      dataRevision.touchProviders();
       await loadData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : i18n.t('providers.keys_save_failed'));
@@ -258,6 +262,7 @@
     try {
       await api.providers.update(provider.id, { endpoints });
       toast.success(i18n.t('providers.endpoints_saved').replace('{name}', provider.name));
+      dataRevision.touchProviders();
       await loadData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : i18n.t('providers.endpoints_save_failed'));

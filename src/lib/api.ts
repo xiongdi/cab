@@ -24,6 +24,7 @@ import type {
   UpdateAgent,
   RouteExplainRequest,
   RouteExplainResult,
+  RoutableModel,
 } from './types';
 
 let resolvedPort: number | null = null;
@@ -73,6 +74,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const apiBase = await getApiBase();
   try {
     const res = await fetch(`${apiBase}${path}`, {
+      cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
@@ -122,6 +124,8 @@ export const api = {
   // ── Models ────────────────────────────────────────────────
   models: {
     list: () => request<Model[]>('/models'),
+
+    listRoutable: () => request<RoutableModel[]>('/models/routable'),
 
     listCatalog: () => request<ModelCatalogEntry[]>('/models/catalog'),
 

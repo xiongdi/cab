@@ -54,20 +54,26 @@ pub async fn handle_list_models(
         .map_err(CabError::Database)?;
     let active_provider_ids: std::collections::HashSet<String> = providers
         .into_iter()
-        .filter(|p| p.enabled && !p.api_key.trim().is_empty())
         .map(|p| p.id)
         .collect();
 
     let mut model_list = Vec::new();
     for model in models {
-        if !model.enabled || !active_provider_ids.contains(&model.provider_id) {
+        if !model.enabled {
             continue;
         }
+        let native_active = active_provider_ids.contains(&model.provider_id);
         let provider_tags =
             cab_db::endpoint::enabled_provider_tags_for_model(&state.pool, &model.name)
                 .await
                 .map_err(CabError::Database)?;
         if provider_tags.is_empty() {
+            continue;
+        }
+        let reseller_active = provider_tags
+            .iter()
+            .any(|tag| active_provider_ids.contains(tag));
+        if !native_active && !reseller_active {
             continue;
         }
 

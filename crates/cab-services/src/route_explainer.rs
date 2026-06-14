@@ -56,33 +56,37 @@ async fn ranked_candidates(
     strategy: RoutingStrategy,
     profile: &RequestProfile,
 ) -> Vec<RankedModelSummary> {
-    let enabled = cab_db::model::list(pool).await.unwrap_or_default();
-    let active_providers = cab_db::provider::list(pool)
+    let enabled = cab_db::routability::list_routable_models(pool)
         .await
         .unwrap_or_default()
         .into_iter()
-        .filter(|p| p.enabled && !p.api_key.trim().is_empty())
-        .map(|p| p.id)
-        .collect::<HashSet<_>>();
-    let enabled: Vec<_> = enabled
-        .into_iter()
-        .filter(|m| m.enabled && active_providers.contains(&m.provider_id))
-        .collect();
+        .filter(|m| {
+            m.input_cost.unwrap_or(0.0) >= 0.0 && m.output_cost.unwrap_or(0.0) >= 0.0
+        })
+        .collect::<Vec<_>>();
     if enabled.is_empty() {
         return Vec::new();
     }
 
     let subscribed = subscribed_provider_ids(pool).await;
-    rank_models_with_scores(&enabled, strategy, profile, Some(&subscribed))
-        .into_iter()
-        .take(10)
-        .map(|score| RankedModelSummary {
+    let mut ranked = Vec::new();
+    for score in rank_models_with_scores(&enabled, strategy, profile, Some(&subscribed)) {
+        if ranked.len() >= 10 {
+            break;
+        }
+        let service_provider_id = cab_db::routability::resolve_service_provider_id(pool, score.model)
+            .await
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| score.model.provider_id.clone());
+        ranked.push(RankedModelSummary {
             model_id: score.model.name.clone(),
-            provider_id: score.model.provider_id.clone(),
+            provider_id: service_provider_id,
             capability: score.capability,
             value: score.value,
-        })
-        .collect()
+        });
+    }
+    ranked
 }
 
 fn resolved_summary(resolved: &ResolvedRoute, strategy: Option<String>) -> ResolvedSummary {
