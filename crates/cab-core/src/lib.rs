@@ -30,16 +30,16 @@ pub use provider_defaults::{
 };
 pub use routing::{
     BALANCED_INPUT_OUTPUT_RATIO, INPUT_CACHE_HIT_RATE, RankedModelScore, RankedRouteCandidate,
-    RequestProfile, RouteCandidate, RoutingStrategy, blended_input_cost, build_request_profile,
-    cache_read_cost_from_model,     effective_routing_cost, effective_routing_cost_for_candidate, effective_token_cost,
-    effective_token_cost_for_model, capability_value_score, model_routable_for_strategy,
-    raw_effective_token_cost, raw_effective_token_cost_for_model, rank_models,
+    RequestProfile, RouteCandidate, RoutingStrategy, TaskKind, blended_input_cost,
+    build_request_profile, cache_read_cost_from_model, capability_value_score,
+    effective_token_cost, effective_token_cost_for_model, model_routable_for_strategy, rank_models,
     rank_models_with_scores, rank_route_candidates, rank_route_candidates_with_scores,
+    raw_effective_token_cost, raw_effective_token_cost_for_model,
 };
 pub use subscription_quota::{
     DEFAULT_QUOTA_RESET_SECS, extract_retry_after, is_key_rate_limited, resolve_quota_reset_at,
 };
 pub use types::{
     ordered_api_keys, provider_has_available_key, provider_has_configured_key,
-    provider_has_subscribed_key, select_preferred_api_key,
+    select_preferred_api_key,
 };

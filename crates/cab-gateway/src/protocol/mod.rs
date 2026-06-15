@@ -6,21 +6,22 @@ mod legacy;
 mod stream;
 
 pub use engine::{
-    convert_request, convert_response, convert_sse_stream, synthesize_sse_from_response, Protocol,
-    PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, PROTOCOL_OPENAI_RESPONSES,
+    PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, PROTOCOL_OPENAI_RESPONSES, Protocol, convert_request,
+    convert_response, convert_sse_stream, synthesize_sse_from_response,
 };
 pub use legacy::{
-    anthropic_to_openai, anthropic_to_openai_chat_request, anthropic_to_responses_request,
-    chat_request_to_responses, chat_to_responses, openai_chat_to_anthropic_messages,
-    openai_to_anthropic, responses_to_anthropic_messages, responses_to_anthropic_request,
+    TokenTrackingStream, anthropic_to_openai, anthropic_to_openai_chat_request,
+    anthropic_to_responses_request, chat_request_to_responses, chat_to_responses,
+    openai_chat_to_anthropic_messages, openai_to_anthropic, responses_text_from_body,
+    responses_to_anthropic_messages, responses_to_anthropic_request,
     responses_to_anthropic_sse_stream, responses_to_chat_request, responses_to_sse_stream,
-    responses_text_from_body, transform_openai_chat_sse_to_anthropic, TokenTrackingStream,
+    transform_openai_chat_sse_to_anthropic,
 };
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::ir::{decode_openai_chat_request, encode_anthropic_request};
+    use super::*;
     use serde_json::json;
 
     #[test]
@@ -72,7 +73,10 @@ mod tests {
         });
         let openai = convert_response(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, &body, "m");
         assert_eq!(openai["choices"][0]["finish_reason"], "tool_calls");
-        assert_eq!(openai["choices"][0]["message"]["tool_calls"][0]["function"]["name"], "Read");
+        assert_eq!(
+            openai["choices"][0]["message"]["tool_calls"][0]["function"]["name"],
+            "Read"
+        );
     }
 
     #[tokio::test]
@@ -101,7 +105,9 @@ mod tests {
         let joined = chunks.join("");
         assert!(joined.contains("\"content\":\"hi\""));
         assert!(joined.contains("[DONE]"));
-        let finish_idx = joined.find("\"finish_reason\":\"stop\"").expect("finish_reason");
+        let finish_idx = joined
+            .find("\"finish_reason\":\"stop\"")
+            .expect("finish_reason");
         let done_idx = joined.find("[DONE]").expect("[DONE]");
         assert!(
             finish_idx < done_idx,

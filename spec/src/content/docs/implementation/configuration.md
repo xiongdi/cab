@@ -10,7 +10,7 @@ order: 4
 | 文件                                      | 加载方              | 内容                                                                              |
 | ----------------------------------------- | ------------------- | --------------------------------------------------------------------------------- |
 | `cab.toml`                                | `CabConfig::load()` | `gateway.host`（默认 127.0.0.1）、`gateway.port`（默认 3125）                     |
-| `~/.cab/settings.json`                    | `cab-db::settings`  | 端口覆盖、gateway_key、提供商/模型启用、api_keys（含 subscribed、quota_reset_at） |
+| `~/.cab/settings.json`                    | `cab-db::settings`  | 端口覆盖、gateway_key、提供商/模型启用、api_keys（含 enabled、quota_reset_at）   |
 | `config/provider-endpoints.defaults.json` | `provider_defaults` | 提供商默认端点                                                                    |
 | `config/aa-model-map.json`                | `benchmark_catalog` | AA 模型名映射                                                                     |
 
@@ -27,9 +27,8 @@ order: 4
 | 密钥                        | 存储位置                        | 用途                               |
 | --------------------------- | ------------------------------- | ---------------------------------- |
 | gateway_key                 | settings.json                   | Agent 访问 Gateway 的 Bearer token |
-| Provider api_keys           | settings.providers[id].api_keys | 转发上游                           |
+| Provider api_keys           | settings.providers[id].api_keys | 转发上游；按配置顺序尝试，跳过 429 冷却中的 Key |
 | artificial_analysis_api_key | settings（可选）                | 拉取 AA 基准                       |
-| subscribed 标记             | ApiKeyConfig.subscribed         | 路由成本优先，非独立密钥           |
 
 ## 端口
 

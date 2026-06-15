@@ -14,8 +14,6 @@
 //! Rank by AA median output speed (tokens/s), then TTFT, then cost. Models without speed
 //! data sink to the bottom; if none have speed data, fall back to cheapest.
 
-use std::collections::HashSet;
-
 use crate::types::Model;
 
 /// Typical prompt:completion token ratio for coding agents (input-heavy).
@@ -23,8 +21,6 @@ pub const BALANCED_INPUT_OUTPUT_RATIO: f64 = 10.0;
 
 /// Assumed prompt cache hit rate when `cache_read` pricing is available.
 pub const INPUT_CACHE_HIT_RATE: f64 = 0.9;
-
-const MIN_COST_EPSILON: f64 = 0.001;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskKind {
@@ -92,7 +88,9 @@ pub fn cache_read_cost_from_model(model: &Model) -> Option<f64> {
 pub fn blended_input_cost(input: f64, cache_read: Option<f64>) -> f64 {
     let input = input.max(0.0);
     match cache_read {
-        Some(cache_read) => INPUT_CACHE_HIT_RATE * cache_read + (1.0 - INPUT_CACHE_HIT_RATE) * input,
+        Some(cache_read) => {
+            INPUT_CACHE_HIT_RATE * cache_read + (1.0 - INPUT_CACHE_HIT_RATE) * input
+        }
         None => input,
     }
 }
@@ -147,40 +145,6 @@ pub fn capability_value_score(
     }
 }
 
-pub fn effective_routing_cost(
-    model: &Model,
-    subscribed_provider_ids: Option<&HashSet<String>>,
-) -> f64 {
-    if subscribed_provider_ids
-        .map(|ids| ids.contains(&model.provider_id))
-        .unwrap_or(false)
-    {
-        MIN_COST_EPSILON
-    } else {
-        effective_token_cost_for_model(model)
-    }
-}
-
-fn provider_is_subscribed(
-    provider_id: &str,
-    subscribed_provider_ids: Option<&HashSet<String>>,
-) -> bool {
-    subscribed_provider_ids
-        .map(|ids| ids.contains(provider_id))
-        .unwrap_or(false)
-}
-
-fn subscribed_sort_key(
-    provider_id: &str,
-    subscribed_provider_ids: Option<&HashSet<String>>,
-) -> u8 {
-    if provider_is_subscribed(provider_id, subscribed_provider_ids) {
-        0
-    } else {
-        1
-    }
-}
-
 /// A routable (model, service-provider) pair with endpoint-specific pricing.
 #[derive(Debug, Clone)]
 pub struct RouteCandidate<'a> {
@@ -189,24 +153,6 @@ pub struct RouteCandidate<'a> {
     pub input_cost: f64,
     pub output_cost: f64,
     pub cache_read_cost: Option<f64>,
-}
-
-pub fn effective_routing_cost_for_candidate(
-    candidate: &RouteCandidate<'_>,
-    subscribed_provider_ids: Option<&HashSet<String>>,
-) -> f64 {
-    if subscribed_provider_ids
-        .map(|ids| ids.contains(candidate.service_provider_id))
-        .unwrap_or(false)
-    {
-        MIN_COST_EPSILON
-    } else {
-        effective_token_cost(
-            Some(candidate.input_cost),
-            Some(candidate.output_cost),
-            candidate.cache_read_cost,
-        )
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -238,19 +184,19 @@ fn all_composite_indices_present(model: &Model) -> bool {
 
 fn task_capability_available(model: &Model, task: TaskKind) -> bool {
     match task {
-        TaskKind::Coding => {
-            model.coding_index.is_some() || model.overall_intelligence.is_some()
-        }
+        TaskKind::Coding => model.coding_index.is_some() || model.overall_intelligence.is_some(),
         TaskKind::Math => model.math_index.is_some() || model.overall_intelligence.is_some(),
-        TaskKind::Agentic => {
-            model.agentic_index.is_some() || model.overall_intelligence.is_some()
-        }
+        TaskKind::Agentic => model.agentic_index.is_some() || model.overall_intelligence.is_some(),
         TaskKind::General => model.overall_intelligence.is_some(),
     }
 }
 
 /// Whether a model can participate in scoring for the given strategy and task.
-pub fn model_routable_for_strategy(model: &Model, strategy: RoutingStrategy, task: TaskKind) -> bool {
+pub fn model_routable_for_strategy(
+    model: &Model,
+    strategy: RoutingStrategy,
+    task: TaskKind,
+) -> bool {
     match strategy {
         RoutingStrategy::Cheapest => true,
         RoutingStrategy::Intelligent => model.coding_index.is_some(),
@@ -343,15 +289,16 @@ fn score_models<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<(&'a Model, f64, f64)> {
     if matches!(strategy, RoutingStrategy::Speed)
-        && !models.iter().any(|model| model_output_speed(model).is_some())
+        && !models
+            .iter()
+            .any(|model| model_output_speed(model).is_some())
     {
         tracing::warn!(
             "Speed strategy has no models with AA output speed data; falling back to cheapest"
         );
-        return score_models(models, RoutingStrategy::Cheapest, profile, subscribed_provider_ids);
+        return score_models(models, RoutingStrategy::Cheapest, profile);
     }
 
     let mut scored: Vec<(&Model, f64, f64)> = models
@@ -379,16 +326,9 @@ fn score_models<'a>(
     }
 
     scored.sort_by(|(a_model, a_cap, a_val), (b_model, b_cap, b_val)| {
-        subscribed_sort_key(&a_model.provider_id, subscribed_provider_ids)
-            .cmp(&subscribed_sort_key(
-                &b_model.provider_id,
-                subscribed_provider_ids,
-            ))
-            .then_with(|| {
-                b_val
-                    .partial_cmp(a_val)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+        b_val
+            .partial_cmp(a_val)
+            .unwrap_or(std::cmp::Ordering::Equal)
             .then_with(|| {
                 b_cap
                     .partial_cmp(a_cap)
@@ -418,7 +358,6 @@ fn score_route_candidates<'a>(
     candidates: &'a [RouteCandidate<'a>],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<(&'a Model, &'a str, f64, f64)> {
     if matches!(strategy, RoutingStrategy::Speed)
         && !candidates
@@ -428,12 +367,7 @@ fn score_route_candidates<'a>(
         tracing::warn!(
             "Speed strategy has no models with AA output speed data; falling back to cheapest"
         );
-        return score_route_candidates(
-            candidates,
-            RoutingStrategy::Cheapest,
-            profile,
-            subscribed_provider_ids,
-        );
+        return score_route_candidates(candidates, RoutingStrategy::Cheapest, profile);
     }
 
     let mut scored: Vec<(&Model, &str, f64, f64, f64)> = candidates
@@ -467,7 +401,8 @@ fn score_route_candidates<'a>(
                         Some(candidate.output_cost),
                         candidate.cache_read_cost,
                     );
-                    let parts = score_parts_for_candidate(candidate, strategy, profile.task, routing_cost);
+                    let parts =
+                        score_parts_for_candidate(candidate, strategy, profile.task, routing_cost);
                     (
                         candidate.model,
                         candidate.service_provider_id,
@@ -481,14 +416,11 @@ fn score_route_candidates<'a>(
     }
 
     scored.sort_by(
-        |(a_model, a_provider, a_cap, a_val, a_cost), (b_model, b_provider, b_cap, b_val, b_cost)| {
-            subscribed_sort_key(a_provider, subscribed_provider_ids)
-                .cmp(&subscribed_sort_key(b_provider, subscribed_provider_ids))
-                .then_with(|| {
-                    b_val
-                        .partial_cmp(a_val)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                })
+        |(a_model, a_provider, a_cap, a_val, a_cost),
+         (b_model, b_provider, b_cap, b_val, b_cost)| {
+            b_val
+                .partial_cmp(a_val)
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| {
                     b_cap
                         .partial_cmp(a_cap)
@@ -503,7 +435,11 @@ fn score_route_candidates<'a>(
                         std::cmp::Ordering::Equal
                     }
                 })
-                .then_with(|| a_cost.partial_cmp(b_cost).unwrap_or(std::cmp::Ordering::Equal))
+                .then_with(|| {
+                    a_cost
+                        .partial_cmp(b_cost)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .then_with(|| a_model.name.cmp(&b_model.name))
                 .then_with(|| a_provider.cmp(b_provider))
         },
@@ -519,16 +455,17 @@ pub fn rank_route_candidates_with_scores<'a>(
     candidates: &'a [RouteCandidate<'a>],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<RankedRouteCandidate<'a>> {
-    score_route_candidates(candidates, strategy, profile, subscribed_provider_ids)
+    score_route_candidates(candidates, strategy, profile)
         .into_iter()
-        .map(|(model, service_provider_id, capability, value)| RankedRouteCandidate {
-            model,
-            service_provider_id,
-            capability,
-            value,
-        })
+        .map(
+            |(model, service_provider_id, capability, value)| RankedRouteCandidate {
+                model,
+                service_provider_id,
+                capability,
+                value,
+            },
+        )
         .collect()
 }
 
@@ -536,9 +473,8 @@ pub fn rank_route_candidates<'a>(
     candidates: &'a [RouteCandidate<'a>],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<(&'a Model, &'a str)> {
-    score_route_candidates(candidates, strategy, profile, subscribed_provider_ids)
+    score_route_candidates(candidates, strategy, profile)
         .into_iter()
         .map(|(model, provider, _, _)| (model, provider))
         .collect()
@@ -548,9 +484,8 @@ pub fn rank_models_with_scores<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<RankedModelScore<'a>> {
-    score_models(models, strategy, profile, subscribed_provider_ids)
+    score_models(models, strategy, profile)
         .into_iter()
         .map(|(model, capability, value)| RankedModelScore {
             model,
@@ -564,9 +499,8 @@ pub fn rank_models<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
-    subscribed_provider_ids: Option<&HashSet<String>>,
 ) -> Vec<&'a Model> {
-    score_models(models, strategy, profile, subscribed_provider_ids)
+    score_models(models, strategy, profile)
         .into_iter()
         .map(|(model, _, _)| model)
         .collect()
@@ -889,17 +823,13 @@ mod tests {
 
     #[test]
     fn effective_token_cost_weights_input_ten_to_one() {
-        assert!(
-            (effective_token_cost(Some(1.0), Some(1.0), None) - 11.0).abs() < f64::EPSILON
-        );
+        assert!((effective_token_cost(Some(1.0), Some(1.0), None) - 11.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn effective_token_cost_applies_cache_hit_rate() {
         // input 1.0, cache_read 0.1 → blended 0.19, + output 1.0 → 0.19*10+1 = 2.9
-        assert!(
-            (effective_token_cost(Some(1.0), Some(1.0), Some(0.1)) - 2.9).abs() < f64::EPSILON
-        );
+        assert!((effective_token_cost(Some(1.0), Some(1.0), Some(0.1)) - 2.9).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -929,7 +859,7 @@ mod tests {
             estimated_input_tokens: 500,
         };
         let models = [weak, strong];
-        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
         assert_eq!(ranked[0].name, "free-strong");
         assert_eq!(ranked[1].name, "free-weak");
     }
@@ -957,9 +887,10 @@ mod tests {
             cache_read_cost: None,
         };
         let candidates = [paid, free];
-        let ranked = rank_route_candidates(&candidates, RoutingStrategy::Balanced, &profile, None);
+        let ranked = rank_route_candidates(&candidates, RoutingStrategy::Balanced, &profile);
         assert_eq!(ranked[0].1, "subscription");
-        let scores = rank_route_candidates_with_scores(&candidates, RoutingStrategy::Balanced, &profile, None);
+        let scores =
+            rank_route_candidates_with_scores(&candidates, RoutingStrategy::Balanced, &profile);
         assert!(scores[0].value.is_infinite());
         assert!(scores[1].value.is_finite());
     }
@@ -974,7 +905,7 @@ mod tests {
             estimated_input_tokens: 8000,
         };
         let models = [cheap, strong];
-        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile);
         assert_eq!(ranked[0].name, "strong");
     }
 
@@ -988,7 +919,7 @@ mod tests {
             estimated_input_tokens: 120,
         };
         let models = [cheap, strong];
-        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Auto, &profile);
         assert_eq!(ranked[0].name, "cheap");
     }
 
@@ -1002,7 +933,7 @@ mod tests {
             estimated_input_tokens: 1000,
         };
         let models = [a, b];
-        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
         assert_eq!(ranked[0].name, "a");
     }
 
@@ -1017,7 +948,7 @@ mod tests {
             estimated_input_tokens: 200,
         };
         let models = [complete, partial];
-        let ranked = rank_models(&models, RoutingStrategy::Intelligent, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Intelligent, &profile);
         assert_eq!(ranked[0].name, "partial-aa");
         assert_eq!(ranked[1].name, "complete-aa");
     }
@@ -1036,54 +967,25 @@ mod tests {
             estimated_input_tokens: 1000,
         };
         let models = [missing, scored];
-        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
         assert_eq!(ranked[0].name, "scored");
         assert_eq!(ranked[1].name, "no-aa");
     }
 
     #[test]
-    fn subscribed_provider_beats_expensive_payg_model() {
+    fn cheap_endpoint_outranks_expensive_on_balanced() {
         let mut cheap = sample_model("cheap-payg", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
         cheap.provider_id = "payg".into();
-        let mut subscribed =
-            sample_model("subscribed-flagship", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
-        subscribed.provider_id = "subscribed-vendor".into();
+        let mut pricey = sample_model("pricey", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
+        pricey.provider_id = "premium".into();
         let profile = RequestProfile {
             task: TaskKind::General,
             complexity: 0.3,
             estimated_input_tokens: 500,
         };
-        let models = [cheap, subscribed];
-        let subscribed_ids = HashSet::from(["subscribed-vendor".to_string()]);
-        let ranked = rank_models(
-            &models,
-            RoutingStrategy::Balanced,
-            &profile,
-            Some(&subscribed_ids),
-        );
-        assert_eq!(ranked[0].name, "subscribed-flagship");
-    }
-
-    #[test]
-    fn subscribed_tier_ranks_before_higher_capability_payg_on_intelligent() {
-        let mut payg = sample_model("payg-smart", 0.5, 0.5, (90.0, 90.0, 80.0, 80.0));
-        payg.provider_id = "payg".into();
-        let mut subscribed = sample_model("subscribed-basic", 2.0, 2.0, (40.0, 40.0, 35.0, 35.0));
-        subscribed.provider_id = "subscribed-vendor".into();
-        let profile = RequestProfile {
-            task: TaskKind::Coding,
-            complexity: 0.5,
-            estimated_input_tokens: 1000,
-        };
-        let models = [payg, subscribed];
-        let subscribed_ids = HashSet::from(["subscribed-vendor".to_string()]);
-        let ranked = rank_models(
-            &models,
-            RoutingStrategy::Intelligent,
-            &profile,
-            Some(&subscribed_ids),
-        );
-        assert_eq!(ranked[0].name, "subscribed-basic");
+        let models = [pricey, cheap];
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
+        assert_eq!(ranked[0].name, "cheap-payg");
     }
 
     #[test]
@@ -1100,7 +1002,7 @@ mod tests {
             estimated_input_tokens: 1000,
         };
         let models = [slow, fast];
-        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
         assert_eq!(ranked[0].name, "fast");
     }
 
@@ -1118,7 +1020,7 @@ mod tests {
             estimated_input_tokens: 200,
         };
         let models = [a, b];
-        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
         assert_eq!(ranked[0].name, "b");
     }
 
@@ -1132,7 +1034,7 @@ mod tests {
             estimated_input_tokens: 200,
         };
         let models = [pricey, cheap];
-        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile, None);
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
         assert_eq!(ranked[0].name, "cheap");
     }
 

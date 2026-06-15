@@ -13,6 +13,7 @@ order: 2
 | 0.2.0-spec | 2026-06 | 全量按源码手写          | 替换脚本占位内容                |
 | 0.2.0-prod | 2026-06 | 订阅 Key + 429 fallback | REQ-CAB-006；types、routing、UI |
 | 0.2.0-arch | 2026-06 | P0–P3 架构演进          | REQ-CAB-007~010；cab-services   |
+| 0.2.1-spec | 2026-06 | 移除订阅路由文档漂移    | 路由成本改 models.dev 端点定价  |
 
 ## 0.2.0 架构演进摘要（v0.2.0-arch）
 
@@ -40,18 +41,18 @@ order: 2
 
 ## 0.2.0 功能变更摘要
 
-### 订阅路由
+### 路由成本与 Key 选择（当前）
 
-- `ApiKeyConfig.subscribed`（Rust + TS）
-- `effective_routing_cost` 订阅提供商近零边际成本
-- `ordered_api_keys` 优先订阅 Key
+- 路由成本：`effective_token_cost_for_model`，基于 models.dev 每提供商端点定价（`input_cost` / `output_cost` / `cache_read`）
+- `ApiKeyConfig`：`key`、`enabled`、`quota_reset_at`
+- `ordered_api_keys`：按 `api_keys` 配置顺序，跳过 rate-limited Key
 
 ### 429 Fallback
 
 - `subscription_quota.rs` 解析 Retry-After
 - `quota_reset_at` 持久化到 settings
 - `execute_with_fallback` 多 Key × 模型重试
-- Providers UI 订阅开关与额度标签
+- Providers UI 额度恢复标签
 
 ## 变更流程
 

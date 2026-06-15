@@ -10,7 +10,7 @@ order: 2
 | 单元                          | 隔离方式                                        |
 | ----------------------------- | ----------------------------------------------- |
 | `rank_models`                 | 仅传入 `&[Model]` 与 `RequestProfile`，无 store |
-| `effective_routing_cost`      | 纯函数 + `HashSet<provider_id>`                 |
+| `effective_token_cost`        | 纯函数，models.dev 定价字段                     |
 | `ordered_api_keys`            | 仅 `&[ApiKeyConfig]`                            |
 | `subscription_quota`          | 固定 `chrono` 时间或解析 Header 字符串          |
 | `protocol` 转换               | 内存 JSON `Value`，无 reqwest                   |
@@ -18,13 +18,13 @@ order: 2
 
 ## 隔离测试用例
 
-### UT-ISO-01：订阅成本独立于模型定价
+### UT-ISO-01：路由成本来自 models.dev 定价
 
-构造同一 `Model`，`subscribed_provider_ids` 含/不含其 `provider_id`，断言 `effective_routing_cost` 分别为 `MIN_COST_EPSILON` 与加权 token 成本。
+构造同一 `Model`，修改 `input_cost` / `output_cost` / `cache_read`，断言 `effective_token_cost_for_model` 按 blended_input×10 + output 变化。
 
-### UT-ISO-02：Key 顺序不依赖 Provider 其他字段
+### UT-ISO-02：Key 顺序遵循配置顺序
 
-仅修改 `api_keys` 数组中 `subscribed` 标志，断言 `ordered_api_keys` 顺序变化。
+构造 `api_keys` 数组，调整条目顺序或 `enabled` / `quota_reset_at`，断言 `ordered_api_keys` 按配置顺序返回可用 Key，跳过 rate-limited 项。
 
 ### UT-ISO-03：协议转换无网络
 
@@ -48,8 +48,8 @@ order: 2
 
 | 用例                 | 期望                     |
 | -------------------- | ------------------------ |
-| effective_token_cost | input×3+output           |
-| 订阅路由成本         | cost ≈ 0.001             |
+| effective_token_cost | blended_input×10+output  |
+| 已知免费定价         | cost = 0，value = +∞     |
 | Auto 高复杂度        | 低 capability 模型被过滤 |
 
 ### cab-core/subscription_quota.rs

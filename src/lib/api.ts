@@ -24,6 +24,8 @@ import type {
   UpdateAgent,
   RouteExplainRequest,
   RouteExplainResult,
+  StrategyBoardRequest,
+  StrategyBoardResult,
   RoutableModel,
 } from './types';
 
@@ -169,6 +171,12 @@ export const api = {
 
     explain: (data: RouteExplainRequest) =>
       request<RouteExplainResult>('/routing/explain', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+
+    strategyBoard: (data: StrategyBoardRequest) =>
+      request<StrategyBoardResult>('/routing/strategy-board', {
         method: 'POST',
         body: JSON.stringify(data),
       }),

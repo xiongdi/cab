@@ -20,7 +20,7 @@ Each provider row shows:
 3. Enter one or more API keys (CAB supports multiple keys per provider for rotation).
 4. Enable the provider.
 
-CAB selects the preferred key at request time based on subscription status and availability.
+CAB selects keys in configuration order, skipping keys in 429 cooldown.
 
 ## Models page
 
@@ -35,9 +35,9 @@ The **Models** catalog shows benchmark data synced from models.dev and Artificia
 
 Enable or disable individual models. Only **enabled models on enabled providers** are eligible for routing.
 
-## Subscription vs. pay-as-you-go
+## Multiple providers and billing
 
-CAB tracks whether a provider key is subscription-based or pay-as-you-go. Routing strategies weigh cost differently depending on key type — for example, the balanced strategy may prefer high-value models on subscription keys.
+models.dev lists the same model under different providers with distinct endpoint prices (for example pay-as-you-go `minimax` vs plan `minimax-cn-coding-plan`). **Enable the models.dev provider that matches your billing mode** and attach keys there; routing ranks by endpoint price and strategy scores. CAB no longer uses a per-key “subscription vs pay-as-you-go” flag.
 
 ## Catalog sync
 

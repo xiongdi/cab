@@ -6,8 +6,6 @@
 export interface ApiKeyConfig {
   key: string;
   enabled: boolean;
-  /** Subscription key: fixed cost already paid; routing favors near-zero marginal cost. */
-  subscribed?: boolean;
   /** RFC3339 timestamp when a 429 quota window ends. */
   quota_reset_at?: string | null;
 }
@@ -348,8 +346,6 @@ export interface ResolvedSummary {
 export interface RankedModelSummary {
   model_id: string;
   provider_id: string;
-  /** Service provider has an active subscription API key. */
-  subscribed?: boolean;
   /** Absent when AA benchmark data is not available (not the same as 0). */
   capability?: number | null;
   value?: number | null;
@@ -361,6 +357,23 @@ export interface RouteExplainResult {
   resolved: ResolvedSummary | null;
   decision_steps: DecisionStep[];
   ranked_candidates: RankedModelSummary[];
+}
+
+export interface StrategyBoardRequest {
+  agent: string;
+  body?: Record<string, unknown> | null;
+}
+
+export interface StrategyBoardStrategy {
+  id: string;
+  display_strategy: string;
+  task: string;
+  complexity: number;
+  candidates: RankedModelSummary[];
+}
+
+export interface StrategyBoardResult {
+  strategies: StrategyBoardStrategy[];
 }
 
 // ── Column config for DataTable ───────────────────────────────

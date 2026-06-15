@@ -1,7 +1,15 @@
 <script lang="ts">
   import { page } from '$app/stores';
   import { i18n } from '../i18n.svelte';
+  import { gatewayHealth } from '../gateway-health.svelte';
   import pkg from '../../../package.json';
+
+  const statusDotClass: Record<string, string> = {
+    running: 'dot-active',
+    stopped: 'dot-inactive',
+    error: 'dot-error',
+    checking: 'dot-inactive',
+  };
 
   // Svelte 5 derived state for reactive translation items
   const navItems = $derived([
@@ -118,8 +126,8 @@
 
     <div class="sidebar-footer">
       <div class="gateway-status">
-        <span class="dot dot-active"></span>
-        <span class="status-text">{i18n.t('settings.running')}</span>
+        <span class="dot {statusDotClass[gatewayHealth.status]}"></span>
+        <span class="status-text">{i18n.t(`settings.${gatewayHealth.status}`)}</span>
       </div>
       <span class="version">v{pkg.version}</span>
     </div>

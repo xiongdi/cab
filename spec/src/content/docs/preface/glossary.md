@@ -14,7 +14,7 @@ order: 3
 | InMemoryStore   | `cab-db/src/lib.rs`  | `RwLock<StoreData>` 内存数据库，设置持久化到 JSON              |
 | RequestProfile  | `routing.rs`         | 请求分类结果：`task` + `complexity` + `estimated_input_tokens` |
 | RoutingStrategy | `routing.rs`         | `auto` / `balanced` / `cheapest` / `intelligent`               |
-| ApiKeyConfig    | `types.rs`           | `key`, `enabled`, `subscribed`, `quota_reset_at`               |
+| ApiKeyConfig    | `types.rs`           | `key`, `enabled`, `quota_reset_at`                             |
 | Provider        | `types.rs`           | LLM API 提供商（如 OpenAI、Anthropic），目录来自 models.dev    |
 | ModelEndpoint   | `cab-db/endpoint.rs` | models.dev 同步的模型-提供商定价矩阵行                         |
 | ResolvedRoute   | `gateway/router.rs`  | 解析后的主模型 + 最多 2 个 fallback                            |
@@ -24,9 +24,10 @@ order: 3
 | 策略          | `rank_models` 行为                        |
 | ------------- | ----------------------------------------- |
 | `auto`        | 任务加权能力分 + 复杂度门槛 + 能力/成本   |
-| `balanced`    | 主能力指数 / 有效成本（input×3 + output） |
-| `cheapest`    | 负有效成本排序                            |
-| `intelligent` | 纯 `coding_index` 排序，忽略成本          |
+| `balanced`    | 主能力指数 / 有效成本（blended_input×10 + output） |
+| `cheapest`    | 负有效成本排序（等价于 effective_cost 升序）       |
+| `intelligent` | `coding_index` 降序，平局按成本与名称              |
+| `speed`       | `output_speed_tps` 降序；无数据降级 cheapest       |
 
 ## 缩写
 

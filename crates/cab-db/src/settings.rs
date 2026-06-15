@@ -45,7 +45,9 @@ fn provider_user_has_keys(settings: &ProviderUserSettings) -> bool {
     })
 }
 
-fn configured_provider_count(providers: &std::collections::HashMap<String, ProviderUserSettings>) -> usize {
+fn configured_provider_count(
+    providers: &std::collections::HashMap<String, ProviderUserSettings>,
+) -> usize {
     providers
         .values()
         .filter(|provider| provider_user_has_keys(provider))
@@ -225,7 +227,9 @@ pub async fn set_model_override(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cab_core::types::{ApiKeyConfig, ModelUserSettings, ProviderEndpoint, ProviderUserSettings};
+    use cab_core::types::{
+        ApiKeyConfig, ModelUserSettings, ProviderEndpoint, ProviderUserSettings,
+    };
 
     struct TestHome {
         _dir: tempfile::TempDir,
@@ -275,7 +279,6 @@ mod tests {
                 api_keys: Some(vec![ApiKeyConfig {
                     key: "key-1".into(),
                     enabled: true,
-                    subscribed: true,
                     quota_reset_at: None,
                 }]),
                 endpoints: Some(vec![ProviderEndpoint {
@@ -338,7 +341,10 @@ mod tests {
 
         let loaded = load_from_disk();
         assert_eq!(loaded.gateway_port, 4999);
-        assert_eq!(loaded.providers["minimax"].api_key.as_deref(), Some("secret"));
+        assert_eq!(
+            loaded.providers["minimax"].api_key.as_deref(),
+            Some("secret")
+        );
         assert_eq!(loaded.models["minimax/MiniMax-M3"].enabled, Some(true));
         assert!(settings_backup_path().exists());
         assert!(path.exists());
@@ -405,7 +411,10 @@ mod tests {
             },
         );
         assert_eq!(merged.gateway_port, 4567);
-        assert_eq!(merged.providers["minimax"].api_key.as_deref(), Some("secret"));
+        assert_eq!(
+            merged.providers["minimax"].api_key.as_deref(),
+            Some("secret")
+        );
     }
 
     #[tokio::test]

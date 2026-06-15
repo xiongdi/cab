@@ -1,10 +1,8 @@
+use crate::router::ResolvedModel;
 use axum::response::Response;
 use cab_core::types::ApiKeyConfig;
 use cab_core::{CabError, ordered_api_keys, resolve_quota_reset_at};
 use reqwest::Client;
-use std::collections::HashSet;
-
-use crate::router::ResolvedModel;
 
 /// Request info needed for fallback execution.
 pub struct ProxyRequest {
@@ -94,34 +92,21 @@ fn keys_for_attempt(resolved: &ResolvedModel) -> Vec<String> {
     }
 }
 
-fn is_subscribed_key(api_keys: &[ApiKeyConfig], key: &str) -> bool {
-    api_keys
-        .iter()
-        .any(|entry| entry.key == key && entry.subscribed)
-}
-
-async fn mark_subscribed_key_rate_limited(
+async fn mark_key_rate_limited(
     pool: &cab_db::InMemoryStore,
     provider_id: &str,
-    api_keys: &[ApiKeyConfig],
     api_key: &str,
     retry_after: Option<chrono::DateTime<chrono::Utc>>,
     body: &str,
 ) {
-    if !is_subscribed_key(api_keys, api_key) {
-        return;
-    }
-
     let reset_at = resolve_quota_reset_at(retry_after, body);
     if let Err(err) =
         cab_db::provider::mark_api_key_quota_reset(pool, provider_id, api_key, reset_at).await
     {
-        tracing::warn!(
-            "Failed to persist subscription quota reset for provider {provider_id}: {err}"
-        );
+        tracing::warn!("Failed to persist quota reset for provider {provider_id}: {err}");
     } else {
         tracing::warn!(
-            "Subscription key for provider {provider_id} rate-limited until {}",
+            "API key for provider {provider_id} rate-limited until {}",
             reset_at.to_rfc3339()
         );
     }
@@ -142,9 +127,7 @@ async fn clear_recovered_quota_if_needed(
 
     if let Err(err) = cab_db::provider::clear_api_key_quota_reset(pool, provider_id, api_key).await
     {
-        tracing::warn!(
-            "Failed to clear subscription quota reset for provider {provider_id}: {err}"
-        );
+        tracing::warn!("Failed to clear quota reset for provider {provider_id}: {err}");
     }
 }
 
@@ -159,17 +142,8 @@ pub async fn execute_with_fallback(
     let all_models = std::iter::once(primary).chain(fallbacks.iter());
 
     let mut last_error = CabError::Proxy("No models available".to_string());
-    let mut exhausted_subscribed_providers: HashSet<String> = HashSet::new();
 
     for resolved in all_models {
-        if exhausted_subscribed_providers.contains(&resolved.provider_id) {
-            tracing::info!(
-                "Skipping model {} — subscribed provider {} already exhausted",
-                resolved.model.name,
-                resolved.provider_id
-            );
-            continue;
-        }
         if resolved.endpoint_candidates.is_empty() {
             tracing::warn!(
                 "No endpoint matches model {} protocol {}",
@@ -308,17 +282,16 @@ pub async fn execute_with_fallback(
                         body,
                         retry_after,
                     }) => {
-                        mark_subscribed_key_rate_limited(
+                        mark_key_rate_limited(
                             pool,
                             &resolved.provider_id,
-                            &resolved.api_keys,
                             &api_key,
                             retry_after,
                             &body,
                         )
                         .await;
                         tracing::warn!(
-                            "Provider {} subscription key returned 429 — skipping all models for this provider",
+                            "Provider {} API key returned 429 — trying next key if available",
                             resolved.provider_name,
                         );
                         model_error = Some(CabError::ProviderError {
@@ -326,8 +299,7 @@ pub async fn execute_with_fallback(
                             body,
                             retry_after,
                         });
-                        exhausted_subscribed_providers.insert(resolved.provider_id.clone());
-                        break 'keys;
+                        continue 'keys;
                     }
                     Err(CabError::ProviderError {
                         status,
@@ -618,7 +590,6 @@ data: [DONE]\n\n",
             api_keys: vec![ApiKeyConfig {
                 key: "key-1".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }],
             provider_api_key: "".into(),
@@ -733,11 +704,7 @@ data: [DONE]\n\n",
         let primary = model(
             "provider/model",
             "openai-responses",
-            vec![endpoint(
-                "responses",
-                "openai-responses",
-                &server.base_url,
-            )],
+            vec![endpoint("responses", "openai-responses", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -781,11 +748,7 @@ data: [DONE]\n\n",
         let primary = model(
             "provider/model",
             "openai-responses",
-            vec![endpoint(
-                "responses",
-                "openai-responses",
-                &server.base_url,
-            )],
+            vec![endpoint("responses", "openai-responses", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -956,7 +919,7 @@ data: [DONE]\n\n",
     }
 
     #[tokio::test]
-    async fn subscribed_provider_429_falls_back_to_next_provider() {
+    async fn provider_429_falls_back_to_next_provider() {
         let sub_recorder = Recorder::default();
         let sub_server = spawn_router(
             Router::new()
@@ -984,7 +947,6 @@ data: [DONE]\n\n",
         primary.api_keys = vec![ApiKeyConfig {
             key: "sub-key".into(),
             enabled: true,
-            subscribed: true,
             quota_reset_at: None,
         }];
 
@@ -997,7 +959,9 @@ data: [DONE]\n\n",
         fallback.provider_name = "OpenCode Go".into();
 
         let request = ProxyRequest {
-            body: Bytes::from_static(br#"{"model":"auto","messages":[{"role":"user","content":"hi"}]}"#),
+            body: Bytes::from_static(
+                br#"{"model":"auto","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "chat/completions".into(),

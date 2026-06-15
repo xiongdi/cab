@@ -107,7 +107,6 @@ mod tests {
         let key = crate::types::ApiKeyConfig {
             key: "sk-test".into(),
             enabled: true,
-            subscribed: true,
             quota_reset_at: Some((Utc::now() + chrono::Duration::minutes(10)).to_rfc3339()),
         };
         assert!(is_key_rate_limited(&key));
@@ -118,7 +117,6 @@ mod tests {
         let key = crate::types::ApiKeyConfig {
             key: "sk-test".into(),
             enabled: true,
-            subscribed: true,
             quota_reset_at: Some((Utc::now() - chrono::Duration::minutes(1)).to_rfc3339()),
         };
         assert!(!is_key_rate_limited(&key));
@@ -130,7 +128,6 @@ mod tests {
             let key = crate::types::ApiKeyConfig {
                 key: "sk-test".into(),
                 enabled: true,
-                subscribed: true,
                 quota_reset_at,
             };
             assert!(!is_key_rate_limited(&key));

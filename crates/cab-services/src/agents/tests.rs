@@ -70,7 +70,6 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 api_keys: vec![ApiKeyConfig {
                     key: "key".into(),
                     enabled: true,
-                    subscribed: false,
                     quota_reset_at: None,
                 }],
                 api: None,
@@ -164,8 +163,9 @@ async fn codex_auto_manual_and_native_modes_update_toml_config() {
     // Write a dummy key/token to auth.json to verify clean-up/restore logic
     fs::write(
         &auth_path,
-        "{\"OPENAI_API_KEY\": \"gw-key\", \"tokens\": {\"access_token\": \"gw-key\"}}"
-    ).unwrap();
+        "{\"OPENAI_API_KEY\": \"gw-key\", \"tokens\": {\"access_token\": \"gw-key\"}}",
+    )
+    .unwrap();
 
     apply_agent_config(&pool, &agent("codex", "native"), 4567, "gw-key")
         .await

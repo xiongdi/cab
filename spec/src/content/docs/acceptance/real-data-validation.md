@@ -13,7 +13,7 @@ order: 3
 
 ### 真实 Key 转发
 
-1. 在 Providers 配置生产 Key（订阅 + 按量各一更佳）
+1. 在 Providers 配置生产 Key（多 Key 时可验证 fallback 顺序）
 2. 通过 Gateway 发送真实 coding 请求
 3. 核对上游账单或 Logs 中 provider/model/token
 
@@ -30,12 +30,10 @@ order: 3
 | Claude Code  | 终端多轮对话 |
 | Codex / 其他 | 至少抽样一种 |
 
-### 订阅与 429（真实）
+### 429 与 Key fallback（真实）
 
-若用户有订阅套餐：
-
-1. 标记 subscribed → 观察是否优先消耗订阅路由
-2. 若遇真实 429 → UI 显示 `quota_reset_at`，流量 fallback 按量 Key
+1. 若遇真实 429 → UI 显示 `quota_reset_at`，该 Key 进入冷却
+2. 观察 Gateway 是否按 `api_keys` 配置顺序 fallback 到下一个可用 Key
 
 ## 数据隐私
 
@@ -46,4 +44,4 @@ order: 3
 
 - 真实任务连续 30 分钟无 Blocker
 - Token 统计与主观体验一致
-- 订阅/fallback 行为符合用户预期
+- Key fallback 行为符合用户预期

@@ -120,11 +120,14 @@ impl AgentIntegration for Integration {
 
             if let Some(obj) = auth_json.as_object_mut() {
                 // Back up existing ChatGPT tokens if they are not already our managed tokens
-                let current_token = obj.get("tokens")
+                let current_token = obj
+                    .get("tokens")
                     .and_then(|t| t.get("access_token"))
                     .and_then(|v| v.as_str());
 
-                let is_cab_token = current_token.map(|t| t.starts_with("cab-token-")).unwrap_or(false);
+                let is_cab_token = current_token
+                    .map(|t| t.starts_with("cab-token-"))
+                    .unwrap_or(false);
 
                 if let Some(toks) = obj.get("tokens").and_then(|t| t.as_object()) {
                     if !is_cab_token {
@@ -153,7 +156,9 @@ impl AgentIntegration for Integration {
                 }
 
                 let current_api_key = obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
-                let is_cab_api_key = current_api_key.map(|k| k.starts_with("cab-token-")).unwrap_or(false);
+                let is_cab_api_key = current_api_key
+                    .map(|k| k.starts_with("cab-token-"))
+                    .unwrap_or(false);
                 if let Some(k) = obj.get("OPENAI_API_KEY") {
                     if !is_cab_api_key {
                         obj.insert("cab_backup_openai_api_key".to_string(), k.clone());
@@ -161,9 +166,15 @@ impl AgentIntegration for Integration {
                 }
 
                 // Set our CAB managed ChatGPT auth
-                obj.insert("auth_mode".to_string(), serde_json::Value::String("chatgpt".to_string()));
-                obj.insert("last_refresh".to_string(), serde_json::Value::String("2099-01-01T00:00:00Z".to_string()));
-                
+                obj.insert(
+                    "auth_mode".to_string(),
+                    serde_json::Value::String("chatgpt".to_string()),
+                );
+                obj.insert(
+                    "last_refresh".to_string(),
+                    serde_json::Value::String("2099-01-01T00:00:00Z".to_string()),
+                );
+
                 let tokens = serde_json::json!({
                     "access_token": key.clone(),
                     "refresh_token": "",
@@ -207,7 +218,8 @@ impl AgentIntegration for Integration {
                         let mut modified = false;
                         if let Some(obj) = auth_json.as_object_mut() {
                             if let Some(bak_acc) = obj.remove("cab_backup_access_token") {
-                                let mut tokens = obj.get("tokens")
+                                let mut tokens = obj
+                                    .get("tokens")
                                     .and_then(|t| t.as_object().cloned())
                                     .unwrap_or_default();
                                 tokens.insert("access_token".to_string(), bak_acc);
@@ -220,10 +232,18 @@ impl AgentIntegration for Integration {
                                 obj.insert("tokens".to_string(), serde_json::Value::Object(tokens));
                                 modified = true;
                             } else {
-                                let current_token = obj.get("tokens")
+                                let current_token = obj
+                                    .get("tokens")
                                     .and_then(|t| t.get("access_token"))
                                     .and_then(|v| v.as_str());
-                                if current_token.map(|t| t.starts_with("cab-token-") || t == gateway_key || t == api_key).unwrap_or(false) {
+                                if current_token
+                                    .map(|t| {
+                                        t.starts_with("cab-token-")
+                                            || t == gateway_key
+                                            || t == api_key
+                                    })
+                                    .unwrap_or(false)
+                                {
                                     obj.remove("tokens");
                                     modified = true;
                                 }
@@ -232,7 +252,9 @@ impl AgentIntegration for Integration {
                             if let Some(bak_lr) = obj.remove("cab_backup_last_refresh") {
                                 obj.insert("last_refresh".to_string(), bak_lr);
                                 modified = true;
-                            } else if obj.get("last_refresh").and_then(|v| v.as_str()) == Some("2099-01-01T00:00:00Z") {
+                            } else if obj.get("last_refresh").and_then(|v| v.as_str())
+                                == Some("2099-01-01T00:00:00Z")
+                            {
                                 obj.remove("last_refresh");
                                 modified = true;
                             }
@@ -240,7 +262,9 @@ impl AgentIntegration for Integration {
                             if let Some(bak_am) = obj.remove("cab_backup_auth_mode") {
                                 obj.insert("auth_mode".to_string(), bak_am);
                                 modified = true;
-                            } else if obj.get("auth_mode").and_then(|v| v.as_str()) == Some("chatgpt") {
+                            } else if obj.get("auth_mode").and_then(|v| v.as_str())
+                                == Some("chatgpt")
+                            {
                                 obj.remove("auth_mode");
                                 modified = true;
                             }
@@ -249,8 +273,16 @@ impl AgentIntegration for Integration {
                                 obj.insert("OPENAI_API_KEY".to_string(), bak_key);
                                 modified = true;
                             } else {
-                                let current_api_key = obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
-                                if current_api_key.map(|k| k.starts_with("cab-token-") || k == gateway_key || k == api_key).unwrap_or(false) {
+                                let current_api_key =
+                                    obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
+                                if current_api_key
+                                    .map(|k| {
+                                        k.starts_with("cab-token-")
+                                            || k == gateway_key
+                                            || k == api_key
+                                    })
+                                    .unwrap_or(false)
+                                {
                                     obj.remove("OPENAI_API_KEY");
                                     modified = true;
                                 }

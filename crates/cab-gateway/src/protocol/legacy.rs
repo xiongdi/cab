@@ -166,9 +166,7 @@ impl OpenAiChatStreamConverter {
                 }),
             ));
         }
-        self.output_tokens = self
-            .output_tokens
-            .saturating_add(partial_json.len() as u64);
+        self.output_tokens = self.output_tokens.saturating_add(partial_json.len() as u64);
         self.pending.push(anthropic_stream_event(
             "content_block_delta",
             serde_json::json!({
@@ -180,16 +178,18 @@ impl OpenAiChatStreamConverter {
     }
 
     fn ensure_tool_block_started(&mut self, openai_index: u64) {
-        let Some((block_index, id, name)) = self.tool_calls.get_mut(&openai_index).and_then(|tool| {
-            if tool.started || tool.name.is_empty() {
-                return None;
-            }
-            if tool.id.is_empty() {
-                tool.id = format!("toolu_{}", uuid::Uuid::new_v4().simple());
-            }
-            tool.started = true;
-            Some((tool.block_index, tool.id.clone(), tool.name.clone()))
-        }) else {
+        let Some((block_index, id, name)) =
+            self.tool_calls.get_mut(&openai_index).and_then(|tool| {
+                if tool.started || tool.name.is_empty() {
+                    return None;
+                }
+                if tool.id.is_empty() {
+                    tool.id = format!("toolu_{}", uuid::Uuid::new_v4().simple());
+                }
+                tool.started = true;
+                Some((tool.block_index, tool.id.clone(), tool.name.clone()))
+            })
+        else {
             return;
         };
         self.ensure_message_started();
@@ -369,7 +369,12 @@ impl OpenAiChatStreamConverter {
             let flush = self
                 .tool_calls
                 .get(&idx)
-                .map(|tool| (!tool.pending_args.is_empty() && !tool.name.is_empty(), tool.pending_args.clone()))
+                .map(|tool| {
+                    (
+                        !tool.pending_args.is_empty() && !tool.name.is_empty(),
+                        tool.pending_args.clone(),
+                    )
+                })
                 .unwrap_or((false, String::new()));
             if flush.0 {
                 self.push_tool_input_delta(idx, &flush.1);
@@ -441,7 +446,10 @@ impl OpenAiChatStreamConverter {
         {
             self.push_thinking_delta(reasoning);
         }
-        if let Some(text) = delta.and_then(|d| d.get("content")).and_then(|c| c.as_str()) {
+        if let Some(text) = delta
+            .and_then(|d| d.get("content"))
+            .and_then(|c| c.as_str())
+        {
             self.push_text_delta(text);
         }
         if let Some(Value::Array(tool_calls)) = delta.and_then(|d| d.get("tool_calls")) {
@@ -555,14 +563,9 @@ pub fn responses_text_from_body(responses: &Value) -> String {
                             blocks
                                 .iter()
                                 .filter_map(|block| {
-                                    block
-                                        .get("text")
-                                        .and_then(|t| t.as_str())
-                                        .or_else(|| {
-                                            block
-                                                .get("output_text")
-                                                .and_then(|t| t.as_str())
-                                        })
+                                    block.get("text").and_then(|t| t.as_str()).or_else(|| {
+                                        block.get("output_text").and_then(|t| t.as_str())
+                                    })
                                 })
                                 .collect::<Vec<_>>()
                                 .join(""),
@@ -888,7 +891,10 @@ mod tests {
         assert_eq!(converted["system"], "be terse\n\nbe exact");
         assert_eq!(converted["messages"].as_array().unwrap().len(), 2);
         assert_eq!(converted["messages"][0]["role"], "user");
-        assert_eq!(converted["messages"][1]["content"][0]["type"], "tool_result");
+        assert_eq!(
+            converted["messages"][1]["content"][0]["type"],
+            "tool_result"
+        );
     }
 
     #[test]
@@ -986,7 +992,10 @@ mod tests {
 
         assert_eq!(converted["tools"][0]["function"]["name"], "Read");
         assert_eq!(converted["messages"][0]["role"], "assistant");
-        assert_eq!(converted["messages"][0]["tool_calls"][0]["function"]["name"], "Read");
+        assert_eq!(
+            converted["messages"][0]["tool_calls"][0]["function"]["name"],
+            "Read"
+        );
         assert_eq!(converted["messages"][1]["role"], "tool");
         assert_eq!(converted["messages"][1]["tool_call_id"], "toolu_1");
     }
@@ -1010,7 +1019,10 @@ mod tests {
             converted["messages"][0]["reasoning_content"],
             "Need to read the file first."
         );
-        assert_eq!(converted["messages"][0]["tool_calls"][0]["function"]["name"], "Read");
+        assert_eq!(
+            converted["messages"][0]["tool_calls"][0]["function"]["name"],
+            "Read"
+        );
     }
 
     #[test]
@@ -1032,7 +1044,10 @@ mod tests {
         let converted = openai_chat_to_anthropic_messages(&body);
 
         assert_eq!(converted["content"][0]["type"], "thinking");
-        assert_eq!(converted["content"][0]["thinking"], "Let me answer briefly.");
+        assert_eq!(
+            converted["content"][0]["thinking"],
+            "Let me answer briefly."
+        );
         assert_eq!(converted["content"][1]["type"], "text");
         assert_eq!(converted["content"][1]["text"], "Hello");
     }
@@ -1043,10 +1058,9 @@ mod tests {
 data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"},\"finish_reason\":null}]}\n\n\
 data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n\
 data: [DONE]\n\n";
-        let upstream =
-            futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(Bytes::from(
-                openai_sse,
-            ))]);
+        let upstream = futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(
+            Bytes::from(openai_sse),
+        )]);
         let mut out = transform_openai_chat_sse_to_anthropic(upstream, "test-model".into());
         let mut sse = String::new();
         while let Some(chunk) = out.next().await {
@@ -1065,10 +1079,9 @@ data: [DONE]\n\n";
 data: {\"choices\":[{\"delta\":{\"content\":\" there\"},\"finish_reason\":null}]}\n\n\
 data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"completion_tokens\":2}}\n\n\
 data: [DONE]\n\n";
-        let upstream =
-            futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(Bytes::from(
-                openai_sse,
-            ))]);
+        let upstream = futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(
+            Bytes::from(openai_sse),
+        )]);
         let mut out = transform_openai_chat_sse_to_anthropic(upstream, "test-model".into());
         let mut sse = String::new();
         while let Some(chunk) = out.next().await {
@@ -1338,7 +1351,7 @@ data: [DONE]
 
     #[test]
     fn convert_request_routes_anthropic_to_responses_with_tools() {
-        use crate::protocol::{convert_request, PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES};
+        use crate::protocol::{PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, convert_request};
         let body = serde_json::json!({
             "model": "claude-test",
             "max_tokens": 100,

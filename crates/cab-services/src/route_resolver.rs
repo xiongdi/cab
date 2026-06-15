@@ -4,8 +4,7 @@ use cab_core::types::ApiKeyConfig;
 use cab_core::types::{Model, Provider, ProviderEndpoint};
 use cab_core::{
     RequestProfile, RouteCandidate, RoutingStrategy, build_request_profile,
-    provider_has_available_key, provider_has_subscribed_key, rank_route_candidates,
-    select_preferred_api_key,
+    provider_has_available_key, rank_route_candidates, select_preferred_api_key,
 };
 use cab_db::catalog::RouteCatalog;
 
@@ -125,7 +124,8 @@ pub async fn resolve_route(
         if matches!(
             strategy,
             "cheapest" | "intelligent" | "balanced" | "auto" | "speed"
-        ) && let Some(resolved) = resolve_by_strategy(catalog, strategy, &request_profile).await?
+        ) && let Some(resolved) =
+            resolve_by_strategy(catalog, strategy, &request_profile).await?
         {
             return Ok(resolved);
         }
@@ -222,40 +222,14 @@ async fn resolve_by_strategy(
         })
         .collect();
 
-    let subscribed_provider_ids = subscribed_provider_ids(catalog).await?;
-    let ranked = rank_route_candidates(
-        &candidates,
-        parsed,
-        profile,
-        Some(&subscribed_provider_ids),
-    );
+    let ranked = rank_route_candidates(&candidates, parsed, profile);
     let allow_same_provider_fallbacks = !matches!(parsed, RoutingStrategy::Auto);
-    resolve_ranked_routes(
-        catalog,
-        ranked,
-        &subscribed_provider_ids,
-        3,
-        allow_same_provider_fallbacks,
-    )
-    .await
-}
-
-async fn subscribed_provider_ids(
-    catalog: &impl RouteCatalog,
-) -> Result<HashSet<String>, cab_core::CabError> {
-    let all_providers = catalog.list_catalog_providers().await?;
-
-    Ok(all_providers
-        .into_iter()
-        .filter(|p| provider_has_subscribed_key(&p.api_keys))
-        .map(|p| p.id)
-        .collect())
+    resolve_ranked_routes(catalog, ranked, 3, allow_same_provider_fallbacks).await
 }
 
 async fn resolve_ranked_routes(
     catalog: &impl RouteCatalog,
     ranked: Vec<(&Model, &str)>,
-    subscribed_provider_ids: &HashSet<String>,
     max_routes: usize,
     allow_same_provider_fallbacks: bool,
 ) -> Result<Option<ResolvedRoute>, cab_core::CabError> {
@@ -264,40 +238,14 @@ async fn resolve_ranked_routes(
     let mut providers_in_result = HashSet::new();
 
     for (model, provider_id) in &ranked {
-        if !subscribed_provider_ids.contains(*provider_id) {
-            continue;
-        }
-        if !providers_in_result.insert(provider_id.to_string()) {
-            continue;
-        }
-        if let Some(resolved) = try_resolve_with_provider(catalog, model, provider_id).await? {
-            seen_model_ids.insert(resolved.model.id.clone());
-            resolved_models.push(resolved);
-        } else {
-            providers_in_result.remove(*provider_id);
-        }
-    }
-
-    let primary_provider_id = resolved_models
-        .first()
-        .map(|resolved| resolved.provider_id.clone());
-
-    for (model, provider_id) in &ranked {
         if resolved_models.len() >= max_routes {
             break;
         }
         if seen_model_ids.contains(&model.id) {
             continue;
         }
-        if !allow_same_provider_fallbacks {
-            if primary_provider_id.as_deref() == Some(*provider_id) {
-                continue;
-            }
-            if subscribed_provider_ids.contains(*provider_id)
-                && providers_in_result.contains(*provider_id)
-            {
-                continue;
-            }
+        if !allow_same_provider_fallbacks && providers_in_result.contains(*provider_id) {
+            continue;
         }
         if let Some(resolved) = try_resolve_with_provider(catalog, model, provider_id).await? {
             seen_model_ids.insert(resolved.model.id.clone());
@@ -388,15 +336,11 @@ async fn resolve_model(
         return Ok(None);
     }
 
-    if let Some(resolved) =
-        try_resolve_with_provider(catalog, &model, &model.provider_id).await?
-    {
+    if let Some(resolved) = try_resolve_with_provider(catalog, &model, &model.provider_id).await? {
         return Ok(Some(resolved));
     }
 
-    let tags = catalog
-        .enabled_provider_tags_for_model(&model.name)
-        .await?;
+    let tags = catalog.enabled_provider_tags_for_model(&model.name).await?;
     for tag in tags {
         if tag == model.provider_id {
             continue;
@@ -451,15 +395,11 @@ async fn resolve_model_by_name(
         return Ok(None);
     }
 
-    if let Some(resolved) =
-        try_resolve_with_provider(catalog, &model, &model.provider_id).await?
-    {
+    if let Some(resolved) = try_resolve_with_provider(catalog, &model, &model.provider_id).await? {
         return Ok(Some(resolved));
     }
 
-    let tags = catalog
-        .enabled_provider_tags_for_model(&model.name)
-        .await?;
+    let tags = catalog.enabled_provider_tags_for_model(&model.name).await?;
     for tag in tags {
         if tag == model.provider_id {
             continue;
@@ -538,13 +478,11 @@ mod tests {
                 ApiKeyConfig {
                     key: "sub-key".into(),
                     enabled: true,
-                    subscribed: true,
                     quota_reset_at: None,
                 },
                 ApiKeyConfig {
                     key: key.into(),
                     enabled: true,
-                    subscribed: false,
                     quota_reset_at: None,
                 },
             ],
@@ -713,7 +651,6 @@ mod tests {
             provider.api_keys = vec![ApiKeyConfig {
                 key: "sk-from-array".into(),
                 enabled: true,
-                subscribed: true,
                 quota_reset_at: None,
             }];
             data.providers.insert("p1".into(), provider);
@@ -777,7 +714,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn auto_strategy_only_one_model_per_subscribed_provider() {
+    async fn auto_strategy_only_one_model_per_provider() {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
@@ -786,10 +723,10 @@ mod tests {
             let mid_name = data.models["mid"].name.clone();
             data.model_endpoints
                 .insert("mid-ep".into(), model_endpoint("mid", &mid_name));
+            data.models.get_mut("backup").unwrap().enabled = false;
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-only".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }];
             data.agents.insert(
@@ -810,25 +747,27 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resolved.provider_id, "p1");
+        let primary_id = resolved.provider_id.clone();
         assert!(
             !resolved
                 .fallback_models
                 .iter()
-                .any(|fallback| fallback.provider_id == "p1"),
-            "subscribed provider should not appear again in fallbacks"
+                .any(|fallback| fallback.provider_id == primary_id),
+            "same provider should not appear again in fallbacks"
         );
     }
 
     #[tokio::test]
-    async fn auto_strategy_primary_subscribed_with_payg_fallback_provider() {
+    async fn auto_strategy_primary_with_fallback_provider() {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
+            data.models.get_mut("backup").unwrap().input_cost = Some(10.0);
+            data.models.get_mut("backup").unwrap().output_cost = Some(20.0);
+            data.models.get_mut("cheap").unwrap().enabled = false;
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-only".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }];
             data.agents.insert(
@@ -855,12 +794,12 @@ mod tests {
                 .fallback_models
                 .iter()
                 .any(|fallback| fallback.provider_id == "p2"),
-            "expected pay-as-you-go provider in fallbacks"
+            "expected secondary provider in fallbacks"
         );
     }
 
     #[tokio::test]
-    async fn auto_strategy_skips_rate_limited_subscribed_for_payg_primary() {
+    async fn auto_strategy_skips_rate_limited_key_for_next_provider() {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
@@ -868,13 +807,11 @@ mod tests {
             data.providers.get_mut("p1").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "sub-key".into(),
                 enabled: true,
-                subscribed: true,
                 quota_reset_at: Some(reset_at),
             }];
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-only".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }];
             data.agents.insert(
@@ -897,7 +834,7 @@ mod tests {
 
         assert_eq!(
             resolved.provider_id, "p2",
-            "rate-limited subscription should defer to pay-as-you-go"
+            "rate-limited key should defer to next provider"
         );
     }
 
@@ -924,7 +861,7 @@ mod tests {
         .await
         .unwrap();
 
-        // All providers are subscribed, so tier is equal and balanced uses normal value scoring.
+        // Value scoring picks cheap model first when providers are comparable.
         // cheap:  20 / (0.1*10 + 0.2) = 40
         // mid:    75 / (2.0*10 + 4.0) = 3.125
         // backup: 50 / (1.0*10 + 2.0) = 3.33
@@ -944,18 +881,16 @@ mod tests {
     async fn built_in_balanced_strategy_prefers_good_value_over_flagship_on_payg() {
         let store = seeded_store();
         {
-            // Override provider api_keys to mark them as PAYG-only (no subscribed keys)
+            // Use a single pay-as-you-go key per provider for this scenario.
             let mut data = store.inner.write().unwrap();
             data.providers.get_mut("p1").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-key".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }];
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-key-2".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }];
             data.models

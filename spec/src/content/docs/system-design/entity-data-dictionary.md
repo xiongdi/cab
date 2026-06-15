@@ -71,7 +71,6 @@ PersistedState ──包含── agents, routes（state.json）
 | -------------- | ---------------- | ----------------------- |
 | key            | String           | 密钥明文（本地存储）    |
 | enabled        | bool             | 是否可用                |
-| subscribed     | bool             | 订阅标记，影响路由成本  |
 | quota_reset_at | Option\<String\> | RFC3339，429 后恢复时间 |
 
 ## Model

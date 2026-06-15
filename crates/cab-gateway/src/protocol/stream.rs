@@ -171,8 +171,10 @@ impl AnthropicSseEmitter {
             return;
         }
         if self.thinking_index.is_none() {
-            let idx =
-                self.start_block("thinking", serde_json::json!({"type": "thinking", "thinking": ""}));
+            let idx = self.start_block(
+                "thinking",
+                serde_json::json!({"type": "thinking", "thinking": ""}),
+            );
             self.thinking_index = Some(idx);
         }
         self.output_tokens = self.output_tokens.saturating_add(text.len() as u64);
@@ -497,7 +499,9 @@ where
             }
 
             let emit = |pending: &mut Vec<Bytes>, event_type: &str, data: Value| {
-                pending.push(Bytes::from(format!("event: {event_type}\ndata: {data}\n\n")));
+                pending.push(Bytes::from(format!(
+                    "event: {event_type}\ndata: {data}\n\n"
+                )));
             };
 
             let process = |line: &str,
@@ -538,7 +542,10 @@ where
                     .get("choices")
                     .and_then(|c| c.get(0))
                     .and_then(|c| c.get("delta"));
-                if let Some(text) = delta.and_then(|d| d.get("content")).and_then(|c| c.as_str()) {
+                if let Some(text) = delta
+                    .and_then(|d| d.get("content"))
+                    .and_then(|c| c.as_str())
+                {
                     *text_started = true;
                     accumulated.push_str(text);
                     emit(
@@ -560,10 +567,8 @@ where
                             .and_then(|f| f.get("name"))
                             .and_then(|n| n.as_str())
                         {
-                            let call_id = call
-                                .get("id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("call_0");
+                            let call_id =
+                                call.get("id").and_then(|v| v.as_str()).unwrap_or("call_0");
                             emit(
                                 pending,
                                 "response.output_item.added",
@@ -579,10 +584,8 @@ where
                             .and_then(|f| f.get("arguments"))
                             .and_then(|a| a.as_str())
                         {
-                            let call_id = call
-                                .get("id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("call_0");
+                            let call_id =
+                                call.get("id").and_then(|v| v.as_str()).unwrap_or("call_0");
                             emit(
                                 pending,
                                 "response.function_call_arguments.delta",
@@ -851,7 +854,9 @@ fn push_openai_chat_sse(pending: &mut Vec<Bytes>, delta: Value, finish_reason: O
 }
 
 fn push_responses_sse(pending: &mut Vec<Bytes>, event_type: &str, data: Value) {
-    pending.push(Bytes::from(format!("event: {event_type}\ndata: {data}\n\n")));
+    pending.push(Bytes::from(format!(
+        "event: {event_type}\ndata: {data}\n\n"
+    )));
 }
 
 fn anthropic_stop_to_openai_finish(stop: &str) -> &str {
@@ -1019,7 +1024,11 @@ where
                         );
                     }
                     if !done {
-                        push_openai_chat_sse(&mut pending, serde_json::json!({}), Some(&finish_reason));
+                        push_openai_chat_sse(
+                            &mut pending,
+                            serde_json::json!({}),
+                            Some(&finish_reason),
+                        );
                         pending.push(Bytes::from("data: [DONE]\n\n".to_string()));
                     }
                     done = true;
@@ -1255,7 +1264,10 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
             ));
         }
     }
-    if let Some(content) = message.and_then(|m| m.get("content")).and_then(|c| c.as_str()) {
+    if let Some(content) = message
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+    {
         if !content.is_empty() {
             sse.push_str(&format!(
                 "data: {}\n\n",
@@ -1268,10 +1280,7 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
     if let Some(Value::Array(tool_calls)) = message.and_then(|m| m.get("tool_calls")) {
         for call in tool_calls {
             let idx = call.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
-            let id = call
-                .get("id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("call_0");
+            let id = call.get("id").and_then(|v| v.as_str()).unwrap_or("call_0");
             let name = call
                 .get("function")
                 .and_then(|f| f.get("name"))
@@ -1314,10 +1323,7 @@ pub fn synthesize_anthropic_sse_from_response(message: &Value, model: String) ->
                 .filter_map(|b| {
                     b.get("text")
                         .and_then(|t| t.as_str())
-                        .or_else(|| {
-                            b.get("thinking")
-                                .and_then(|t| t.as_str())
-                        })
+                        .or_else(|| b.get("thinking").and_then(|t| t.as_str()))
                 })
                 .collect::<Vec<_>>()
                 .join("")

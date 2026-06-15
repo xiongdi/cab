@@ -37,8 +37,8 @@ async fn api_auth_middleware(
             || val.starts_with("http://tauri.")
     };
 
-    let bypass = origin.map(is_trusted).unwrap_or(false)
-        || referer.map(is_trusted).unwrap_or(false);
+    let bypass =
+        origin.map(is_trusted).unwrap_or(false) || referer.map(is_trusted).unwrap_or(false);
 
     if !bypass {
         if let Err(err) = cab_db::auth::verify(
@@ -55,7 +55,6 @@ async fn api_auth_middleware(
     }
     next.run(request).await
 }
-
 
 #[cfg(test)]
 pub(crate) static TEST_HOME_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
@@ -144,6 +143,7 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/routes/{id}", put(routes::update_route))
         .route("/api/routes/{id}", delete(routes::delete_route))
         .route("/api/routing/explain", post(routing::explain_routing))
+        .route("/api/routing/strategy-board", post(routing::strategy_board))
         // Logs
         .route("/api/logs", get(logs::query_logs))
         // Coding Agents

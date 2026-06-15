@@ -52,14 +52,16 @@ pub async fn handle_list_models(
         .collect();
 
     // Sort by intelligence descending; models without AA scores sort last.
-    models.sort_by(|a, b| match (b.overall_intelligence, a.overall_intelligence) {
-        (None, None) => std::cmp::Ordering::Equal,
-        (None, Some(_)) => std::cmp::Ordering::Less,
-        (Some(_), None) => std::cmp::Ordering::Greater,
-        (Some(b_score), Some(a_score)) => b_score
-            .partial_cmp(&a_score)
-            .unwrap_or(std::cmp::Ordering::Equal),
-    });
+    models.sort_by(
+        |a, b| match (b.overall_intelligence, a.overall_intelligence) {
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, Some(_)) => std::cmp::Ordering::Less,
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (Some(b_score), Some(a_score)) => b_score
+                .partial_cmp(&a_score)
+                .unwrap_or(std::cmp::Ordering::Equal),
+        },
+    );
 
     let mut model_list = Vec::new();
     for model in models {
@@ -316,7 +318,6 @@ data: [DONE]\n",
             api_keys: vec![ApiKeyConfig {
                 key: api_key.into(),
                 enabled: !api_key.is_empty(),
-                subscribed: false,
                 quota_reset_at: None,
             }],
             api: None,
@@ -352,7 +353,6 @@ data: [DONE]\n",
             api_keys: vec![ApiKeyConfig {
                 key: "key-1".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }],
             api: None,

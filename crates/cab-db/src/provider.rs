@@ -387,11 +387,10 @@ mod tests {
         }
     }
 
-    fn api_key(key: &str, subscribed: bool) -> ApiKeyConfig {
+    fn api_key(key: &str) -> ApiKeyConfig {
         ApiKeyConfig {
             key: key.into(),
             enabled: true,
-            subscribed,
             quota_reset_at: None,
         }
     }
@@ -407,7 +406,7 @@ mod tests {
             status_page_url: Some("https://status.test".into()),
             headquarters: Some("Earth".into()),
             datacenters: Some(vec!["iad".into()]),
-            api_keys: Some(vec![api_key("sub-key", true), api_key("payg-key", false)]),
+            api_keys: Some(vec![api_key("sub-key"), api_key("payg-key")]),
             api: Some("https://api.test".into()),
             doc: Some("https://docs.test".into()),
             env: Some(vec!["PROVIDER_KEY".into()]),
@@ -538,7 +537,7 @@ mod tests {
                 status_page_url: None,
                 headquarters: None,
                 datacenters: None,
-                api_keys: Some(vec![api_key("new-sub", true)]),
+                api_keys: Some(vec![api_key("new-sub")]),
                 api: Some("api".into()),
                 doc: Some("doc".into()),
                 env: Some(vec!["ENV".into()]),
@@ -598,7 +597,7 @@ mod tests {
                 ProviderUserSettings {
                     enabled: Some(true),
                     api_key: Some("settings-legacy".into()),
-                    api_keys: Some(vec![api_key("sub-key", true), api_key("payg-key", false)]),
+                    api_keys: Some(vec![api_key("sub-key"), api_key("payg-key")]),
                     endpoints: Some(vec![endpoint(
                         "settings-ep",
                         "openai-responses",

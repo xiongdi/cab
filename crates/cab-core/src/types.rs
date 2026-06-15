@@ -18,9 +18,6 @@ pub struct ProviderEndpoint {
 pub struct ApiKeyConfig {
     pub key: String,
     pub enabled: bool,
-    /// Subscription key: fixed cost already paid; routing treats marginal cost as near-zero.
-    #[serde(default)]
-    pub subscribed: bool,
     /// RFC3339 timestamp when a 429 quota window ends; key is skipped until then.
     #[serde(default)]
     pub quota_reset_at: Option<String>,
@@ -30,13 +27,6 @@ impl ApiKeyConfig {
     pub fn is_usable(&self) -> bool {
         self.enabled && !self.key.trim().is_empty()
     }
-}
-
-/// True when the provider has at least one enabled subscribed key not in quota recovery.
-pub fn provider_has_subscribed_key(api_keys: &[ApiKeyConfig]) -> bool {
-    api_keys.iter().any(|k| {
-        k.is_usable() && k.subscribed && !crate::subscription_quota::is_key_rate_limited(k)
-    })
 }
 
 /// True when the provider has at least one enabled key configured (ignores quota cooldown).
@@ -52,29 +42,18 @@ pub fn provider_has_available_key(provider: &Provider) -> bool {
     !ordered_api_keys(&provider.api_keys).is_empty() || !provider.api_key.trim().is_empty()
 }
 
-/// Prefer subscribed keys, then any other enabled key; skip keys still rate-limited.
+/// First enabled key not in quota recovery.
 pub fn select_preferred_api_key(api_keys: &[ApiKeyConfig]) -> Option<String> {
     ordered_api_keys(api_keys).into_iter().next()
 }
 
-/// Keys to try in order: subscribed (available) → pay-as-you-go (available).
+/// Keys to try in configuration order; skip keys still rate-limited.
 pub fn ordered_api_keys(api_keys: &[ApiKeyConfig]) -> Vec<String> {
-    let mut keys = Vec::new();
-    for key in api_keys {
-        if key.is_usable() && key.subscribed && !crate::subscription_quota::is_key_rate_limited(key)
-        {
-            keys.push(key.key.clone());
-        }
-    }
-    for key in api_keys {
-        if key.is_usable()
-            && !key.subscribed
-            && !crate::subscription_quota::is_key_rate_limited(key)
-        {
-            keys.push(key.key.clone());
-        }
-    }
-    keys
+    api_keys
+        .iter()
+        .filter(|key| key.is_usable() && !crate::subscription_quota::is_key_rate_limited(key))
+        .map(|key| key.key.clone())
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -468,8 +447,6 @@ pub struct ResolvedSummary {
 pub struct RankedModelSummary {
     pub model_id: String,
     pub provider_id: String,
-    #[serde(default)]
-    pub subscribed: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub capability: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -484,4 +461,27 @@ pub struct RouteExplainResult {
     pub resolved: Option<ResolvedSummary>,
     pub decision_steps: Vec<DecisionStep>,
     pub ranked_candidates: Vec<RankedModelSummary>,
+}
+
+/// Reference profile used when ranking strategy boards on the routes page.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyBoardRequest {
+    pub agent: String,
+    #[serde(default)]
+    pub body: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyBoardStrategy {
+    pub id: String,
+    /// Actual strategy used after fallbacks (e.g. speed → cheapest).
+    pub display_strategy: String,
+    pub task: String,
+    pub complexity: f64,
+    pub candidates: Vec<RankedModelSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StrategyBoardResult {
+    pub strategies: Vec<StrategyBoardStrategy>,
 }

@@ -35,6 +35,7 @@ Agent 通过 User-Agent 标识自身，CAB 据此匹配路由。
 | **Agent** | `/api/agents/*` | Agent 模式与策略配置 |
 | **日志** | `/api/logs/*` | 请求日志查询 |
 | **路由解释** | `POST /api/routing/explain` | 预览提示词的路由决策 |
+| **策略排序板** | `POST /api/routing/strategy-board` | 各内置策略的完整候选排序（路由页） |
 | **仪表盘** | `/api/dashboard/*` | 统计与健康状态 |
 
 仓库中维护 OpenAPI 规范（`spec/`），可通过项目脚本生成前端类型。
@@ -48,6 +49,10 @@ Agent 通过 User-Agent 标识自身，CAB 据此匹配路由。
 - 候选排序列表
 
 对应仪表盘 **路由 → 解释路由** 预览功能。
+
+## 策略排序板
+
+`POST /api/routing/strategy-board` 接受 Agent ID 与示例消息体，返回五种内置策略（`auto`、`balanced`、`cheapest`、`intelligent`、`speed`）的完整候选排序列表。排序算法与网关 `cab-core::routing` 一致；仪表盘 **路由** 页各策略候选表直接消费此接口，不在前端重复实现。
 
 ## 相关
 

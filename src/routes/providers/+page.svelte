@@ -105,7 +105,7 @@
       keyListDrafts = Object.fromEntries(
         rawProviders.map((p) => [
           p.id,
-          p.api_keys ? p.api_keys.map((k) => ({ ...k, subscribed: k.subscribed ?? false })) : [],
+          p.api_keys ? p.api_keys.map((k) => ({ ...k })) : [],
         ])
       );
       endpointDrafts = Object.fromEntries(
@@ -165,7 +165,7 @@
     if (!keyListDrafts[providerId]) {
       keyListDrafts[providerId] = [];
     }
-    keyListDrafts[providerId].push({ key: '', enabled: true, subscribed: false });
+    keyListDrafts[providerId].push({ key: '', enabled: true });
   }
 
   async function removeKey(provider: ProviderRow, index: number) {
@@ -606,6 +606,7 @@
                     + {i18n.t('providers.add_key')}
                   </button>
                 </div>
+                <p class="billing-tip">{i18n.t('providers.billing_providers_tip')}</p>
                 <div class="keys-container">
                   {#each keyListDrafts[provider.id] || [] as keyConfig, index}
                     <div class="key-row">
@@ -631,18 +632,6 @@
                           onchange={() => autoSaveKeys(provider)}
                         />
                         <span class="toggle-slider"></span>
-                      </label>
-                      <label
-                        class="subscribed-toggle"
-                        class:active={keyConfig.subscribed}
-                        title={i18n.t('providers.key_subscribed_tip')}
-                      >
-                        <input
-                          type="checkbox"
-                          bind:checked={keyConfig.subscribed}
-                          onchange={() => autoSaveKeys(provider)}
-                        />
-                        <span class="subscribed-label">{i18n.t('providers.key_subscribed')}</span>
                       </label>
                       {#if isKeyRateLimited(keyConfig)}
                         <span class="quota-badge" title={formatQuotaReset(keyConfig) || ''}>
@@ -1069,36 +1058,11 @@
     transform: scale(0.85);
   }
 
-  .subscribed-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border);
-    background: var(--bg-primary);
+  .billing-tip {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.5;
     color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-    transition: all 0.15s ease;
-  }
-
-  .subscribed-toggle:hover {
-    border-color: rgba(234, 179, 8, 0.4);
-    color: var(--text-secondary);
-  }
-
-  .subscribed-toggle.active {
-    border-color: rgba(234, 179, 8, 0.5);
-    background: rgba(234, 179, 8, 0.12);
-    color: #fbbf24;
-  }
-
-  .subscribed-toggle input {
-    accent-color: #fbbf24;
   }
 
   .quota-badge {

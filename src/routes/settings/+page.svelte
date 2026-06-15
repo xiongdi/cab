@@ -6,6 +6,7 @@
   import Card from '$lib/components/Card.svelte';
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { gatewayHealth } from '$lib/gateway-health.svelte';
   import pkg from '../../../package.json';
 
   const appVersion = pkg.version;
@@ -62,7 +63,6 @@
       settings = {
         gateway_port: 3125,
         log_retention_days: 30,
-        gateway_status: 'running',
         gateway_key: '',
         artificial_analysis_api_key: '',
       };
@@ -152,12 +152,14 @@
     running: 'var(--success)',
     stopped: 'var(--text-muted)',
     error: 'var(--error)',
+    checking: 'var(--text-muted)',
   };
 
   const statusDotClass: Record<string, string> = {
     running: 'dot-active',
     stopped: 'dot-inactive',
     error: 'dot-error',
+    checking: 'dot-inactive',
   };
 </script>
 
@@ -177,12 +179,9 @@
         <div class="status-row">
           <span class="status-label">{i18n.t('common.status')}</span>
           <span class="status-value">
-            <span class="dot {statusDotClass[settings?.gateway_status ?? 'running']}"></span>
-            <span
-              style:color={statusColors[settings?.gateway_status ?? 'running']}
-              style="text-transform:capitalize"
-            >
-              {i18n.t(`settings.${settings?.gateway_status ?? 'running'}`)}
+            <span class="dot {statusDotClass[gatewayHealth.status]}"></span>
+            <span style:color={statusColors[gatewayHealth.status]} style="text-transform:capitalize">
+              {i18n.t(`settings.${gatewayHealth.status}`)}
             </span>
           </span>
         </div>

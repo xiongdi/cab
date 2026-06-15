@@ -44,8 +44,7 @@ pub async fn verify_with_api_key(
         return Ok(());
     }
 
-    let token =
-        extract_gateway_token(authorization, x_api_key).ok_or(CabError::Unauthorized)?;
+    let token = extract_gateway_token(authorization, x_api_key).ok_or(CabError::Unauthorized)?;
     if token != settings.gateway_key {
         return Err(CabError::Unauthorized);
     }

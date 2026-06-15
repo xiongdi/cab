@@ -507,9 +507,7 @@ pub fn resolve_intelligence_indices(
 }
 
 pub fn indices_from_evaluations(eval: &BenchmarkEvaluations) -> ModelIntelligenceIndices {
-    let overall = eval
-        .artificial_analysis_intelligence_index
-        .map(clamp_score);
+    let overall = eval.artificial_analysis_intelligence_index.map(clamp_score);
 
     let coding = eval
         .artificial_analysis_coding_index

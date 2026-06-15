@@ -223,7 +223,6 @@ mod handler_and_catalog_tests {
         ApiKeyConfig {
             key: key.into(),
             enabled,
-            subscribed: false,
             quota_reset_at: None,
         }
     }

@@ -40,9 +40,7 @@ pub async fn resolve_service_provider_id(
 
 /// A model is routable when enabled and reachable via its native provider or an enabled reseller endpoint.
 pub async fn is_model_routable(store: &InMemoryStore, model: &Model) -> Result<bool, String> {
-    Ok(resolve_service_provider_id(store, model)
-        .await?
-        .is_some())
+    Ok(resolve_service_provider_id(store, model).await?.is_some())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,8 +110,7 @@ pub async fn list_routable_model_entries(
         }
 
         // Native vendor reachable without a catalog endpoint row (tests / partial sync).
-        if active.contains(&model.provider_id)
-            && added_providers.insert(model.provider_id.clone())
+        if active.contains(&model.provider_id) && added_providers.insert(model.provider_id.clone())
         {
             if let Some((input, output)) = known_pricing(model.input_cost, model.output_cost) {
                 entries.push(RoutableModelEntry {
@@ -176,7 +173,6 @@ mod tests {
             api_keys: vec![ApiKeyConfig {
                 key: api_key.into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }],
             api: None,
@@ -229,15 +225,15 @@ mod tests {
         let store = InMemoryStore::new();
         {
             let mut inner = store.inner.write().unwrap();
-            inner.providers.insert("minimax".into(), provider("minimax", true, "k"));
-            inner.providers.insert(
-                "opencode-go".into(),
-                provider("opencode-go", true, "k2"),
-            );
-            inner.models.insert(
-                "m1".into(),
-                model("m1", "minimax/m3", "minimax", true),
-            );
+            inner
+                .providers
+                .insert("minimax".into(), provider("minimax", true, "k"));
+            inner
+                .providers
+                .insert("opencode-go".into(), provider("opencode-go", true, "k2"));
+            inner
+                .models
+                .insert("m1".into(), model("m1", "minimax/m3", "minimax", true));
             inner.model_endpoints.insert(
                 "ep1".into(),
                 crate::endpoint::ModelEndpoint {
@@ -311,14 +307,12 @@ mod tests {
             inner
                 .providers
                 .insert("deepseek".into(), provider("deepseek", false, "k"));
-            inner.providers.insert(
-                "opencode-go".into(),
-                provider("opencode-go", true, "k2"),
-            );
-            inner.models.insert(
-                "m1".into(),
-                model("m1", "deepseek/v4", "deepseek", true),
-            );
+            inner
+                .providers
+                .insert("opencode-go".into(), provider("opencode-go", true, "k2"));
+            inner
+                .models
+                .insert("m1".into(), model("m1", "deepseek/v4", "deepseek", true));
             inner.model_endpoints.insert(
                 "ep-reseller".into(),
                 crate::endpoint::ModelEndpoint {

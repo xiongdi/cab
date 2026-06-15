@@ -245,7 +245,6 @@ mod tests {
             api_keys: vec![ApiKeyConfig {
                 key: "key".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }],
             api: None,

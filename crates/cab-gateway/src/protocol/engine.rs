@@ -136,12 +136,7 @@ where
 }
 
 /// Synthesize client SSE when upstream returned a complete JSON body (non-streaming fallback).
-pub fn synthesize_sse_from_response(
-    from: &str,
-    to: &str,
-    body: &Value,
-    model: String,
-) -> Bytes {
+pub fn synthesize_sse_from_response(from: &str, to: &str, body: &Value, model: String) -> Bytes {
     if from == to {
         return Bytes::new();
     }

@@ -98,12 +98,7 @@ fn text_from_value(content: &Value) -> String {
                 block
                     .as_str()
                     .map(String::from)
-                    .or_else(|| {
-                        block
-                            .get("text")
-                            .and_then(|t| t.as_str())
-                            .map(String::from)
-                    })
+                    .or_else(|| block.get("text").and_then(|t| t.as_str()).map(String::from))
                     .or_else(|| {
                         block
                             .get("content")
@@ -132,7 +127,10 @@ fn content_to_string(content: &Value) -> String {
 fn anthropic_blocks_from_content(content: &Value) -> Vec<IrBlock> {
     match content {
         Value::String(text) if !text.is_empty() => vec![IrBlock::Text { text: text.clone() }],
-        Value::Array(blocks) => blocks.iter().filter_map(anthropic_block_from_value).collect(),
+        Value::Array(blocks) => blocks
+            .iter()
+            .filter_map(anthropic_block_from_value)
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -219,25 +217,25 @@ fn openai_content_blocks(content: Option<&Value>) -> Vec<IrBlock> {
         Some(Value::String(text)) if !text.is_empty() => vec![IrBlock::Text { text: text.clone() }],
         Some(Value::Array(parts)) => parts
             .iter()
-            .filter_map(|part| {
-                match part.get("type").and_then(|t| t.as_str()) {
-                    Some("text") => part.get("text").and_then(|t| t.as_str()).map(|text| {
-                        IrBlock::Text {
+            .filter_map(|part| match part.get("type").and_then(|t| t.as_str()) {
+                Some("text") => {
+                    part.get("text")
+                        .and_then(|t| t.as_str())
+                        .map(|text| IrBlock::Text {
                             text: text.to_string(),
-                        }
-                    }),
-                    Some("image_url") => {
-                        let url = part
-                            .get("image_url")
-                            .and_then(|i| i.get("url"))
-                            .and_then(|u| u.as_str())?;
-                        Some(IrBlock::Image {
-                            media_type: "image/jpeg".to_string(),
-                            source: IrImageSource::Url(url.to_string()),
                         })
-                    }
-                    _ => None,
                 }
+                Some("image_url") => {
+                    let url = part
+                        .get("image_url")
+                        .and_then(|i| i.get("url"))
+                        .and_then(|u| u.as_str())?;
+                    Some(IrBlock::Image {
+                        media_type: "image/jpeg".to_string(),
+                        source: IrImageSource::Url(url.to_string()),
+                    })
+                }
+                _ => None,
             })
             .collect(),
         _ => Vec::new(),
@@ -331,8 +329,7 @@ fn responses_item_to_ir_messages(item: &Value) -> Vec<IrMessage> {
                 .get("arguments")
                 .and_then(|a| a.as_str())
                 .unwrap_or("{}");
-            let input =
-                serde_json::from_str(args).unwrap_or_else(|_| Value::Object(Map::new()));
+            let input = serde_json::from_str(args).unwrap_or_else(|_| Value::Object(Map::new()));
             vec![IrMessage {
                 role: "assistant".into(),
                 blocks: vec![IrBlock::ToolUse {
@@ -355,7 +352,11 @@ fn responses_item_to_ir_messages(item: &Value) -> Vec<IrMessage> {
                 .get("output")
                 .and_then(|o| o.as_str())
                 .map(str::to_string)
-                .unwrap_or_else(|| item.get("output").map(|v| v.to_string()).unwrap_or_default());
+                .unwrap_or_else(|| {
+                    item.get("output")
+                        .map(|v| v.to_string())
+                        .unwrap_or_default()
+                });
             vec![IrMessage {
                 role: "user".into(),
                 blocks: vec![IrBlock::ToolResult {
@@ -370,10 +371,7 @@ fn responses_item_to_ir_messages(item: &Value) -> Vec<IrMessage> {
             }]
         }
         _ => {
-            let role = item
-                .get("role")
-                .and_then(|r| r.as_str())
-                .unwrap_or("user");
+            let role = item.get("role").and_then(|r| r.as_str()).unwrap_or("user");
             let role = match role {
                 "developer" | "system" => "system",
                 other => other,
@@ -652,10 +650,7 @@ pub fn decode_openai_chat_request(body: &Value) -> IrRequest {
             .unwrap_or_default(),
         system,
         messages,
-        tools: body
-            .get("tools")
-            .map(tools_from_openai)
-            .unwrap_or_default(),
+        tools: body.get("tools").map(tools_from_openai).unwrap_or_default(),
         tool_choice: body
             .get("tool_choice")
             .map(tool_choice_from_openai)
@@ -685,7 +680,9 @@ pub fn decode_responses_request(body: &Value) -> IrRequest {
                     if !text.trim().is_empty() {
                         messages.push(IrMessage {
                             role: "user".into(),
-                            blocks: vec![IrBlock::Text { text: text.to_string() }],
+                            blocks: vec![IrBlock::Text {
+                                text: text.to_string(),
+                            }],
                         });
                     }
                 } else {
@@ -735,10 +732,7 @@ fn ir_block_to_anthropic_value(block: &IrBlock) -> Value {
             }
             obj
         }
-        IrBlock::Image {
-            media_type,
-            source,
-        } => match source {
+        IrBlock::Image { media_type, source } => match source {
             IrImageSource::Base64(data) => serde_json::json!({
                 "type": "image",
                 "source": {"type": "base64", "media_type": media_type, "data": data}
@@ -809,10 +803,7 @@ pub fn encode_anthropic_request(ir: &IrRequest) -> Value {
             })
             .collect();
         if text_only.len() == ir.system.len() && !text_only.is_empty() {
-            obj.insert(
-                "system".into(),
-                Value::String(text_only.join("\n\n")),
-            );
+            obj.insert("system".into(), Value::String(text_only.join("\n\n")));
         } else {
             let blocks: Vec<Value> = ir.system.iter().map(ir_block_to_anthropic_value).collect();
             obj.insert("system".into(), Value::Array(blocks));
@@ -854,7 +845,10 @@ pub fn encode_anthropic_request(ir: &IrRequest) -> Value {
             ),
         );
     }
-    obj.insert("tool_choice".into(), encode_anthropic_tool_choice(&ir.tool_choice));
+    obj.insert(
+        "tool_choice".into(),
+        encode_anthropic_tool_choice(&ir.tool_choice),
+    );
     for (k, v) in &ir.extensions {
         obj.insert(k.clone(), v.clone());
     }
@@ -1261,10 +1255,7 @@ pub fn decode_responses_response(body: &Value) -> IrResponse {
                     });
                 }
                 Some("message") | None => {
-                    let text = item
-                        .get("content")
-                        .map(text_from_value)
-                        .unwrap_or_default();
+                    let text = item.get("content").map(text_from_value).unwrap_or_default();
                     if !text.is_empty() {
                         blocks.push(IrBlock::Text { text });
                     }

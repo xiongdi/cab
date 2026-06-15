@@ -35,6 +35,7 @@ Also requires Bearer auth when `auth_enabled` is true.
 | **Agents** | `/api/agents/*` | Agent mode and strategy config |
 | **Logs** | `/api/logs/*` | Request log query |
 | **Routing** | `POST /api/routing/explain` | Preview routing decision for a prompt |
+| **Routing** | `POST /api/routing/strategy-board` | Full ranked candidates per built-in strategy (Routes page) |
 | **Dashboard** | `/api/dashboard/*` | Stats and health |
 
 An OpenAPI spec is maintained in the repository (`spec/`). Generate frontend types with the project scripts.
@@ -48,6 +49,10 @@ An OpenAPI spec is maintained in the repository (`spec/`). Generate frontend typ
 - Ranked candidate list
 
 This powers the **Routes → Explain routing** preview in the dashboard.
+
+## Strategy board
+
+`POST /api/routing/strategy-board` accepts an agent ID and sample message body. Returns fully ranked candidate lists for all five built-in strategies (`auto`, `balanced`, `cheapest`, `intelligent`, `speed`). Ranking matches gateway `cab-core::routing`; the Routes page strategy tables consume this API only (no duplicate client-side sort).
 
 ## Related
 

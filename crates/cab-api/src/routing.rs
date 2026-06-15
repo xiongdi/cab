@@ -2,7 +2,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
 use cab_core::CabError;
-use cab_core::types::RouteExplainRequest;
+use cab_core::types::{RouteExplainRequest, StrategyBoardRequest};
 
 use crate::ApiState;
 
@@ -11,6 +11,14 @@ pub async fn explain_routing(
     Json(request): Json<RouteExplainRequest>,
 ) -> Result<impl IntoResponse, CabError> {
     let result = cab_services::route_explainer::explain(&state.pool, &request).await;
+    Ok(Json(result))
+}
+
+pub async fn strategy_board(
+    State(state): State<ApiState>,
+    Json(request): Json<StrategyBoardRequest>,
+) -> Result<impl IntoResponse, CabError> {
+    let result = cab_services::route_explainer::strategy_board(&state.pool, &request).await;
     Ok(Json(result))
 }
 
@@ -43,7 +51,6 @@ mod tests {
             api_keys: vec![ApiKeyConfig {
                 key: "key".into(),
                 enabled: true,
-                subscribed: false,
                 quota_reset_at: None,
             }],
             api: None,

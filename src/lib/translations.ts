@@ -91,6 +91,8 @@ export const translations = {
     providers: {
       title: '提供商',
       subtitle: '来自 models.dev 的 API 提供商目录 — 点击行展开，配置 API Key 与上游端点',
+      pricing_note:
+        'models.dev 为同一模型列出多家上游提供商的不同定价；路由与成本估算使用您配置的提供商及其端点价格。',
       col_logo: 'Logo',
       col_name: '名称',
       col_id: 'ID',
@@ -130,8 +132,8 @@ export const translations = {
       endpoints_save_failed: '保存端点失败',
       add_key: '添加 Key',
       delete_key: '删除 Key',
-      key_subscribed: '订阅',
-      key_subscribed_tip: '订阅密钥已预付费用，路由计算成本时视为近零边际成本，优先选用',
+      billing_providers_tip:
+        '不同计费方式请启用 models.dev 中对应的提供商（例如 minimax 与 minimax-cn-coding-plan），路由按各提供商端点价格排序。',
       key_quota_reset: '额度恢复：{time}',
       key_quota_limited: '额度已用尽，自动 fallback 中',
       add_btn: '同步提供商目录',
@@ -263,10 +265,6 @@ export const translations = {
       mechanism_label: '调度机制：',
       candidate_range: '当前策略候选范围 (默认显示前 5 名)',
       rank: '排名',
-      subscribed_pool: '订阅池',
-      payg_pool: '按量池',
-      subscription_quota_paused:
-        '订阅密钥配额恢复中，路由暂与按量池一同排序；恢复后将自动优先订阅池',
       provider: '提供商',
       model_name: '模型',
       price: '价格 ($/1M)',
@@ -274,9 +272,6 @@ export const translations = {
       speed: '输出速度',
       composite_price: '综合价格',
       value_score: '性价比',
-      subscribed_tag: '订阅',
-      subscribed_tag_tip: '该提供商配置了订阅密钥，路由时优先于按量提供商',
-      subscribed_tag_paused_tip: '已配置订阅密钥，当前处于限流冷却，恢复后将重新优先路由',
       no_models: '暂无可路由模型（请先启用 提供商及其模型）',
       load_failed: '加载路由数据失败',
       preview_title: '路由决策预览',
@@ -362,6 +357,8 @@ export const translations = {
       gateway_status: '网关运行状态',
       running: '正在运行',
       stopped: '已停止',
+      error: '异常',
+      checking: '检测中…',
       port: '网关代理端口 (Restart Required)',
       retention: '请求日志保留天数',
       gateway_key: '网关统一密钥 (Gateway API Key)',
@@ -583,9 +580,8 @@ export const translations = {
       endpoints_save_failed: 'Failed to save endpoints',
       add_key: 'Add key',
       delete_key: 'Delete key',
-      key_subscribed: 'Subscribed',
-      key_subscribed_tip:
-        'Prepaid subscription key; routing treats marginal cost as near-zero and prefers it',
+      billing_providers_tip:
+        'For different billing modes, enable the matching models.dev provider (e.g. minimax vs minimax-cn-coding-plan); routing ranks by each provider endpoint price.',
       key_quota_reset: 'Quota resets: {time}',
       key_quota_limited: 'Quota exhausted, auto-fallback active',
       add_btn: 'Add Provider',
@@ -720,10 +716,6 @@ export const translations = {
       mechanism_label: 'Mechanism: ',
       candidate_range: 'Candidate Range (Top 5 by Default)',
       rank: 'Rank',
-      subscribed_pool: 'Subscribed',
-      payg_pool: 'Pay-as-you-go',
-      subscription_quota_paused:
-        'Subscription key quota is recovering; routing uses pay-as-you-go order until it clears',
       provider: 'Provider',
       model_name: 'Model',
       price: 'Price ($/1M)',
@@ -731,11 +723,6 @@ export const translations = {
       speed: 'Speed',
       composite_price: 'Composite price',
       value_score: 'Value score',
-      subscribed_tag: 'Subscribed',
-      subscribed_tag_tip:
-        'This provider has a subscription key configured and routes before pay-as-you-go providers',
-      subscribed_tag_paused_tip:
-        'Subscription key is configured but in rate-limit cooldown; routing priority resumes after recovery',
       no_models: 'No enabled models/providers available',
       load_failed: 'Failed to load routing data',
       preview_title: 'Routing Preview',
@@ -822,6 +809,8 @@ export const translations = {
       gateway_status: 'Gateway Status',
       running: 'Running',
       stopped: 'Stopped',
+      error: 'Error',
+      checking: 'Checking…',
       port: 'Gateway Port (Restart Required)',
       retention: 'Logs Retention Days',
       gateway_key: 'Gateway API Key',

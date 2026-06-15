@@ -114,10 +114,7 @@ pub fn normalize_minimax_vendor_cost(
     }
     // models.dev lists M3 at pre-discount list price; MiniMax paygo is permanently 50% off (≤512k).
     // https://platform.minimax.io/docs/guides/pricing-paygo
-    if native_model_id == "MiniMax-M3"
-        && cost.input == Some(0.6)
-        && cost.output == Some(2.4)
-    {
+    if native_model_id == "MiniMax-M3" && cost.input == Some(0.6) && cost.output == Some(2.4) {
         return ModelsDevCost {
             input: Some(0.3),
             output: Some(1.2),
@@ -327,8 +324,7 @@ pub async fn sync_model_endpoints(
             let normalized_cost = models_dev_cost_for_provider_model(provider_id, model);
             let cost = normalized_cost.as_ref();
             let limit = model.limit.as_ref();
-            let upstream_protocol =
-                upstream_protocol_for_models_dev_model(provider, model);
+            let upstream_protocol = upstream_protocol_for_models_dev_model(provider, model);
             let endpoint = cab_db::endpoint::ModelEndpoint {
                 id: format!("{canonical}::{provider_id}"),
                 model_id: canonical.clone(),
@@ -785,9 +781,8 @@ pub async fn sync_on_startup(pool: &InMemoryStore) -> Result<usize, CabError> {
 #[cfg(test)]
 mod resolve_canonical_model_name_tests {
     use super::{
-        ModelsDevCost, ModelsDevModel, ModelsDevProvider,
-        normalize_minimax_vendor_cost, resolve_canonical_model_name,
-        upstream_protocol_for_models_dev_model,
+        ModelsDevCost, ModelsDevModel, ModelsDevProvider, normalize_minimax_vendor_cost,
+        resolve_canonical_model_name, upstream_protocol_for_models_dev_model,
     };
 
     fn model(id: &str) -> ModelsDevModel {
@@ -802,11 +797,8 @@ mod resolve_canonical_model_name_tests {
             model("deepseek/deepseek-v4-pro"),
         );
 
-        let resolved = resolve_canonical_model_name(
-            "opencode-go",
-            &model("deepseek-v4-pro"),
-            &models_data,
-        );
+        let resolved =
+            resolve_canonical_model_name("opencode-go", &model("deepseek-v4-pro"), &models_data);
 
         assert_eq!(resolved.as_deref(), Some("deepseek/deepseek-v4-pro"));
     }
@@ -819,14 +811,12 @@ mod resolve_canonical_model_name_tests {
             cache_read: Some(0.12),
             cache_write: None,
         };
-        let effective =
-            normalize_minimax_vendor_cost("minimax", "MiniMax-M3", &list);
+        let effective = normalize_minimax_vendor_cost("minimax", "MiniMax-M3", &list);
         assert_eq!(effective.input, Some(0.3));
         assert_eq!(effective.output, Some(1.2));
         assert_eq!(effective.cache_read, Some(0.06));
 
-        let unchanged =
-            normalize_minimax_vendor_cost("opencode-go", "minimax-m3", &list);
+        let unchanged = normalize_minimax_vendor_cost("opencode-go", "minimax-m3", &list);
         assert_eq!(unchanged.input, Some(0.6));
     }
 

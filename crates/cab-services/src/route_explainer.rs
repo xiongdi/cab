@@ -1,11 +1,10 @@
-use std::collections::HashSet;
-
 use cab_core::types::{
     DecisionStep, RankedModelSummary, ResolvedSummary, RouteExplainRequest, RouteExplainResult,
+    StrategyBoardRequest, StrategyBoardResult, StrategyBoardStrategy,
 };
 use cab_core::{
-    RequestProfile, RouteCandidate, RoutingStrategy, build_request_profile,
-    model_routable_for_strategy, provider_has_subscribed_key, rank_route_candidates_with_scores,
+    RankedRouteCandidate, RequestProfile, RouteCandidate, RoutingStrategy, TaskKind,
+    build_request_profile, model_routable_for_strategy, rank_route_candidates_with_scores,
 };
 use cab_db::InMemoryStore;
 use cab_db::catalog::RouteCatalog;
@@ -50,29 +49,10 @@ async fn infer_strategy(
     RoutingStrategy::Auto
 }
 
-async fn subscribed_provider_ids(pool: &InMemoryStore) -> HashSet<String> {
-    cab_db::provider::list_catalog(pool)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|p| provider_has_subscribed_key(&p.api_keys))
-        .map(|p| p.id)
-        .collect()
-}
-
-async fn ranked_candidates(
-    pool: &InMemoryStore,
-    strategy: RoutingStrategy,
-    profile: &RequestProfile,
-) -> Vec<RankedModelSummary> {
-    let entries = cab_db::routability::list_routable_model_entries(pool)
-        .await
-        .unwrap_or_default();
-    if entries.is_empty() {
-        return Vec::new();
-    }
-
-    let candidates: Vec<RouteCandidate<'_>> = entries
+fn routable_route_candidates<'a>(
+    entries: &'a [cab_db::routability::RoutableModelEntry],
+) -> Vec<RouteCandidate<'a>> {
+    entries
         .iter()
         .filter_map(|entry| {
             let input = entry.endpoint_input_cost?;
@@ -85,44 +65,124 @@ async fn ranked_candidates(
                 cache_read_cost: entry.endpoint_cache_read_cost,
             })
         })
-        .collect();
+        .collect()
+}
 
-    let subscribed = subscribed_provider_ids(pool).await;
-    let mut ranked = Vec::new();
-    for score in rank_route_candidates_with_scores(
-        &candidates,
-        strategy,
-        profile,
-        Some(&subscribed),
-    ) {
-        if ranked.len() >= 10 {
-            break;
-        }
-        ranked.push(RankedModelSummary {
-            model_id: score.model.name.clone(),
-            provider_id: score.service_provider_id.to_string(),
-            subscribed: subscribed.contains(score.service_provider_id),
-            capability: if model_routable_for_strategy(score.model, strategy, profile.task)
-                && score.capability.is_finite()
-            {
-                Some(score.capability)
-            } else {
-                None
-            },
-            value: if model_routable_for_strategy(score.model, strategy, profile.task)
-                && score.value.is_finite()
-            {
-                Some(score.value)
-            } else {
-                None
-            },
-            value_unbounded: model_routable_for_strategy(score.model, strategy, profile.task)
-                && score.value.is_infinite()
-                && score.value.is_sign_positive(),
-        });
+fn ranked_model_summary(
+    score: &RankedRouteCandidate<'_>,
+    strategy: RoutingStrategy,
+    task: TaskKind,
+) -> RankedModelSummary {
+    let routable = model_routable_for_strategy(score.model, strategy, task);
+    RankedModelSummary {
+        model_id: score.model.name.clone(),
+        provider_id: score.service_provider_id.to_string(),
+        capability: if routable && score.capability.is_finite() {
+            Some(score.capability)
+        } else {
+            None
+        },
+        value: if routable && score.value.is_finite() {
+            Some(score.value)
+        } else {
+            None
+        },
+        value_unbounded: routable && score.value.is_infinite() && score.value.is_sign_positive(),
+    }
+}
+
+async fn rank_all_candidates(
+    pool: &InMemoryStore,
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+) -> Vec<RankedModelSummary> {
+    let entries = cab_db::routability::list_routable_model_entries(pool)
+        .await
+        .unwrap_or_default();
+    if entries.is_empty() {
+        return Vec::new();
     }
 
+    let candidates = routable_route_candidates(&entries);
+    rank_route_candidates_with_scores(&candidates, strategy, profile)
+        .iter()
+        .map(|score| ranked_model_summary(score, strategy, profile.task))
+        .collect()
+}
+
+async fn ranked_candidates(
+    pool: &InMemoryStore,
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+) -> Vec<RankedModelSummary> {
+    let mut ranked = rank_all_candidates(pool, strategy, profile).await;
+    ranked.truncate(10);
     ranked
+}
+
+fn strategy_id(strategy: RoutingStrategy) -> &'static str {
+    match strategy {
+        RoutingStrategy::Auto => "auto",
+        RoutingStrategy::Balanced => "balanced",
+        RoutingStrategy::Cheapest => "cheapest",
+        RoutingStrategy::Intelligent => "intelligent",
+        RoutingStrategy::Speed => "speed",
+    }
+}
+
+fn display_strategy(strategy: RoutingStrategy, candidates: &[RouteCandidate<'_>]) -> RoutingStrategy {
+    if matches!(strategy, RoutingStrategy::Speed)
+        && !candidates
+            .iter()
+            .any(|candidate| candidate.model.output_speed_tps.filter(|speed| *speed > 0.0).is_some())
+    {
+        RoutingStrategy::Cheapest
+    } else {
+        strategy
+    }
+}
+
+/// Rank all routable models for each built-in strategy (routes page strategy board).
+pub async fn strategy_board(
+    pool: &InMemoryStore,
+    request: &StrategyBoardRequest,
+) -> StrategyBoardResult {
+    let profile = request
+        .body
+        .as_ref()
+        .map(|value| build_request_profile(value, &request.agent))
+        .unwrap_or_else(|| build_request_profile(&serde_json::json!({}), &request.agent));
+
+    let entries = cab_db::routability::list_routable_model_entries(pool)
+        .await
+        .unwrap_or_default();
+    let route_candidates = routable_route_candidates(&entries);
+
+    let strategies = [
+        RoutingStrategy::Auto,
+        RoutingStrategy::Balanced,
+        RoutingStrategy::Cheapest,
+        RoutingStrategy::Intelligent,
+        RoutingStrategy::Speed,
+    ]
+    .into_iter()
+    .map(|strategy| {
+        let effective = display_strategy(strategy, &route_candidates);
+        let candidates = rank_route_candidates_with_scores(&route_candidates, effective, &profile)
+            .iter()
+            .map(|score| ranked_model_summary(score, effective, profile.task))
+            .collect();
+        StrategyBoardStrategy {
+            id: strategy_id(strategy).to_string(),
+            display_strategy: strategy_id(effective).to_string(),
+            task: format!("{:?}", profile.task),
+            complexity: profile.complexity,
+            candidates,
+        }
+    })
+    .collect();
+
+    StrategyBoardResult { strategies }
 }
 
 fn resolved_summary(resolved: &ResolvedRoute, strategy: Option<String>) -> ResolvedSummary {

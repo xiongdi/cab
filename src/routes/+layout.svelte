@@ -1,10 +1,15 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import '../app.css';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toast from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { gatewayHealth } from '$lib/gateway-health.svelte';
 
   let { children } = $props();
+
+  onMount(() => gatewayHealth.start(10_000));
+  onDestroy(() => gatewayHealth.stop());
 
   $effect(() => {
     if (typeof document === 'undefined') return;

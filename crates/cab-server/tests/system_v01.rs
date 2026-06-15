@@ -240,7 +240,6 @@ async fn st_routing_explain_returns_decision_trace() {
                 api_keys: vec![cab_core::types::ApiKeyConfig {
                     key: "key".into(),
                     enabled: true,
-                    subscribed: false,
                     quota_reset_at: None,
                 }],
                 api: None,
@@ -358,7 +357,6 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 api_keys: vec![cab_core::types::ApiKeyConfig {
                     key: "key-cheap".into(),
                     enabled: true,
-                    subscribed: false,
                     quota_reset_at: None,
                 }],
                 api: None,
@@ -394,7 +392,6 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 api_keys: vec![cab_core::types::ApiKeyConfig {
                     key: "key-pricey".into(),
                     enabled: true,
-                    subscribed: false,
                     quota_reset_at: None,
                 }],
                 api: None,
