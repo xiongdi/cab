@@ -489,7 +489,7 @@ where
 
     futures::stream::poll_fn(move |cx| {
         loop {
-            if let Some(out) = pending.pop() {
+            if let Some(out) = pop_pending_front(&mut pending) {
                 return Poll::Ready(Some(Ok(out)));
             }
             if done {
@@ -681,7 +681,7 @@ where
 
     futures::stream::poll_fn(move |cx| {
         loop {
-            if let Some(out) = pending.pop() {
+            if let Some(out) = pop_pending_front(&mut pending) {
                 return Poll::Ready(Some(Ok(out)));
             }
             if done {
@@ -833,6 +833,14 @@ where
     })
 }
 
+fn pop_pending_front(pending: &mut Vec<Bytes>) -> Option<Bytes> {
+    if pending.is_empty() {
+        None
+    } else {
+        Some(pending.remove(0))
+    }
+}
+
 fn push_openai_chat_sse(pending: &mut Vec<Bytes>, delta: Value, finish_reason: Option<&str>) {
     pending.push(Bytes::from(format!(
         "data: {}\n\n",
@@ -871,7 +879,7 @@ where
 
     futures::stream::poll_fn(move |cx| {
         loop {
-            if let Some(out) = pending.pop() {
+            if let Some(out) = pop_pending_front(&mut pending) {
                 return Poll::Ready(Some(Ok(out)));
             }
             if done {
@@ -1042,7 +1050,7 @@ where
 
     futures::stream::poll_fn(move |cx| {
         loop {
-            if let Some(out) = pending.pop() {
+            if let Some(out) = pop_pending_front(&mut pending) {
                 return Poll::Ready(Some(Ok(out)));
             }
             if done {

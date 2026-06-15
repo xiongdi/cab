@@ -474,6 +474,9 @@ pub struct RankedModelSummary {
     pub capability: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub value: Option<f64>,
+    /// True when value is unbounded (+∞) because catalog price is known to be free.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub value_unbounded: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

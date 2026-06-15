@@ -101,5 +101,11 @@ mod tests {
         let joined = chunks.join("");
         assert!(joined.contains("\"content\":\"hi\""));
         assert!(joined.contains("[DONE]"));
+        let finish_idx = joined.find("\"finish_reason\":\"stop\"").expect("finish_reason");
+        let done_idx = joined.find("[DONE]").expect("[DONE]");
+        assert!(
+            finish_idx < done_idx,
+            "finish_reason must precede [DONE], got: {joined}"
+        );
     }
 }

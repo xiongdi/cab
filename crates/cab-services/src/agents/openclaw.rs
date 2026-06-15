@@ -35,7 +35,7 @@ impl AgentIntegration for Integration {
             let mut provider_models = Vec::new();
             let mut allowlist = serde_json::Map::new();
             let default_model_ref = if mode == "auto" {
-                for strategy_name in ["auto", "balanced", "intelligent", "price"] {
+                for strategy_name in ["auto", "balanced", "intelligent", "price", "speed"] {
                     provider_models.push(serde_json::json!({
                         "id": strategy_name,
                         "name": format!("CAB {}", strategy_name),
@@ -134,7 +134,7 @@ impl AgentIntegration for Integration {
                 "unset".to_string(),
                 "models.providers.cab".to_string(),
             ]);
-            for strategy_name in ["auto", "balanced", "intelligent", "price"] {
+            for strategy_name in ["auto", "balanced", "intelligent", "price", "speed"] {
                 let _ = run_openclaw_config(vec![
                     "config".to_string(),
                     "unset".to_string(),

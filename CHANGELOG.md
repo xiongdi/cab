@@ -29,6 +29,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-06-15
+
+### Added
+
+- **IR-based gateway protocol engine**: Anthropic Messages, OpenAI Chat, and OpenAI Responses now convert through a shared intermediate representation with unified SSE streaming.
+- **Cross-protocol fallback shims** and strategy-aware route-resolver fallbacks when the preferred endpoint protocol is unavailable.
+- Routes page **value score** shows **∞** for models with a known **$0 endpoint price**; explain API adds `value_unbounded` for JSON consumers.
+- Agent configs for **pi**, **opencode**, and **openclaw** now include the **speed** routing strategy.
+
+### Changed
+
+- **Balanced / Auto value score** uses **endpoint** pricing (what you pay through the service provider), not catalog list price, so subscription $0 rows rank correctly.
+- Free models (`cost == 0`) get **+∞** value with tie-break on capability, then cost — no more `0.001` floor on value scores.
+
+### Fixed
+
+- **SSE stream ordering**: `finish_reason` is emitted before `[DONE]` (fixes pi agent `Stream ended without finish_reason`).
+- **Codex 0.134+**: managed auth now writes a placeholder `id_token` when backing up/restoring `auth.json`.
+
 ## [0.2.6] - 2026-06-14
 
 ### Added

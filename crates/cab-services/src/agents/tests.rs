@@ -155,10 +155,11 @@ async fn codex_auto_manual_and_native_modes_update_toml_config() {
     assert!(auto.contains("requires_openai_auth = true"));
     assert!(!auto.contains("env_key"));
 
-    // Check that auth.json contains the gateway key
+    // Check that auth.json contains the gateway key and Codex-required id_token
     let auth_path = home.path(".codex/auth.json");
     let auth_content = fs::read_to_string(&auth_path).unwrap();
     assert!(auth_content.contains("gw-key"));
+    assert!(auth_content.contains("id_token"));
 
     // Write a dummy key/token to auth.json to verify clean-up/restore logic
     fs::write(

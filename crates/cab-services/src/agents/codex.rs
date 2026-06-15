@@ -3,6 +3,10 @@ use super::{AgentConfigContext, AgentIntegration};
 use std::fs;
 use std::path::Path as StdPath;
 
+/// Codex 0.134+ requires a JWT-shaped `tokens.id_token` even when CAB injects the gateway key.
+const CAB_CODEX_ID_TOKEN: &str =
+    "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJjYWItZ2F0ZXdheSJ9.Y2Fi";
+
 pub struct Integration;
 
 impl AgentIntegration for Integration {
@@ -126,6 +130,7 @@ impl AgentIntegration for Integration {
                     if !is_cab_token {
                         let acc = toks.get("access_token").cloned();
                         let ref_t = toks.get("refresh_token").cloned();
+                        let id_t = toks.get("id_token").cloned();
                         let lr = obj.get("last_refresh").cloned();
                         let am = obj.get("auth_mode").cloned();
 
@@ -134,6 +139,9 @@ impl AgentIntegration for Integration {
                         }
                         if let Some(r) = ref_t {
                             obj.insert("cab_backup_refresh_token".to_string(), r);
+                        }
+                        if let Some(i) = id_t {
+                            obj.insert("cab_backup_id_token".to_string(), i);
                         }
                         if let Some(l) = lr {
                             obj.insert("cab_backup_last_refresh".to_string(), l);
@@ -158,7 +166,8 @@ impl AgentIntegration for Integration {
                 
                 let tokens = serde_json::json!({
                     "access_token": key.clone(),
-                    "refresh_token": ""
+                    "refresh_token": "",
+                    "id_token": CAB_CODEX_ID_TOKEN,
                 });
                 obj.insert("tokens".to_string(), tokens);
 
@@ -204,6 +213,9 @@ impl AgentIntegration for Integration {
                                 tokens.insert("access_token".to_string(), bak_acc);
                                 if let Some(bak_ref) = obj.remove("cab_backup_refresh_token") {
                                     tokens.insert("refresh_token".to_string(), bak_ref);
+                                }
+                                if let Some(bak_id) = obj.remove("cab_backup_id_token") {
+                                    tokens.insert("id_token".to_string(), bak_id);
                                 }
                                 obj.insert("tokens".to_string(), serde_json::Value::Object(tokens));
                                 modified = true;

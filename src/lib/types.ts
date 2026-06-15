@@ -353,6 +353,8 @@ export interface RankedModelSummary {
   /** Absent when AA benchmark data is not available (not the same as 0). */
   capability?: number | null;
   value?: number | null;
+  /** True when value is +∞ (known $0 catalog price). */
+  value_unbounded?: boolean;
 }
 
 export interface RouteExplainResult {

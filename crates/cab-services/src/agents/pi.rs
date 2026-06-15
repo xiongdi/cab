@@ -63,7 +63,7 @@ impl AgentIntegration for Integration {
             let mut pi_models = Vec::new();
             let pi_headers = cab_identifying_headers("pi");
             let default_model = if mode == "auto" {
-                for strategy_name in ["auto", "balanced", "intelligent", "price"] {
+                for strategy_name in ["auto", "balanced", "intelligent", "price", "speed"] {
                     pi_models.push(serde_json::json!({
                         "id": strategy_name,
                         "name": format!("CAB {}", strategy_name),

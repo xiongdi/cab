@@ -4,9 +4,8 @@
 //! 1. Parse request text → estimate complexity + task kind (coding / math / agentic / general).
 //! 2. Score each enabled model with a task-weighted capability blend (AA indices on `Model`).
 //! 3. Require minimum capability that rises with complexity (simple → cheap OK, hard → flagship).
-//! 4. Rank by value = capability / effective_cost, where effective_cost blends input cache
-//!    (90% hit rate when cache_read is available) and uses a 10:1 input:output token ratio.
-//!    Providers with a subscribed API key use near-zero marginal cost (prepaid quota).
+//! 4. Rank by value = capability / effective_cost (or +∞ when catalog price is known free),
+//!    then tie-break on capability, then cost. Missing catalog prices are excluded from value.
 //!
 //! ## Balanced (`balanced`)
 //! Rank by task-primary capability / effective_cost (same 10:1 price weighting).
@@ -98,7 +97,7 @@ pub fn blended_input_cost(input: f64, cache_read: Option<f64>) -> f64 {
     }
 }
 
-pub fn effective_token_cost(
+pub fn raw_effective_token_cost(
     input_cost: Option<f64>,
     output_cost: Option<f64>,
     cache_read_cost: Option<f64>,
@@ -106,15 +105,46 @@ pub fn effective_token_cost(
     let input = input_cost.unwrap_or(0.0);
     let output = output_cost.unwrap_or(0.0).max(0.0);
     let blended_input = blended_input_cost(input, cache_read_cost);
-    (blended_input * BALANCED_INPUT_OUTPUT_RATIO + output).max(MIN_COST_EPSILON)
+    blended_input * BALANCED_INPUT_OUTPUT_RATIO + output
 }
 
-pub fn effective_token_cost_for_model(model: &Model) -> f64 {
-    effective_token_cost(
+/// Weighted per-1M-token cost used for cheapest / tie-breaks (no floor).
+pub fn effective_token_cost(
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    cache_read_cost: Option<f64>,
+) -> f64 {
+    raw_effective_token_cost(input_cost, output_cost, cache_read_cost)
+}
+
+pub fn raw_effective_token_cost_for_model(model: &Model) -> f64 {
+    raw_effective_token_cost(
         model.input_cost,
         model.output_cost,
         cache_read_cost_from_model(model),
     )
+}
+
+pub fn effective_token_cost_for_model(model: &Model) -> f64 {
+    raw_effective_token_cost_for_model(model)
+}
+
+/// Balanced/auto value score: capability / cost, or +∞ when catalog price is known to be free.
+pub fn capability_value_score(
+    capability: f64,
+    input_cost: Option<f64>,
+    output_cost: Option<f64>,
+    cache_read_cost: Option<f64>,
+) -> f64 {
+    let (Some(_), Some(_)) = (input_cost, output_cost) else {
+        return f64::NEG_INFINITY;
+    };
+    let raw = raw_effective_token_cost(input_cost, output_cost, cache_read_cost);
+    if raw <= 0.0 {
+        f64::INFINITY
+    } else {
+        capability / raw
+    }
 }
 
 pub fn effective_routing_cost(
@@ -234,12 +264,10 @@ fn score_parts(
     strategy: RoutingStrategy,
     task: TaskKind,
     endpoint_cost: f64,
+    value_input_cost: Option<f64>,
+    value_output_cost: Option<f64>,
+    value_cache_read_cost: Option<f64>,
 ) -> ScoreParts {
-    let value_cost = match strategy {
-        RoutingStrategy::Balanced | RoutingStrategy::Auto => effective_token_cost_for_model(model),
-        _ => endpoint_cost,
-    };
-
     if !model_routable_for_strategy(model, strategy, task) {
         let value = match strategy {
             RoutingStrategy::Cheapest => -endpoint_cost,
@@ -267,9 +295,48 @@ fn score_parts(
     let value = match strategy {
         RoutingStrategy::Cheapest => -endpoint_cost,
         RoutingStrategy::Intelligent | RoutingStrategy::Speed => capability,
-        RoutingStrategy::Balanced | RoutingStrategy::Auto => capability / value_cost,
+        RoutingStrategy::Balanced | RoutingStrategy::Auto => capability_value_score(
+            capability,
+            value_input_cost,
+            value_output_cost,
+            value_cache_read_cost,
+        ),
     };
     ScoreParts { capability, value }
+}
+
+fn score_parts_for_model(
+    model: &Model,
+    strategy: RoutingStrategy,
+    task: TaskKind,
+    endpoint_cost: f64,
+) -> ScoreParts {
+    score_parts(
+        model,
+        strategy,
+        task,
+        endpoint_cost,
+        model.input_cost,
+        model.output_cost,
+        cache_read_cost_from_model(model),
+    )
+}
+
+fn score_parts_for_candidate(
+    candidate: &RouteCandidate<'_>,
+    strategy: RoutingStrategy,
+    task: TaskKind,
+    endpoint_cost: f64,
+) -> ScoreParts {
+    score_parts(
+        candidate.model,
+        strategy,
+        task,
+        endpoint_cost,
+        Some(candidate.input_cost),
+        Some(candidate.output_cost),
+        candidate.cache_read_cost,
+    )
 }
 
 fn score_models<'a>(
@@ -291,7 +358,7 @@ fn score_models<'a>(
         .iter()
         .map(|model| {
             let routing_cost = effective_token_cost_for_model(model);
-            let parts = score_parts(model, strategy, profile.task, routing_cost);
+            let parts = score_parts_for_model(model, strategy, profile.task, routing_cost);
             (model, parts.capability, parts.value)
         })
         .collect();
@@ -304,7 +371,7 @@ fn score_models<'a>(
                 .iter()
                 .map(|model| {
                     let routing_cost = effective_token_cost_for_model(model);
-                    let parts = score_parts(model, strategy, profile.task, routing_cost);
+                    let parts = score_parts_for_model(model, strategy, profile.task, routing_cost);
                     (model, parts.capability, parts.value)
                 })
                 .collect();
@@ -377,7 +444,7 @@ fn score_route_candidates<'a>(
                 Some(candidate.output_cost),
                 candidate.cache_read_cost,
             );
-            let parts = score_parts(candidate.model, strategy, profile.task, endpoint_cost);
+            let parts = score_parts_for_candidate(candidate, strategy, profile.task, endpoint_cost);
             (
                 candidate.model,
                 candidate.service_provider_id,
@@ -400,7 +467,7 @@ fn score_route_candidates<'a>(
                         Some(candidate.output_cost),
                         candidate.cache_read_cost,
                     );
-                    let parts = score_parts(candidate.model, strategy, profile.task, routing_cost);
+                    let parts = score_parts_for_candidate(candidate, strategy, profile.task, routing_cost);
                     (
                         candidate.model,
                         candidate.service_provider_id,
@@ -833,6 +900,68 @@ mod tests {
         assert!(
             (effective_token_cost(Some(1.0), Some(1.0), Some(0.1)) - 2.9).abs() < f64::EPSILON
         );
+    }
+
+    #[test]
+    fn effective_token_cost_is_zero_for_known_free_price() {
+        assert_eq!(effective_token_cost(Some(0.0), Some(0.0), None), 0.0);
+    }
+
+    #[test]
+    fn capability_value_score_is_infinity_for_known_free_price() {
+        let score = capability_value_score(42.0, Some(0.0), Some(0.0), None);
+        assert!(score.is_infinite() && score.is_sign_positive());
+    }
+
+    #[test]
+    fn capability_value_score_excludes_missing_prices() {
+        let score = capability_value_score(42.0, None, Some(0.0), None);
+        assert!(score.is_infinite() && score.is_sign_negative());
+    }
+
+    #[test]
+    fn free_models_tie_break_on_capability_after_infinite_value() {
+        let weak = sample_model("free-weak", 0.0, 0.0, (40.0, 35.0, 30.0, 30.0));
+        let strong = sample_model("free-strong", 0.0, 0.0, (70.0, 65.0, 55.0, 50.0));
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.2,
+            estimated_input_tokens: 500,
+        };
+        let models = [weak, strong];
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile, None);
+        assert_eq!(ranked[0].name, "free-strong");
+        assert_eq!(ranked[1].name, "free-weak");
+    }
+
+    #[test]
+    fn free_endpoint_outranks_paid_catalog_on_balanced_value() {
+        let model = sample_model("paid-catalog", 0.3, 1.2, (43.0, 41.0, 35.0, 30.0));
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.2,
+            estimated_input_tokens: 500,
+        };
+        let paid = RouteCandidate {
+            model: &model,
+            service_provider_id: "payg",
+            input_cost: 0.3,
+            output_cost: 1.2,
+            cache_read_cost: None,
+        };
+        let free = RouteCandidate {
+            model: &model,
+            service_provider_id: "subscription",
+            input_cost: 0.0,
+            output_cost: 0.0,
+            cache_read_cost: None,
+        };
+        let candidates = [paid, free];
+        let ranked = rank_route_candidates(&candidates, RoutingStrategy::Balanced, &profile, None);
+        assert_eq!(ranked[0].1, "subscription");
+        let scores = rank_route_candidates_with_scores(&candidates, RoutingStrategy::Balanced, &profile, None);
+        assert!(scores[0].value.is_infinite());
+        assert!(scores[1].value.is_finite());
     }
 
     #[test]

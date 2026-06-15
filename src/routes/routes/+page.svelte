@@ -158,18 +158,20 @@
       return modelOutputSpeed(route) || null;
     }
     const previewTask = strategy === 'auto' ? 'coding' : 'coding';
-    const valueCost = catalogEffectiveTokenCost(route);
     if (strategy === 'balanced') {
       return capabilityIndicesMissing(route, strategy)
         ? null
-        : primaryCapability(route, previewTask) / valueCost;
+        : capabilityValueScore(route, primaryCapability(route, previewTask));
     }
     if (strategy === 'auto') {
       return capabilityIndicesMissing(route, strategy)
         ? null
-        : (hasCompositeIndices(route)
-            ? compositeCapability(route, previewTask)
-            : primaryCapability(route, previewTask)) / valueCost;
+        : capabilityValueScore(
+            route,
+            hasCompositeIndices(route)
+              ? compositeCapability(route, previewTask)
+              : primaryCapability(route, previewTask)
+          );
     }
     return null;
   }
@@ -272,11 +274,6 @@
     return typeof cache === 'number' && cache >= 0 ? cache : undefined;
   }
 
-  function catalogCacheReadCost(model: Model): number | undefined {
-    const cache = model.pricing?.cache_read;
-    return typeof cache === 'number' && cache >= 0 ? cache : undefined;
-  }
-
   /** Endpoint-weighted cost (what you pay through this service provider). */
   function endpointEffectiveTokenCost(route: RoutableModel): number {
     const input = routeInputCost(route);
@@ -289,22 +286,20 @@
       cacheRead !== undefined
         ? INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input
         : input;
-    return Math.max(blended * INPUT_OUTPUT_RATIO + output, 0.001);
+    return blended * INPUT_OUTPUT_RATIO + output;
   }
 
-  /** Catalog list-price cost (used for 性价比 — same for a model regardless of provider). */
-  function catalogEffectiveTokenCost(model: Model): number {
-    const input = model.input_cost;
-    const output = model.output_cost;
+  function capabilityValueScore(route: RoutableModel, capability: number): number {
+    const input = routeInputCost(route);
+    const output = routeOutputCost(route);
     if (input == null || output == null) {
+      return Number.NEGATIVE_INFINITY;
+    }
+    const raw = endpointEffectiveTokenCost(route);
+    if (raw <= 0) {
       return Number.POSITIVE_INFINITY;
     }
-    const cacheRead = catalogCacheReadCost(model);
-    const blended =
-      cacheRead !== undefined
-        ? INPUT_CACHE_HIT_RATE * cacheRead + (1 - INPUT_CACHE_HIT_RATE) * input
-        : input;
-    return Math.max(blended * INPUT_OUTPUT_RATIO + output, 0.001);
+    return capability / raw;
   }
 
   function modelOutputSpeed(model: Model): number {
@@ -525,9 +520,19 @@
       return `$${candidate.score.toFixed(2)}`;
     }
     if (strategyId === 'balanced' || strategyId === 'auto') {
-      return candidate.score.toFixed(2);
+      return Number.isFinite(candidate.score) ? candidate.score.toFixed(2) : '∞';
     }
     return candidate.score.toFixed(1);
+  }
+
+  function formatExplainValue(candidate: RankedModelSummary): string {
+    if (candidate.value != null && Number.isFinite(candidate.value)) {
+      return candidate.value.toFixed(2);
+    }
+    if (candidate.value_unbounded) {
+      return '∞';
+    }
+    return '—';
   }
 
   async function runRoutingPreview() {
@@ -648,7 +653,7 @@
                       </td>
                       <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
                       <td>{candidate.capability != null ? candidate.capability.toFixed(1) : '—'}</td>
-                      <td>{candidate.value != null ? candidate.value.toFixed(2) : '—'}</td>
+                      <td>{formatExplainValue(candidate)}</td>
                     </tr>
                   {/each}
                 {/if}
@@ -666,7 +671,7 @@
                       </td>
                       <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
                       <td>{candidate.capability != null ? candidate.capability.toFixed(1) : '—'}</td>
-                      <td>{candidate.value != null ? candidate.value.toFixed(2) : '—'}</td>
+                      <td>{formatExplainValue(candidate)}</td>
                     </tr>
                   {/each}
                 {/if}

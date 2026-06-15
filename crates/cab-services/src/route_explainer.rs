@@ -116,6 +116,9 @@ async fn ranked_candidates(
             } else {
                 None
             },
+            value_unbounded: model_routable_for_strategy(score.model, strategy, profile.task)
+                && score.value.is_infinite()
+                && score.value.is_sign_positive(),
         });
     }
 
