@@ -20,6 +20,7 @@ pub const SUPPORTED_AGENT_IDS: &[&str] = &[
     "kilocode",
     "openclaw",
     "pi",
+    "reasonix",
 ];
 
 static HOME_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

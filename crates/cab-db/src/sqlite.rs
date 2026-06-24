@@ -373,25 +373,53 @@ pub fn save_catalog_models(
 }
 
 pub fn load_catalog_models(conn: &Connection) -> Result<HashMap<String, Model>, String> {
-    let mut stmt = conn
-        .prepare("SELECT id, data FROM catalog_models")
-        .map_err(|e| e.to_string())?;
-    let rows = stmt
-        .query_map([], |row| {
-            let id: String = row.get(0)?;
-            let data: String = row.get(1)?;
-            Ok((id, data))
-        })
-        .map_err(|e| e.to_string())?;
+    // Collect raw rows first so the read cursor is released before we issue any
+    // DELETE for unreadable rows on the same connection.
+    let raw: Vec<(String, String)> = {
+        let mut stmt = conn
+            .prepare("SELECT id, data FROM catalog_models")
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                let data: String = row.get(1)?;
+                Ok((id, data))
+            })
+            .map_err(|e| e.to_string())?;
+        let mut collected = Vec::new();
+        for row in rows {
+            collected.push(row.map_err(|e| e.to_string())?);
+        }
+        collected
+    };
+
     let mut map = HashMap::new();
-    for row in rows {
-        let (id, data) = row.map_err(|e| e.to_string())?;
-        if let Ok(model) = serde_json::from_str::<Model>(&data) {
-            map.insert(id, model);
-        } else {
-            tracing::warn!("Skipping invalid model data for {id}");
+    let mut unreadable_ids = Vec::new();
+    for (id, data) in raw {
+        match serde_json::from_str::<Model>(&data) {
+            Ok(model) => {
+                map.insert(id, model);
+            }
+            // Rows that no longer match the `Model` schema are legacy orphans
+            // (e.g. raw models.dev entries written by an older version). They can
+            // never be loaded or refreshed by sync, so purge them here to stop the
+            // load-time warning loop and keep the catalog table from growing stale.
+            Err(e) => {
+                tracing::warn!("Purging unreadable catalog model {id}: {e}");
+                unreadable_ids.push(id);
+            }
         }
     }
+
+    for id in &unreadable_ids {
+        if let Err(e) = conn.execute(
+            "DELETE FROM catalog_models WHERE id = ?1",
+            rusqlite::params![id],
+        ) {
+            tracing::warn!("Failed to purge unreadable catalog model {id}: {e}");
+        }
+    }
+
     Ok(map)
 }
 

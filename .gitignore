@@ -24,3 +24,9 @@ src-tauri/gen/
 
 # CI-generated GitHub Release body
 .github/release-body.md
+
+# Local tooling / agent scratch dirs (never commit)
+.codegraph/
+.sisyphus/
+.xdg/
+crates/cab-server/reports/

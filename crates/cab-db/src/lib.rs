@@ -98,19 +98,37 @@ pub async fn init_store() -> anyhow::Result<InMemoryStore> {
     // Load agents + routes from SQLite
     let persisted = sqlite::load_state(&conn).map_err(|e| anyhow::anyhow!(e))?;
     let has_persisted = !persisted.agents.is_empty() || !persisted.routes.is_empty();
+    let persisted_agent_count = persisted.agents.len();
 
     let store = InMemoryStore::with_sqlite(sqlite_pool);
     {
         let mut inner = store.inner.write().expect("store lock poisoned");
         inner.settings = settings;
         if has_persisted {
-            inner.agents = persisted.agents;
+            // Overlay persisted agent settings onto the freshly seeded defaults.
+            // This keeps newly-supported agents (added after this DB was last
+            // written) visible, preserves user choices for existing agents, and
+            // drops any persisted agents that are no longer supported.
+            for (id, agent) in persisted.agents {
+                if inner.agents.contains_key(&id) {
+                    inner.agents.insert(id, agent);
+                }
+            }
             inner.routes = persisted.routes;
         }
     }
 
-    // Persist initial seed agents/routes if state was empty
-    if !has_persisted && let Err(e) = state::save_from_store(&store) {
+    // Persist state if it was empty, or if seeding introduced supported agents
+    // that the persisted DB didn't have yet (so new agents get their own rows).
+    let agent_count = store
+        .inner
+        .read()
+        .expect("store lock poisoned")
+        .agents
+        .len();
+    if (!has_persisted || agent_count != persisted_agent_count)
+        && let Err(e) = state::save_from_store(&store)
+    {
         tracing::warn!("Failed to write initial state: {e}");
     }
 
@@ -208,7 +226,7 @@ mod tests {
     fn new_store_seeds_supported_agents_and_defaults() {
         let store = InMemoryStore::new();
         let data = store.inner.read().unwrap();
-        assert_eq!(data.agents.len(), 7);
+        assert_eq!(data.agents.len(), 8);
         assert!(data.agents.contains_key("claude-code"));
         assert_eq!(data.settings.gateway_port, 3125);
         assert!(data.providers.is_empty());

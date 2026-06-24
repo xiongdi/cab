@@ -967,7 +967,7 @@ fn classify_request(
         &agent_lower,
         &[
             "claude", "codex", "copilot", "aider", "cline", "continue", "hermes", "kilo",
-            "openclaw", "claw", "pi", "code",
+            "openclaw", "claw", "pi", "code", "reasonix",
         ],
     );
 

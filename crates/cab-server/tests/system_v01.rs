@@ -116,7 +116,7 @@ async fn st_inprocess_cloudcode_route_removed() {
 }
 
 #[tokio::test]
-async fn st_inprocess_agent_catalog_has_seven_entries() {
+async fn st_inprocess_agent_catalog_has_eight_entries() {
     let store = InMemoryStore::new();
     let app = build_combined_router(store.clone());
     let response = app
@@ -133,7 +133,7 @@ async fn st_inprocess_agent_catalog_has_seven_entries() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     let agents = body.as_array().expect("agents");
-    assert_eq!(agents.len(), 7);
+    assert_eq!(agents.len(), 8);
     let modes: Vec<&str> = agents
         .iter()
         .map(|a| a.get("mode").and_then(|v| v.as_str()).expect("mode"))

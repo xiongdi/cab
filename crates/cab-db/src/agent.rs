@@ -84,13 +84,14 @@ mod tests {
         "kilocode",
         "openclaw",
         "pi",
+        "reasonix",
     ];
 
     #[tokio::test]
-    async fn default_store_lists_seven_supported_agents() {
+    async fn default_store_lists_eight_supported_agents() {
         let store = InMemoryStore::new();
         let agents = list(&store).await.expect("list agents");
-        assert_eq!(agents.len(), 7);
+        assert_eq!(agents.len(), 8);
         for id in SUPPORTED_AGENT_IDS {
             assert!(agents.iter().any(|a| a.id == *id), "missing agent {id}");
         }

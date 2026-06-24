@@ -7,6 +7,7 @@ mod kilocode;
 mod openclaw;
 mod opencode;
 mod pi;
+mod reasonix;
 pub mod shared;
 
 #[cfg(test)]
@@ -49,6 +50,7 @@ static INTEGRATIONS: &[&dyn AgentIntegration] = &[
     &hermes::Integration,
     &openclaw::Integration,
     &pi::Integration,
+    &reasonix::Integration,
 ];
 
 /// Canonical list of CAB-managed agent IDs (single source of truth).
@@ -60,6 +62,7 @@ pub const SUPPORTED_AGENT_IDS: &[&str] = &[
     "kilocode",
     "openclaw",
     "pi",
+    "reasonix",
 ];
 
 pub fn supported_agent_ids() -> &'static [&'static str] {

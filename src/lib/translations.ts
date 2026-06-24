@@ -449,6 +449,8 @@ export const translations = {
         'OpenClaw 通过官方 `openclaw config` 写入 `openclaw.json`：注册 CAB OpenAI-compatible provider，并把默认模型设为 `cab/auto` 或当前路由策略。',
       guide_pi:
         'Pi 通过 `~/.pi/agent/models.json` 注册 CAB OpenAI-compatible provider，并在 `~/.pi/agent/settings.json` 中设置默认 provider/model 与 Ctrl+P 模型范围。',
+      guide_reasonix:
+        'Reasonix 通过 `~/.reasonix/config.toml` 注册 CAB provider（`[[providers]]`），API Key 写入 `~/.reasonix/.env`。「自动挡」Model 设为路由策略；「手动挡」列出全部已启用模型。',
       system_routes: {
         auto: '🤖 自动 (根据提示词自动选择)',
         balanced: '⚖️ 平衡 (能力与价格均衡)',
@@ -914,6 +916,8 @@ export const translations = {
         'OpenClaw is configured through the official `openclaw config` command. CAB is registered as an OpenAI-compatible provider and the default model is set to `cab/auto` or the selected routing strategy.',
       guide_pi:
         'Pi is configured through `~/.pi/agent/models.json` and `~/.pi/agent/settings.json`: CAB is registered as an OpenAI-compatible provider, then selected as the default provider/model and Ctrl+P model scope.',
+      guide_reasonix:
+        'Reasonix registers CAB as a provider entry (`[[providers]]`) in `~/.reasonix/config.toml`; the API key is written to `~/.reasonix/.env`. Auto mode sets the model to the routing strategy; Manual mode exposes every enabled model.',
       system_routes: {
         auto: '🤖 Auto (Intelligent Prompt Selection)',
         balanced: '⚖️ Balanced (Performance & Cost)',

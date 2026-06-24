@@ -22,7 +22,13 @@ pub fn save_from_store(store: &InMemoryStore) -> Result<(), String> {
 
 pub fn merge_into_store(store: &InMemoryStore, state: PersistedState) {
     let mut inner = store.inner.write().expect("store lock poisoned");
-    inner.agents = state.agents;
+    // Overlay persisted agents onto seeded defaults so newly-supported agents
+    // remain visible and unsupported persisted agents are dropped.
+    for (id, agent) in state.agents {
+        if inner.agents.contains_key(&id) {
+            inner.agents.insert(id, agent);
+        }
+    }
     inner.routes = state.routes;
 }
 
@@ -36,6 +42,7 @@ pub fn seed_agents() -> HashMap<String, Agent> {
         "kilocode",
         "openclaw",
         "pi",
+        "reasonix",
     ] {
         let name = match *id {
             "claude-code" => "Claude Code",
@@ -45,6 +52,7 @@ pub fn seed_agents() -> HashMap<String, Agent> {
             "kilocode" => "Kilo Code",
             "openclaw" => "OpenClaw",
             "pi" => "Pi",
+            "reasonix" => "Reasonix",
             _ => "",
         };
         agents.insert(

@@ -1,6 +1,6 @@
 {
   "productName": "CAB",
-  "version": "0.2.7",
+  "version": "0.4.0",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",

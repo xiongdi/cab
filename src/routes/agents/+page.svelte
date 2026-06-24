@@ -155,15 +155,6 @@
     }
   }
 
-  const agentIcons: Record<string, string> = {
-    'claude-code': `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>`,
-    codex: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
-    opencode: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`,
-    hermes: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 4v6c0 4-3 7-7 8-4-1-7-4-7-8V7l7-4z"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M12 9v8"/></svg>`,
-    kilocode: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14v16H5z"/><path d="M9 8h6"/><path d="M9 12h3"/><path d="M9 16h6"/><path d="M15 12l2 2-2 2"/></svg>`,
-    openclaw: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l4 7-8 11L4 10l4-7z"/><path d="M8 3l4 18"/><path d="M16 3l-4 18"/><path d="M4 10h16"/></svg>`,
-    pi: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12"/><path d="M8 7v12"/><path d="M16 7v12"/><path d="M10 19h4"/><path d="M12 7c0-2 1-3 3-3h2"/><path d="M12 7c0-2-1-3-3-3H7"/></svg>`,
-  };
 </script>
 
 <PageHeader title={i18n.t('agents.title')} description={i18n.t('agents.subtitle')} />
@@ -180,15 +171,8 @@
       <Card padding="24px" hover={true} glow={agent.mode !== 'native'}>
         <div class="agent-card-content">
           <div class="agent-header">
-            <div
-              class="agent-icon"
-              style="background: {agent.mode === 'native'
-                ? 'rgba(255,255,255,0.03)'
-                : 'rgba(59,130,246,0.1)'}; color: {agent.mode === 'native'
-                ? 'var(--text-secondary)'
-                : '#60a5fa'}"
-            >
-              {@html agentIcons[agent.id] || agentIcons.codex}
+            <div class="agent-icon" class:native={agent.mode === 'native'}>
+              <img src="/agent-icons/{agent.id}.svg" alt={agent.name} loading="lazy" />
             </div>
             <div class="agent-title-block">
               <h3>{agent.name}</h3>
@@ -340,6 +324,10 @@
             <h4>7. Pi</h4>
             <p class="guide-desc">{i18n.t('agents.guide_pi')}</p>
           </div>
+          <div class="guide-item">
+            <h4>8. Reasonix</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_reasonix')}</p>
+          </div>
         </div>
       </div>
     </Card>
@@ -378,6 +366,22 @@
     transition: all var(--transition-fast);
     flex-shrink: 0;
     border: 1px solid var(--border);
+    background: #fff;
+    overflow: hidden;
+    padding: 7px;
+    box-sizing: border-box;
+  }
+
+  .agent-icon.native {
+    filter: grayscale(1);
+    opacity: 0.65;
+  }
+
+  .agent-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
   }
 
   .agent-title-block {

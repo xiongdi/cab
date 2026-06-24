@@ -5,6 +5,23 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-06-24
+
+### Added
+
+- **Reasonix agent integration** (`esengine/DeepSeek-Reasonix`): new CAB-managed coding agent configured at `~/.reasonix/config.toml` (secrets in `~/.reasonix/.env`), with native / auto / manual modes. Auto mode injects a `cab` OpenAI-compatible provider pointing at the gateway; manual mode exposes every enabled model.
+- **Real brand icons for all coding agents** in the dashboard Agents page, served from `static/agent-icons/` (Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, Pi, Reasonix), replacing the generic placeholder line icons.
+
+### Fixed
+
+- **Newly-supported agents now appear after upgrade.** Agent state load merges persisted agents over the seeded defaults instead of overwriting them, so agents added in a new version (e.g. Reasonix) show up on existing installs, while user mode/model choices are preserved and removed agents are dropped.
+- **Self-healing model catalog.** `load_catalog_models` now purges `catalog_models` rows that no longer match the `Model` schema (legacy orphans from older versions) and logs the concrete deserialization reason, instead of silently warning on every startup — eliminating the recurring `Skipping invalid model data` log spam and keeping the table from accumulating stale rows.
+- **Request logs attribute Reasonix correctly.** Reasonix sends no identifying headers and no custom `User-Agent` on LLM requests (Go's default `Go-http-client/1.1` leaks through; its OpenAI providers can't carry custom headers — upstream esengine/DeepSeek-Reasonix#3824), so the gateway now maps a bare Go `User-Agent` to `reasonix` as a last-resort fallback instead of logging it as `unknown`.
+
+### Changed
+
+- App version in `src-tauri/tauri.conf.json` synced to the workspace version (was stale at `0.2.7`).
+
 ## [0.2.0] - 2026-06-10
 
 ### Added

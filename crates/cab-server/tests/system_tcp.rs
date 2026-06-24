@@ -13,7 +13,7 @@ async fn st_tcp_serves_gateway_and_api_on_same_port() {
     assert_eq!(models.get("object").and_then(|v| v.as_str()), Some("list"));
 
     let agents = get_json(&server, "/api/agents").await;
-    assert_eq!(agents.as_array().expect("agents").len(), 7);
+    assert_eq!(agents.as_array().expect("agents").len(), 8);
 
     let settings = get_json(&server, "/api/settings").await;
     assert!(

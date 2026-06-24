@@ -42,6 +42,7 @@ pub fn cab_identifying_headers(agent_id: &str) -> serde_json::Map<String, Value>
         "openclaw" => "OpenClaw/CAB",
         "pi" => "pi-coding-agent/CAB",
         "hermes" => "HermesAgent/CAB",
+        "reasonix" => "Reasonix/CAB",
         _ => "CAB",
     };
     let mut headers = serde_json::Map::new();

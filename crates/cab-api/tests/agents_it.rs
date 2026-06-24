@@ -38,6 +38,7 @@ const SUPPORTED_AGENT_IDS: &[&str] = &[
     "kilocode",
     "openclaw",
     "pi",
+    "reasonix",
 ];
 
 async fn json_body(response: axum::response::Response) -> Value {
@@ -58,7 +59,7 @@ fn auth_header(store: &InMemoryStore) -> String {
 }
 
 #[tokio::test]
-async fn it_list_agents_returns_seven_supported_agents() {
+async fn it_list_agents_returns_eight_supported_agents() {
     let store = InMemoryStore::new();
     let app = api_router(store.clone());
     let response = app
@@ -75,7 +76,7 @@ async fn it_list_agents_returns_seven_supported_agents() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     let agents = body.as_array().expect("agents array");
-    assert_eq!(agents.len(), 7);
+    assert_eq!(agents.len(), 8);
 
     let ids: Vec<&str> = agents
         .iter()
