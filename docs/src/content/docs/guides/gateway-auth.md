@@ -13,12 +13,12 @@ Default base URL:
 http://127.0.0.1:3125/v1
 ```
 
-| Endpoint | Protocol | Purpose |
-| -------- | -------- | ------- |
-| `POST /v1/chat/completions` | OpenAI | Chat completions (most agents) |
-| `POST /v1/messages` | Anthropic | Anthropic Messages API |
-| `POST /v1/responses` | OpenAI | Responses API |
-| `GET /v1/models` | OpenAI | List routable models (Manual mode) |
+| Endpoint                    | Protocol  | Purpose                            |
+| --------------------------- | --------- | ---------------------------------- |
+| `POST /v1/chat/completions` | OpenAI    | Chat completions (most agents)     |
+| `POST /v1/messages`         | Anthropic | Anthropic Messages API             |
+| `POST /v1/responses`        | OpenAI    | Responses API                      |
+| `GET /v1/models`            | OpenAI    | List routable models (Manual mode) |
 
 CAB identifies the calling agent from the User-Agent header and applies the matching route or strategy.
 
@@ -39,11 +39,11 @@ Authorization: Bearer <gateway_key>
 
 ## Configuration files
 
-| File | Contents |
-| ---- | -------- |
-| `~/.cab/settings.json` | Port, gateway key, auth flag, catalog keys |
-| `~/.cab/state.json` | Agent modes, route bindings (persistent since v0.2.0) |
-| `~/.cab/logs/*.jsonl` | Request audit logs with retention policy |
+| File                   | Contents                                              |
+| ---------------------- | ----------------------------------------------------- |
+| `~/.cab/settings.json` | Port, gateway key, auth flag, catalog keys            |
+| `~/.cab/state.json`    | Agent modes, route bindings (persistent since v0.2.0) |
+| `~/.cab/logs/*.jsonl`  | Request audit logs with retention policy              |
 
 ## Port changes
 

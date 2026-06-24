@@ -330,35 +330,36 @@ where
                     }
                     "response.output_item.added" => {
                         if let Some(item) = event.get("item")
-                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let call_id = item
-                                    .get("call_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let name = item
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let block_index = emitter.alloc_index();
-                                let id = if call_id.is_empty() {
-                                    format!("toolu_{}", uuid::Uuid::new_v4().simple())
-                                } else {
-                                    call_id.clone()
-                                };
-                                emitter.tools.insert(
-                                    call_id.clone(),
-                                    ToolTracker {
-                                        block_index,
-                                        id,
-                                        name,
-                                        pending_args: String::new(),
-                                        started: false,
-                                        stopped: false,
-                                    },
-                                );
-                            }
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call")
+                        {
+                            let call_id = item
+                                .get("call_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let name = item
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let block_index = emitter.alloc_index();
+                            let id = if call_id.is_empty() {
+                                format!("toolu_{}", uuid::Uuid::new_v4().simple())
+                            } else {
+                                call_id.clone()
+                            };
+                            emitter.tools.insert(
+                                call_id.clone(),
+                                ToolTracker {
+                                    block_index,
+                                    id,
+                                    name,
+                                    pending_args: String::new(),
+                                    started: false,
+                                    stopped: false,
+                                },
+                            );
+                        }
                     }
                     "response.function_call_arguments.delta" => {
                         let call_id = event
@@ -722,31 +723,32 @@ where
                     }
                     "response.output_item.added" => {
                         if let Some(item) = event.get("item")
-                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
-                                let call_id = item
-                                    .get("call_id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("call_0")
-                                    .to_string();
-                                let name = item
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let idx = *next_tool_idx;
-                                *next_tool_idx += 1;
-                                tool_index.insert(call_id.clone(), idx);
-                                tool_names.insert(call_id.clone(), name.clone());
-                                push_chat(
-                                    pending,
-                                    serde_json::json!({
-                                        "choices": [{"index": 0, "delta": {"tool_calls": [{
-                                            "index": idx, "id": call_id, "type": "function",
-                                            "function": {"name": name, "arguments": ""}
-                                        }]}, "finish_reason": null}]
-                                    }),
-                                );
-                            }
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call")
+                        {
+                            let call_id = item
+                                .get("call_id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("call_0")
+                                .to_string();
+                            let name = item
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let idx = *next_tool_idx;
+                            *next_tool_idx += 1;
+                            tool_index.insert(call_id.clone(), idx);
+                            tool_names.insert(call_id.clone(), name.clone());
+                            push_chat(
+                                pending,
+                                serde_json::json!({
+                                    "choices": [{"index": 0, "delta": {"tool_calls": [{
+                                        "index": idx, "id": call_id, "type": "function",
+                                        "function": {"name": name, "arguments": ""}
+                                    }]}, "finish_reason": null}]
+                                }),
+                            );
+                        }
                     }
                     "response.function_call_arguments.delta" => {
                         let call_id = event
@@ -908,33 +910,34 @@ where
                     "content_block_start" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                         if let Some(block) = event.get("content_block")
-                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
-                                let id = block
-                                    .get("id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("call_0")
-                                    .to_string();
-                                let name = block
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                let tool_idx = *next_tool_idx;
-                                *next_tool_idx += 1;
-                                block_tools.insert(index, (id.clone(), name.clone(), tool_idx));
-                                push_openai_chat_sse(
-                                    pending,
-                                    serde_json::json!({
-                                        "tool_calls": [{
-                                            "index": tool_idx,
-                                            "id": id,
-                                            "type": "function",
-                                            "function": {"name": name, "arguments": ""}
-                                        }]
-                                    }),
-                                    None,
-                                );
-                            }
+                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use")
+                        {
+                            let id = block
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("call_0")
+                                .to_string();
+                            let name = block
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            let tool_idx = *next_tool_idx;
+                            *next_tool_idx += 1;
+                            block_tools.insert(index, (id.clone(), name.clone(), tool_idx));
+                            push_openai_chat_sse(
+                                pending,
+                                serde_json::json!({
+                                    "tool_calls": [{
+                                        "index": tool_idx,
+                                        "id": id,
+                                        "type": "function",
+                                        "function": {"name": name, "arguments": ""}
+                                    }]
+                                }),
+                                None,
+                            );
+                        }
                     }
                     "content_block_delta" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -961,25 +964,27 @@ where
                             "input_json_delta" => {
                                 if let Some(partial) =
                                     delta.get("partial_json").and_then(|t| t.as_str())
-                                    && let Some((_, _, tool_idx)) = block_tools.get(&index) {
-                                        push_openai_chat_sse(
-                                            pending,
-                                            serde_json::json!({
-                                                "tool_calls": [{
-                                                    "index": tool_idx,
-                                                    "function": {"arguments": partial}
-                                                }]
-                                            }),
-                                            None,
-                                        );
-                                    }
+                                    && let Some((_, _, tool_idx)) = block_tools.get(&index)
+                                {
+                                    push_openai_chat_sse(
+                                        pending,
+                                        serde_json::json!({
+                                            "tool_calls": [{
+                                                "index": tool_idx,
+                                                "function": {"arguments": partial}
+                                            }]
+                                        }),
+                                        None,
+                                    );
+                                }
                             }
                             _ => {}
                         }
                     }
                     "message_start" => {
                         if let Some(usage) = event.get("message").and_then(|m| m.get("usage")) {
-                            if let Some(in_tok) = usage.get("input_tokens").and_then(|v| v.as_i64()) {
+                            if let Some(in_tok) = usage.get("input_tokens").and_then(|v| v.as_i64())
+                            {
                                 *input_tokens = Some(in_tok);
                             }
                         }
@@ -993,7 +998,9 @@ where
                             *finish_reason = anthropic_stop_to_openai_finish(stop).to_string();
                         }
                         if let Some(usage) = event.get("usage") {
-                            if let Some(out_tok) = usage.get("output_tokens").and_then(|v| v.as_i64()) {
+                            if let Some(out_tok) =
+                                usage.get("output_tokens").and_then(|v| v.as_i64())
+                            {
                                 *output_tokens = Some(out_tok);
                             }
                         }
@@ -1129,28 +1136,29 @@ where
                     "content_block_start" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
                         if let Some(block) = event.get("content_block")
-                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
-                                let call_id = block
-                                    .get("id")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("call_0")
-                                    .to_string();
-                                let name = block
-                                    .get("name")
-                                    .and_then(|v| v.as_str())
-                                    .unwrap_or("")
-                                    .to_string();
-                                block_tools.insert(index, call_id.clone());
-                                push_responses_sse(
-                                    pending,
-                                    "response.output_item.added",
-                                    serde_json::json!({
-                                        "type": "response.output_item.added",
-                                        "output_index": 1,
-                                        "item": {"type": "function_call", "call_id": call_id, "name": name, "arguments": ""}
-                                    }),
-                                );
-                            }
+                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use")
+                        {
+                            let call_id = block
+                                .get("id")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("call_0")
+                                .to_string();
+                            let name = block
+                                .get("name")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            block_tools.insert(index, call_id.clone());
+                            push_responses_sse(
+                                pending,
+                                "response.output_item.added",
+                                serde_json::json!({
+                                    "type": "response.output_item.added",
+                                    "output_index": 1,
+                                    "item": {"type": "function_call", "call_id": call_id, "name": name, "arguments": ""}
+                                }),
+                            );
+                        }
                     }
                     "content_block_delta" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -1187,17 +1195,18 @@ where
                             "input_json_delta" => {
                                 if let Some(partial) =
                                     delta.get("partial_json").and_then(|t| t.as_str())
-                                    && let Some(call_id) = block_tools.get(&index) {
-                                        push_responses_sse(
-                                            pending,
-                                            "response.function_call_arguments.delta",
-                                            serde_json::json!({
-                                                "type": "response.function_call_arguments.delta",
-                                                "item_id": call_id,
-                                                "delta": partial,
-                                            }),
-                                        );
-                                    }
+                                    && let Some(call_id) = block_tools.get(&index)
+                                {
+                                    push_responses_sse(
+                                        pending,
+                                        "response.function_call_arguments.delta",
+                                        serde_json::json!({
+                                            "type": "response.function_call_arguments.delta",
+                                            "item_id": call_id,
+                                            "delta": partial,
+                                        }),
+                                    );
+                                }
                             }
                             _ => {}
                         }
@@ -1279,25 +1288,27 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
     if let Some(reasoning) = message
         .and_then(|m| m.get("reasoning_content"))
         .and_then(|c| c.as_str())
-        && !reasoning.is_empty() {
-            sse.push_str(&format!(
+        && !reasoning.is_empty()
+    {
+        sse.push_str(&format!(
                 "data: {}\n\n",
                 serde_json::json!({
                     "choices": [{"index": 0, "delta": {"reasoning_content": reasoning}, "finish_reason": null}]
                 })
             ));
-        }
+    }
     if let Some(content) = message
         .and_then(|m| m.get("content"))
         .and_then(|c| c.as_str())
-        && !content.is_empty() {
-            sse.push_str(&format!(
-                "data: {}\n\n",
-                serde_json::json!({
-                    "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": null}]
-                })
-            ));
-        }
+        && !content.is_empty()
+    {
+        sse.push_str(&format!(
+            "data: {}\n\n",
+            serde_json::json!({
+                "choices": [{"index": 0, "delta": {"content": content}, "finish_reason": null}]
+            })
+        ));
+    }
     if let Some(Value::Array(tool_calls)) = message.and_then(|m| m.get("tool_calls")) {
         for call in tool_calls {
             let idx = call.get("index").and_then(|v| v.as_u64()).unwrap_or(0);

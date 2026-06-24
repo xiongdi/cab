@@ -37,11 +37,7 @@ pub async fn handle_responses_ws(
     ws.on_upgrade(move |socket| handle_ws_socket(socket, state, headers))
 }
 
-async fn handle_ws_socket(
-    mut socket: WebSocket,
-    state: Arc<GatewayState>,
-    headers: HeaderMap,
-) {
+async fn handle_ws_socket(mut socket: WebSocket, state: Arc<GatewayState>, headers: HeaderMap) {
     // Wait for the first text message (the responses.create event)
     let msg = match socket.recv().await {
         Some(Ok(Message::Text(text))) => text,
@@ -75,17 +71,13 @@ async fn handle_ws_socket(
             match body_bytes {
                 Ok(bytes) => {
                     // Send response.created event (using the response body)
-                    if let Ok(resp_val) =
-                        serde_json::from_slice::<serde_json::Value>(&bytes)
-                    {
+                    if let Ok(resp_val) = serde_json::from_slice::<serde_json::Value>(&bytes) {
                         // Send response.created
                         let created = serde_json::json!({
                             "type": "response.created",
                             "response": resp_val,
                         });
-                        let _ = socket
-                            .send(Message::Text(created.to_string().into()))
-                            .await;
+                        let _ = socket.send(Message::Text(created.to_string().into())).await;
 
                         // Send response.completed
                         let completed = serde_json::json!({
@@ -137,7 +129,11 @@ fn parse_ws_message(msg: &str) -> Result<Bytes, String> {
 
     // Ensure stream=false for WS (already streaming via the socket)
     let mut body = resp.clone();
-    if body.get("stream").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if body
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+    {
         body["stream"] = serde_json::Value::Bool(false);
     }
 

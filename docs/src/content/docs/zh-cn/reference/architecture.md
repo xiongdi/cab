@@ -25,15 +25,15 @@ graph TD
 
 ## Crate 分工
 
-| Crate | 职责 |
-| ----- | ---- |
-| `cab-core` | 类型、请求画像、路由算法、排序 |
-| `cab-db` | 持久化存储——`settings.json`、`state.json`、JSONL 日志 |
-| `cab-services` | 目录同步、路由解析、Agent 配置改写 |
-| `cab-gateway` | 认证、协议适配、上游转发 |
-| `cab-api` | 管理 REST API（`/api/*`） |
-| `cab-server` | 无头守护进程——网关 + API + 静态 UI |
-| `src/` | Svelte 仪表盘 |
+| Crate          | 职责                                                  |
+| -------------- | ----------------------------------------------------- |
+| `cab-core`     | 类型、请求画像、路由算法、排序                        |
+| `cab-db`       | 持久化存储——`settings.json`、`state.json`、JSONL 日志 |
+| `cab-services` | 目录同步、路由解析、Agent 配置改写                    |
+| `cab-gateway`  | 认证、协议适配、上游转发                              |
+| `cab-api`      | 管理 REST API（`/api/*`）                             |
+| `cab-server`   | 无头守护进程——网关 + API + 静态 UI                    |
+| `src/`         | Svelte 仪表盘                                         |
 
 ## 请求流程
 
@@ -46,11 +46,11 @@ graph TD
 
 ## 数据持久化
 
-| 存储 | 路径 | 起始版本 |
-| ---- | ---- | -------- |
-| 设置 | `~/.cab/settings.json` | v0.1.0 |
-| Agent/路由状态 | `~/.cab/state.json` | v0.2.0 |
-| 请求日志 | `~/.cab/logs/*.jsonl` | v0.2.0 |
+| 存储           | 路径                   | 起始版本 |
+| -------------- | ---------------------- | -------- |
+| 设置           | `~/.cab/settings.json` | v0.1.0   |
+| Agent/路由状态 | `~/.cab/state.json`    | v0.2.0   |
+| 请求日志       | `~/.cab/logs/*.jsonl`  | v0.2.0   |
 
 ## 技术栈
 

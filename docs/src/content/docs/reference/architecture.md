@@ -25,15 +25,15 @@ graph TD
 
 ## Crates
 
-| Crate | Role |
-| ----- | ---- |
-| `cab-core` | Types, request profiling, routing algorithm, ranking |
-| `cab-db` | Persistent store — `settings.json`, `state.json`, JSONL logs |
-| `cab-services` | Catalog sync, route resolution, agent config rewrites |
-| `cab-gateway` | Auth, protocol adapters, upstream forwarding |
-| `cab-api` | Management REST API (`/api/*`) |
-| `cab-server` | Headless daemon — gateway + API + static UI |
-| `src/` | Svelte dashboard |
+| Crate          | Role                                                         |
+| -------------- | ------------------------------------------------------------ |
+| `cab-core`     | Types, request profiling, routing algorithm, ranking         |
+| `cab-db`       | Persistent store — `settings.json`, `state.json`, JSONL logs |
+| `cab-services` | Catalog sync, route resolution, agent config rewrites        |
+| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                 |
+| `cab-api`      | Management REST API (`/api/*`)                               |
+| `cab-server`   | Headless daemon — gateway + API + static UI                  |
+| `src/`         | Svelte dashboard                                             |
 
 ## Request flow
 
@@ -46,11 +46,11 @@ graph TD
 
 ## Data persistence
 
-| Store | Path | Since |
-| ----- | ---- | ----- |
-| Settings | `~/.cab/settings.json` | v0.1.0 |
-| Agent/route state | `~/.cab/state.json` | v0.2.0 |
-| Request logs | `~/.cab/logs/*.jsonl` | v0.2.0 |
+| Store             | Path                   | Since  |
+| ----------------- | ---------------------- | ------ |
+| Settings          | `~/.cab/settings.json` | v0.1.0 |
+| Agent/route state | `~/.cab/state.json`    | v0.2.0 |
+| Request logs      | `~/.cab/logs/*.jsonl`  | v0.2.0 |
 
 ## Tech stack
 

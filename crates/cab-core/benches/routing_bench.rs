@@ -1,5 +1,5 @@
 use cab_core::routing::{
-    RoutingStrategy, build_request_profile, rank_models, rank_route_candidates, RouteCandidate,
+    RouteCandidate, RoutingStrategy, build_request_profile, rank_models, rank_route_candidates,
 };
 use cab_core::types::Model;
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};

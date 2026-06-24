@@ -10,16 +10,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Cargo workspace (`crates/*`, `src-tauri`) + Svelte/Tauri frontend (`src/`, `src-tauri/`).
 
-| Crate          | Role                                                       |
-| -------------- | ---------------------------------------------------------- |
-| `cab-core`     | Types, request profiling, routing/scoring algorithm        |
-| `cab-db`       | `~/.cab/` storage (`settings.json`, `state.json`, JSONL logs) |
-| `cab-services` | Catalog sync, route resolution, agent config switcher      |
+| Crate          | Role                                                                                                           |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `cab-core`     | Types, request profiling, routing/scoring algorithm                                                            |
+| `cab-db`       | `~/.cab/` storage (`settings.json`, `state.json`, JSONL logs)                                                  |
+| `cab-services` | Catalog sync, route resolution, agent config switcher                                                          |
 | `cab-gateway`  | Gateway auth, protocol adapters (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), upstream forwarding |
-| `cab-api`      | Management REST API (`/api/*`)                             |
-| `cab-server`   | Headless daemon combining gateway + API + static UI        |
-| `src/`         | Svelte dashboard (consumed by both Tauri and `cab-server`) |
-| `src-tauri/`   | Tauri shell                                                |
+| `cab-api`      | Management REST API (`/api/*`)                                                                                 |
+| `cab-server`   | Headless daemon combining gateway + API + static UI                                                            |
+| `src/`         | Svelte dashboard (consumed by both Tauri and `cab-server`)                                                     |
+| `src-tauri/`   | Tauri shell                                                                                                    |
 
 Runtime state lives at `~/.cab/`. Agent configs (e.g. `~/.claude/settings.json`) are rewritten when switching modes (Native / Auto / Manual).
 

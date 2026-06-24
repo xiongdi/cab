@@ -7,11 +7,11 @@ The **Agents** page is CAB's control center for coding agent integrations. Each 
 
 ## Modes
 
-| Mode | What happens |
-| ---- | ------------ |
-| **Native** | Agent keeps its original config and talks directly to its default backend. CAB does not intervene. |
-| **Auto** | CAB rewrites the agent config to point at the local gateway and binds a **routing strategy**. Every request is routed automatically. |
-| **Manual** | CAB points the agent at the gateway and registers all enabled models. You choose the model inside the agent CLI. |
+| Mode       | What happens                                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Native** | Agent keeps its original config and talks directly to its default backend. CAB does not intervene.                                   |
+| **Auto**   | CAB rewrites the agent config to point at the local gateway and binds a **routing strategy**. Every request is routed automatically. |
+| **Manual** | CAB points the agent at the gateway and registers all enabled models. You choose the model inside the agent CLI.                     |
 
 ### When to use each mode
 
@@ -21,15 +21,15 @@ The **Agents** page is CAB's control center for coding agent integrations. Each 
 
 ## Per-agent integration
 
-| Agent | Config location | Auto mode | Manual mode |
-| ----- | --------------- | --------- | ----------- |
-| **Claude Code** | `~/.claude/settings.json` | Rewrites gateway URL + Bearer key; strategy-driven routing | Gateway discovery with `claude/cab/...` model aliases |
-| **Codex** | `~/.codex/config.toml` | Sets CAB provider + strategy; manages OAuth via `auth.json` | Lists all enabled models via `/v1/models` |
-| **OpenCode** | `~/.config/opencode/opencode.json` | Registers `cab/auto` strategy aliases | Writes all enabled models under cab provider |
-| **Hermes** | `~/.hermes/config.yaml` | OpenAI-compatible mode + custom headers for agent ID | Same gateway, model chosen in Hermes |
-| **Kilo Code** | `~/.config/kilo/opencode.json` | OpenCode-format cab provider + strategy | All enabled models registered |
-| **OpenClaw** | `openclaw config` → `openclaw.json` | CAB as OpenAI-compatible provider, default `cab/auto` | Default model set to chosen strategy or model |
-| **Pi** | `~/.pi/agent/models.json` + `settings.json` | CAB provider + default strategy | Full model list in Ctrl+P picker |
+| Agent           | Config location                             | Auto mode                                                   | Manual mode                                           |
+| --------------- | ------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
+| **Claude Code** | `~/.claude/settings.json`                   | Rewrites gateway URL + Bearer key; strategy-driven routing  | Gateway discovery with `claude/cab/...` model aliases |
+| **Codex**       | `~/.codex/config.toml`                      | Sets CAB provider + strategy; manages OAuth via `auth.json` | Lists all enabled models via `/v1/models`             |
+| **OpenCode**    | `~/.config/opencode/opencode.json`          | Registers `cab/auto` strategy aliases                       | Writes all enabled models under cab provider          |
+| **Hermes**      | `~/.hermes/config.yaml`                     | OpenAI-compatible mode + custom headers for agent ID        | Same gateway, model chosen in Hermes                  |
+| **Kilo Code**   | `~/.config/kilo/opencode.json`              | OpenCode-format cab provider + strategy                     | All enabled models registered                         |
+| **OpenClaw**    | `openclaw config` → `openclaw.json`         | CAB as OpenAI-compatible provider, default `cab/auto`       | Default model set to chosen strategy or model         |
+| **Pi**          | `~/.pi/agent/models.json` + `settings.json` | CAB provider + default strategy                             | Full model list in Ctrl+P picker                      |
 
 CAB **backs up** existing agent configs before rewriting and **restores** them when you switch back to Native mode.
 

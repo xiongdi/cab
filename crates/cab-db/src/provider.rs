@@ -101,7 +101,14 @@ pub async fn upsert_catalog_provider(
     // Persist to SQLite
     if let Some(pool) = &store.pool {
         let conn = pool.get().map_err(|e| e.to_string())?;
-        if let Some(provider) = store.inner.read().map_err(|e| e.to_string())?.providers.get(id).cloned() {
+        if let Some(provider) = store
+            .inner
+            .read()
+            .map_err(|e| e.to_string())?
+            .providers
+            .get(id)
+            .cloned()
+        {
             crate::sqlite::upsert_catalog_provider(&conn, &provider)?;
         }
     }

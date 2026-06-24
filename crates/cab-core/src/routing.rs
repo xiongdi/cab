@@ -100,7 +100,13 @@ pub fn build_request_profile(body: &serde_json::Value, agent: &str) -> RequestPr
     let message_count = count_messages(body);
     let has_tools = body.get("tools").is_some() || body.get("functions").is_some();
     let estimated_output_tokens = estimate_output_tokens(body, message_count);
-    classify_request(&text, agent, message_count, has_tools, estimated_output_tokens)
+    classify_request(
+        &text,
+        agent,
+        message_count,
+        has_tools,
+        estimated_output_tokens,
+    )
 }
 
 pub fn cache_read_cost_from_model(model: &Model) -> Option<f64> {
@@ -318,13 +324,15 @@ fn score_parts(
         RoutingStrategy::Balanced | RoutingStrategy::Auto | RoutingStrategy::Cheapest => {
             model.overall_intelligence.unwrap_or(secondary_missing)
         }
-        RoutingStrategy::Intelligent | RoutingStrategy::Agentic => capability_value_score_with_ratio(
-            primary_capability_loose(model, task),
-            costs.input_cost,
-            costs.output_cost,
-            costs.cache_read_cost,
-            costs.input_output_ratio,
-        ),
+        RoutingStrategy::Intelligent | RoutingStrategy::Agentic => {
+            capability_value_score_with_ratio(
+                primary_capability_loose(model, task),
+                costs.input_cost,
+                costs.output_cost,
+                costs.cache_read_cost,
+                costs.input_output_ratio,
+            )
+        }
         RoutingStrategy::Speed => costs.endpoint_cost,
     };
 
@@ -439,7 +447,8 @@ fn score_models<'a>(
         .into_iter()
         .map(|model| {
             let routing_cost = effective_token_cost_for_model(model);
-            let parts = score_parts_for_model(model, strategy, profile.task, routing_cost, io_ratio);
+            let parts =
+                score_parts_for_model(model, strategy, profile.task, routing_cost, io_ratio);
             (model, parts.capability, parts.value)
         })
         .collect();
@@ -455,9 +464,7 @@ fn score_models<'a>(
             && !scored.is_empty()
         {
             let before_cost = scored.len();
-            scored.retain(|(model, _, _)| {
-                effective_token_cost_for_model(model) <= max_cost
-            });
+            scored.retain(|(model, _, _)| effective_token_cost_for_model(model) <= max_cost);
             if scored.is_empty() {
                 tracing::debug!(
                     max_cost,
@@ -473,8 +480,13 @@ fn score_models<'a>(
                     })
                     .map(|model| {
                         let routing_cost = effective_token_cost_for_model(model);
-                        let parts =
-                            score_parts_for_model(model, strategy, profile.task, routing_cost, io_ratio);
+                        let parts = score_parts_for_model(
+                            model,
+                            strategy,
+                            profile.task,
+                            routing_cost,
+                            io_ratio,
+                        );
                         (model, parts.capability, parts.value)
                     })
                     .collect();
@@ -500,7 +512,13 @@ fn score_models<'a>(
                 .into_iter()
                 .map(|model| {
                     let routing_cost = effective_token_cost_for_model(model);
-                    let parts = score_parts_for_model(model, strategy, profile.task, routing_cost, io_ratio);
+                    let parts = score_parts_for_model(
+                        model,
+                        strategy,
+                        profile.task,
+                        routing_cost,
+                        io_ratio,
+                    );
                     (model, parts.capability, parts.value)
                 })
                 .collect();
@@ -566,7 +584,13 @@ fn score_route_candidates<'a>(
                 Some(candidate.output_cost),
                 candidate.cache_read_cost,
             );
-            let parts = score_parts_for_candidate(candidate, strategy, profile.task, endpoint_cost, io_ratio);
+            let parts = score_parts_for_candidate(
+                candidate,
+                strategy,
+                profile.task,
+                endpoint_cost,
+                io_ratio,
+            );
             (
                 candidate.model,
                 candidate.service_provider_id,
@@ -651,8 +675,13 @@ fn score_route_candidates<'a>(
                         Some(candidate.output_cost),
                         candidate.cache_read_cost,
                     );
-                    let parts =
-                        score_parts_for_candidate(candidate, strategy, profile.task, routing_cost, io_ratio);
+                    let parts = score_parts_for_candidate(
+                        candidate,
+                        strategy,
+                        profile.task,
+                        routing_cost,
+                        io_ratio,
+                    );
                     (
                         candidate.model,
                         candidate.service_provider_id,
@@ -1246,7 +1275,8 @@ mod tests {
         // cheap-dumb: coding=35, cost=2.0 → value=17.5
         // expensive-genius: coding=92, cost=70 → value≈1.31
         let best_value = sample_model("best-value", 0.1, 0.1, (50.0, 70.0, 40.0, 40.0));
-        let expensive_genius = sample_model("expensive-genius", 5.0, 20.0, (50.0, 92.0, 40.0, 40.0));
+        let expensive_genius =
+            sample_model("expensive-genius", 5.0, 20.0, (50.0, 92.0, 40.0, 40.0));
         let cheap_dumb = sample_model("cheap-dumb", 0.1, 0.1, (50.0, 35.0, 40.0, 40.0));
         let profile = RequestProfile {
             task: TaskKind::Coding,
@@ -1317,10 +1347,22 @@ mod tests {
         let models = [fast];
         let scored = rank_models_with_scores(&models, RoutingStrategy::Speed, &profile);
         let s = &scored[0];
-        assert!(s.value > 0.0, "speed.value must be positive seconds, got {}", s.value);
-        assert!(s.capability > 0.0, "speed.capability must be positive cost, got {}", s.capability);
+        assert!(
+            s.value > 0.0,
+            "speed.value must be positive seconds, got {}",
+            s.value
+        );
+        assert!(
+            s.capability > 0.0,
+            "speed.capability must be positive cost, got {}",
+            s.capability
+        );
         // fast: 0.5 + 1000/200 = 5.5s
-        assert!((s.value - 5.5).abs() < 1e-6, "expected 5.5s, got {}", s.value);
+        assert!(
+            (s.value - 5.5).abs() < 1e-6,
+            "expected 5.5s, got {}",
+            s.value
+        );
     }
 
     #[test]
@@ -1339,7 +1381,11 @@ mod tests {
         let models = [cheap, pricey];
         let scored = rank_models_with_scores(&models, RoutingStrategy::Cheapest, &profile);
         for s in &scored {
-            assert!(s.value > 0.0, "cheapest.value must be positive cost, got {}", s.value);
+            assert!(
+                s.value > 0.0,
+                "cheapest.value must be positive cost, got {}",
+                s.value
+            );
             assert!(
                 s.capability > 0.0 || s.capability == f64::NEG_INFINITY,
                 "cheapest.capability must be positive intelligence or -∞, got {}",
@@ -1354,8 +1400,10 @@ mod tests {
         // Tie on coding: high-coding-cheap vs high-coding-pricey → secondary is
         // cost-performance (capability/cost), cheap wins.
         let best_coder = sample_model("best-coder", 1.0, 1.0, (50.0, 95.0, 40.0, 40.0));
-        let high_coding_cheap = sample_model("high-coding-cheap", 0.1, 0.1, (50.0, 90.0, 40.0, 40.0));
-        let high_coding_pricey = sample_model("high-coding-pricey", 5.0, 20.0, (50.0, 90.0, 40.0, 40.0));
+        let high_coding_cheap =
+            sample_model("high-coding-cheap", 0.1, 0.1, (50.0, 90.0, 40.0, 40.0));
+        let high_coding_pricey =
+            sample_model("high-coding-pricey", 5.0, 20.0, (50.0, 90.0, 40.0, 40.0));
         let profile = RequestProfile {
             task: TaskKind::Coding,
             complexity: 0.5,
@@ -1375,8 +1423,10 @@ mod tests {
         // Tie on agentic: high-agentic-cheap vs high-agentic-pricey → secondary is
         // cost-performance (capability/cost), cheap wins.
         let best_agent = sample_model("best-agent", 1.0, 1.0, (50.0, 40.0, 95.0, 40.0));
-        let high_agentic_cheap = sample_model("high-agentic-cheap", 0.1, 0.1, (50.0, 40.0, 90.0, 40.0));
-        let high_agentic_pricey = sample_model("high-agentic-pricey", 5.0, 20.0, (50.0, 40.0, 90.0, 40.0));
+        let high_agentic_cheap =
+            sample_model("high-agentic-cheap", 0.1, 0.1, (50.0, 40.0, 90.0, 40.0));
+        let high_agentic_pricey =
+            sample_model("high-agentic-pricey", 5.0, 20.0, (50.0, 40.0, 90.0, 40.0));
         let profile = RequestProfile {
             task: TaskKind::Coding,
             complexity: 0.5,

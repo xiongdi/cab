@@ -25,9 +25,7 @@ pub fn skip_unless_enabled() -> bool {
     if enabled() {
         return false;
     }
-    eprintln!(
-        "skip UAT: set {ENV_ENABLE}=1 to run local acceptance tests with real keys"
-    );
+    eprintln!("skip UAT: set {ENV_ENABLE}=1 to run local acceptance tests with real keys");
     true
 }
 
@@ -50,8 +48,7 @@ pub async fn spawn_local_server() -> TestServer {
 }
 
 fn read_gateway_key_from_sqlite() -> String {
-    let pool = cab_db::sqlite::pool()
-        .unwrap_or_else(|e| panic!("SQLite pool: {e}"));
+    let pool = cab_db::sqlite::pool().unwrap_or_else(|e| panic!("SQLite pool: {e}"));
     let conn = pool.get().unwrap_or_else(|e| panic!("SQLite conn: {e}"));
     let settings = cab_db::sqlite::load_settings(&conn)
         .unwrap_or_else(|e| panic!("load settings: {e}"))

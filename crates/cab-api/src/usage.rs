@@ -1,6 +1,6 @@
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum::Json;
 use cab_core::types::{UsageQuery, UsageSummary};
 use cab_db::sqlite;
 use serde_json::json;

@@ -26,12 +26,12 @@ CAB selects keys in configuration order, skipping keys in 429 cooldown.
 
 The **Models** catalog shows benchmark data synced from models.dev and Artificial Analysis:
 
-| Field | Meaning |
-| ----- | ------- |
-| **Coding index** | AA coding benchmark score |
-| **Intelligence / Agentic** | General and agentic capability scores |
-| **Context window** | Max input tokens |
-| **Price** | Input and output cost per million tokens |
+| Field                      | Meaning                                  |
+| -------------------------- | ---------------------------------------- |
+| **Coding index**           | AA coding benchmark score                |
+| **Intelligence / Agentic** | General and agentic capability scores    |
+| **Context window**         | Max input tokens                         |
+| **Price**                  | Input and output cost per million tokens |
 
 Enable or disable individual models. Only **enabled models on enabled providers** are eligible for routing.
 

@@ -50,9 +50,9 @@ async fn api_auth_middleware(
                 .and_then(|v| v.to_str().ok()),
         )
         .await
-        {
-            return err.into_response();
-        }
+    {
+        return err.into_response();
+    }
     next.run(request).await
 }
 

@@ -130,38 +130,40 @@ impl AgentIntegration for Integration {
                     .unwrap_or(false);
 
                 if let Some(toks) = obj.get("tokens").and_then(|t| t.as_object())
-                    && !is_cab_token {
-                        let acc = toks.get("access_token").cloned();
-                        let ref_t = toks.get("refresh_token").cloned();
-                        let id_t = toks.get("id_token").cloned();
-                        let lr = obj.get("last_refresh").cloned();
-                        let am = obj.get("auth_mode").cloned();
+                    && !is_cab_token
+                {
+                    let acc = toks.get("access_token").cloned();
+                    let ref_t = toks.get("refresh_token").cloned();
+                    let id_t = toks.get("id_token").cloned();
+                    let lr = obj.get("last_refresh").cloned();
+                    let am = obj.get("auth_mode").cloned();
 
-                        if let Some(a) = acc {
-                            obj.insert("cab_backup_access_token".to_string(), a);
-                        }
-                        if let Some(r) = ref_t {
-                            obj.insert("cab_backup_refresh_token".to_string(), r);
-                        }
-                        if let Some(i) = id_t {
-                            obj.insert("cab_backup_id_token".to_string(), i);
-                        }
-                        if let Some(l) = lr {
-                            obj.insert("cab_backup_last_refresh".to_string(), l);
-                        }
-                        if let Some(m) = am {
-                            obj.insert("cab_backup_auth_mode".to_string(), m);
-                        }
+                    if let Some(a) = acc {
+                        obj.insert("cab_backup_access_token".to_string(), a);
                     }
+                    if let Some(r) = ref_t {
+                        obj.insert("cab_backup_refresh_token".to_string(), r);
+                    }
+                    if let Some(i) = id_t {
+                        obj.insert("cab_backup_id_token".to_string(), i);
+                    }
+                    if let Some(l) = lr {
+                        obj.insert("cab_backup_last_refresh".to_string(), l);
+                    }
+                    if let Some(m) = am {
+                        obj.insert("cab_backup_auth_mode".to_string(), m);
+                    }
+                }
 
                 let current_api_key = obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
                 let is_cab_api_key = current_api_key
                     .map(|k| k.starts_with("cab-token-"))
                     .unwrap_or(false);
                 if let Some(k) = obj.get("OPENAI_API_KEY")
-                    && !is_cab_api_key {
-                        obj.insert("cab_backup_openai_api_key".to_string(), k.clone());
-                    }
+                    && !is_cab_api_key
+                {
+                    obj.insert("cab_backup_openai_api_key".to_string(), k.clone());
+                }
 
                 // Set our CAB managed ChatGPT auth
                 obj.insert(
@@ -212,85 +214,78 @@ impl AgentIntegration for Integration {
             // Restore backup fields in auth.json if they exist
             if auth_path.exists()
                 && let Ok(content) = fs::read_to_string(&auth_path)
-                    && let Ok(mut auth_json) = serde_json::from_str::<serde_json::Value>(&content) {
-                        let mut modified = false;
-                        if let Some(obj) = auth_json.as_object_mut() {
-                            if let Some(bak_acc) = obj.remove("cab_backup_access_token") {
-                                let mut tokens = obj
-                                    .get("tokens")
-                                    .and_then(|t| t.as_object().cloned())
-                                    .unwrap_or_default();
-                                tokens.insert("access_token".to_string(), bak_acc);
-                                if let Some(bak_ref) = obj.remove("cab_backup_refresh_token") {
-                                    tokens.insert("refresh_token".to_string(), bak_ref);
-                                }
-                                if let Some(bak_id) = obj.remove("cab_backup_id_token") {
-                                    tokens.insert("id_token".to_string(), bak_id);
-                                }
-                                obj.insert("tokens".to_string(), serde_json::Value::Object(tokens));
-                                modified = true;
-                            } else {
-                                let current_token = obj
-                                    .get("tokens")
-                                    .and_then(|t| t.get("access_token"))
-                                    .and_then(|v| v.as_str());
-                                if current_token
-                                    .map(|t| {
-                                        t.starts_with("cab-token-")
-                                            || t == gateway_key
-                                            || t == api_key
-                                    })
-                                    .unwrap_or(false)
-                                {
-                                    obj.remove("tokens");
-                                    modified = true;
-                                }
-                            }
-
-                            if let Some(bak_lr) = obj.remove("cab_backup_last_refresh") {
-                                obj.insert("last_refresh".to_string(), bak_lr);
-                                modified = true;
-                            } else if obj.get("last_refresh").and_then(|v| v.as_str())
-                                == Some("2099-01-01T00:00:00Z")
-                            {
-                                obj.remove("last_refresh");
-                                modified = true;
-                            }
-
-                            if let Some(bak_am) = obj.remove("cab_backup_auth_mode") {
-                                obj.insert("auth_mode".to_string(), bak_am);
-                                modified = true;
-                            } else if obj.get("auth_mode").and_then(|v| v.as_str())
-                                == Some("chatgpt")
-                            {
-                                obj.remove("auth_mode");
-                                modified = true;
-                            }
-
-                            if let Some(bak_key) = obj.remove("cab_backup_openai_api_key") {
-                                obj.insert("OPENAI_API_KEY".to_string(), bak_key);
-                                modified = true;
-                            } else {
-                                let current_api_key =
-                                    obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
-                                if current_api_key
-                                    .map(|k| {
-                                        k.starts_with("cab-token-")
-                                            || k == gateway_key
-                                            || k == api_key
-                                    })
-                                    .unwrap_or(false)
-                                {
-                                    obj.remove("OPENAI_API_KEY");
-                                    modified = true;
-                                }
-                            }
+                && let Ok(mut auth_json) = serde_json::from_str::<serde_json::Value>(&content)
+            {
+                let mut modified = false;
+                if let Some(obj) = auth_json.as_object_mut() {
+                    if let Some(bak_acc) = obj.remove("cab_backup_access_token") {
+                        let mut tokens = obj
+                            .get("tokens")
+                            .and_then(|t| t.as_object().cloned())
+                            .unwrap_or_default();
+                        tokens.insert("access_token".to_string(), bak_acc);
+                        if let Some(bak_ref) = obj.remove("cab_backup_refresh_token") {
+                            tokens.insert("refresh_token".to_string(), bak_ref);
                         }
-                        if modified
-                            && let Ok(pretty) = serde_json::to_string_pretty(&auth_json) {
-                                let _ = fs::write(&auth_path, pretty);
-                            }
+                        if let Some(bak_id) = obj.remove("cab_backup_id_token") {
+                            tokens.insert("id_token".to_string(), bak_id);
+                        }
+                        obj.insert("tokens".to_string(), serde_json::Value::Object(tokens));
+                        modified = true;
+                    } else {
+                        let current_token = obj
+                            .get("tokens")
+                            .and_then(|t| t.get("access_token"))
+                            .and_then(|v| v.as_str());
+                        if current_token
+                            .map(|t| {
+                                t.starts_with("cab-token-") || t == gateway_key || t == api_key
+                            })
+                            .unwrap_or(false)
+                        {
+                            obj.remove("tokens");
+                            modified = true;
+                        }
                     }
+
+                    if let Some(bak_lr) = obj.remove("cab_backup_last_refresh") {
+                        obj.insert("last_refresh".to_string(), bak_lr);
+                        modified = true;
+                    } else if obj.get("last_refresh").and_then(|v| v.as_str())
+                        == Some("2099-01-01T00:00:00Z")
+                    {
+                        obj.remove("last_refresh");
+                        modified = true;
+                    }
+
+                    if let Some(bak_am) = obj.remove("cab_backup_auth_mode") {
+                        obj.insert("auth_mode".to_string(), bak_am);
+                        modified = true;
+                    } else if obj.get("auth_mode").and_then(|v| v.as_str()) == Some("chatgpt") {
+                        obj.remove("auth_mode");
+                        modified = true;
+                    }
+
+                    if let Some(bak_key) = obj.remove("cab_backup_openai_api_key") {
+                        obj.insert("OPENAI_API_KEY".to_string(), bak_key);
+                        modified = true;
+                    } else {
+                        let current_api_key = obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
+                        if current_api_key
+                            .map(|k| {
+                                k.starts_with("cab-token-") || k == gateway_key || k == api_key
+                            })
+                            .unwrap_or(false)
+                        {
+                            obj.remove("OPENAI_API_KEY");
+                            modified = true;
+                        }
+                    }
+                }
+                if modified && let Ok(pretty) = serde_json::to_string_pretty(&auth_json) {
+                    let _ = fs::write(&auth_path, pretty);
+                }
+            }
         }
 
         if let Ok(pretty) = toml::to_string_pretty(&toml_val) {

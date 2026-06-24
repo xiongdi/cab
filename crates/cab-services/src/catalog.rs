@@ -61,9 +61,10 @@ pub fn upstream_protocol_for_models_dev_model(
     model: &ModelsDevModel,
 ) -> String {
     if let Some(override_meta) = model.extra.get("provider")
-        && let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str()) {
-            return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
-        }
+        && let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str())
+    {
+        return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
+    }
     protocol_for_models_dev_provider(provider)
 }
 
@@ -459,7 +460,8 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
     // The cached file fallback reads from ~/.cab/catalog/models.dev/catalog.json,
     // a one-time migration path for users upgrading from the old JSON-file-based
     // storage. New installs that never synced before will have no cached file.
-    let (providers_json, models_json) = match crate::benchmarks::sync_catalogs(pool, &client).await {
+    let (providers_json, models_json) = match crate::benchmarks::sync_catalogs(pool, &client).await
+    {
         Ok(json) => (json["providers"].clone(), json["models"].clone()),
         Err(e) => {
             tracing::warn!("models.dev download failed, trying cached file: {e}");
@@ -480,16 +482,11 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
 
     let providers_data: std::collections::HashMap<String, ModelsDevProvider> =
         serde_json::from_value(providers_json).map_err(|e| {
-            CabError::Database(format!(
-                "Failed to parse models.dev providers: {e}"
-            ))
+            CabError::Database(format!("Failed to parse models.dev providers: {e}"))
         })?;
     let models_data: std::collections::HashMap<String, ModelsDevModel> =
-        serde_json::from_value(models_json).map_err(|e| {
-            CabError::Database(format!(
-                "Failed to parse models.dev models: {e}"
-            ))
-        })?;
+        serde_json::from_value(models_json)
+            .map_err(|e| CabError::Database(format!("Failed to parse models.dev models: {e}")))?;
 
     let count = sync_models_dev_models(
         pool,

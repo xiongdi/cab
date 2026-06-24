@@ -9,15 +9,15 @@ order: 2
 
 ## 追溯矩阵
 
-| 需求/行为              | 设计文档章          | 源码位置                            | 测试验证                      |
-| ---------------------- | ------------------- | ----------------------------------- | ----------------------------- |
-| 成本感知路由           | 系统设计 / 模组设计 | `cab-core/src/routing.rs`           | `routing::tests::*`           |
-| models.dev 端点定价路由 | 系统设计 / 模组设计 | `cab-core/src/routing.rs`           | `effective_token_cost_*`      |
-| 429 额度恢复 fallback  | 需求分析 / 架构设计 | `fallback.rs`, `provider.rs`        | 手工/集成                     |
-| models.dev 目录同步    | 系统设计            | `cab-api/src/providers.rs`          | `resolve_served_model_tests`  |
-| 智能体透明代理         | 架构设计            | `cab-gateway/src/server.rs`         | gateway router tests          |
-| LLM 提供商 Key 管理 UI | 需求分析            | `src/routes/providers/+page.svelte` | `npm run check`               |
-| Agent 配置写入         | 系统设计            | `cab-api/src/agents.rs`             | 手工 UAT                      |
+| 需求/行为               | 设计文档章          | 源码位置                            | 测试验证                     |
+| ----------------------- | ------------------- | ----------------------------------- | ---------------------------- |
+| 成本感知路由            | 系统设计 / 模组设计 | `cab-core/src/routing.rs`           | `routing::tests::*`          |
+| models.dev 端点定价路由 | 系统设计 / 模组设计 | `cab-core/src/routing.rs`           | `effective_token_cost_*`     |
+| 429 额度恢复 fallback   | 需求分析 / 架构设计 | `fallback.rs`, `provider.rs`        | 手工/集成                    |
+| models.dev 目录同步     | 系统设计            | `cab-api/src/providers.rs`          | `resolve_served_model_tests` |
+| 智能体透明代理          | 架构设计            | `cab-gateway/src/server.rs`         | gateway router tests         |
+| LLM 提供商 Key 管理 UI  | 需求分析            | `src/routes/providers/+page.svelte` | `npm run check`              |
+| Agent 配置写入          | 系统设计            | `cab-api/src/agents.rs`             | 手工 UAT                     |
 
 ## 编号约定
 

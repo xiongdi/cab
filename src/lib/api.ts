@@ -231,7 +231,7 @@ export const api = {
       request<UsageSummary>(`/usage/summary${range ? `?range=${range}` : ''}`),
     getRecords: (range?: string, perPage?: number) =>
       request<{ data: UsageRecord[]; total: number }>(
-        `/usage/records?range=${range ?? 'month'}&per_page=${perPage ?? 50}`,
+        `/usage/records?range=${range ?? 'month'}&per_page=${perPage ?? 50}`
       ),
   },
 };

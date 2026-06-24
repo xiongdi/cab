@@ -271,15 +271,16 @@ fn openai_message_to_ir(msg: &Value) -> Vec<IrMessage> {
     if role == "assistant" {
         let mut blocks = openai_content_blocks(msg.get("content"));
         if let Some(reasoning) = msg.get("reasoning_content").and_then(|v| v.as_str())
-            && !reasoning.is_empty() {
-                blocks.insert(
-                    0,
-                    IrBlock::Thinking {
-                        text: reasoning.to_string(),
-                        signature: None,
-                    },
-                );
-            }
+            && !reasoning.is_empty()
+        {
+            blocks.insert(
+                0,
+                IrBlock::Thinking {
+                    text: reasoning.to_string(),
+                    signature: None,
+                },
+            );
+        }
         if let Some(Value::Array(tool_calls)) = msg.get("tool_calls") {
             for call in tool_calls {
                 let args = call
@@ -1156,15 +1157,16 @@ pub fn decode_openai_chat_response(body: &Value) -> IrResponse {
     if let Some(reasoning) = message
         .and_then(|m| m.get("reasoning_content"))
         .and_then(|v| v.as_str())
-        && !reasoning.is_empty() {
-            blocks.insert(
-                0,
-                IrBlock::Thinking {
-                    text: reasoning.to_string(),
-                    signature: None,
-                },
-            );
-        }
+        && !reasoning.is_empty()
+    {
+        blocks.insert(
+            0,
+            IrBlock::Thinking {
+                text: reasoning.to_string(),
+                signature: None,
+            },
+        );
+    }
     if let Some(Value::Array(tool_calls)) = message.and_then(|m| m.get("tool_calls")) {
         for call in tool_calls {
             let args = call

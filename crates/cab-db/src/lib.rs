@@ -65,9 +65,7 @@ impl InMemoryStore {
         }
     }
 
-    pub fn with_sqlite(
-        sqlite_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
-    ) -> Self {
+    pub fn with_sqlite(sqlite_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>) -> Self {
         let store = Self::new();
         Self {
             pool: Some(sqlite_pool),
@@ -112,9 +110,7 @@ pub async fn init_store() -> anyhow::Result<InMemoryStore> {
     }
 
     // Persist initial seed agents/routes if state was empty
-    if !has_persisted
-        && let Err(e) = state::save_from_store(&store)
-    {
+    if !has_persisted && let Err(e) = state::save_from_store(&store) {
         tracing::warn!("Failed to write initial state: {e}");
     }
 

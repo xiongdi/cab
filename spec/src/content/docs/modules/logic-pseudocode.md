@@ -52,13 +52,13 @@ capability_value_score(cap, input, output, cache_read) →
 
 `value` / `capability` 字段直接存**正数语义值**，比较器方向按策略不同：
 
-| 策略 | value（正数）                          | capability（正数）                | value 方向 | capability 方向 |
-| ---- | ------------------------------------- | -------------------------------- | --------- | ---------------- |
-| balanced（平衡策略） | 性价比 capability_value_score          | 智能指数 overall_intelligence      | DESC      | DESC            |
-| auto | 同 balanced（Auto = Balanced + capability floor filter） | 同上 | DESC      | DESC            |
-| cheapest / price（价格策略） | effective_cost（USD / Mtok）           | 智能指数 overall_intelligence      | ASC       | DESC            |
-| intelligent（代码能力策略） | coding_index                            | 性价比 capability_value_score      | DESC      | DESC            |
-| speed（速度策略）    | total_response_time（秒）              | effective_cost（USD / Mtok）       | ASC       | ASC             |
+| 策略                         | value（正数）                                            | capability（正数）            | value 方向 | capability 方向 |
+| ---------------------------- | -------------------------------------------------------- | ----------------------------- | ---------- | --------------- |
+| balanced（平衡策略）         | 性价比 capability_value_score                            | 智能指数 overall_intelligence | DESC       | DESC            |
+| auto                         | 同 balanced（Auto = Balanced + capability floor filter） | 同上                          | DESC       | DESC            |
+| cheapest / price（价格策略） | effective_cost（USD / Mtok）                             | 智能指数 overall_intelligence | ASC        | DESC            |
+| intelligent（代码能力策略）  | coding_index                                             | 性价比 capability_value_score | DESC       | DESC            |
+| speed（速度策略）            | total_response_time（秒）                                | effective_cost（USD / Mtok）  | ASC        | ASC             |
 
 `Speed` 主键用 AA 风格的「Total Response Time for N Output Tokens」指标
 （`TTFT + N / tps`），同时考虑首 token 延迟与稳态吞吐，比单纯 tps 更贴近用户对「速度」的体感。

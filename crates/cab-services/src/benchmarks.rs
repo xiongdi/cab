@@ -2,8 +2,8 @@ use cab_core::CabError;
 use cab_core::benchmark_catalog::{
     BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
     artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
-    load_artificial_analysis_catalog, models_dev_catalog_url,
-    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
+    load_artificial_analysis_catalog, models_dev_catalog_url, refresh_aa_model_map_exact_matches,
+    resolve_artificial_analysis_api_key,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
@@ -35,13 +35,18 @@ struct ArtificialAnalysisCreator {
     name: String,
 }
 
-pub async fn sync_catalogs(pool: &InMemoryStore, client: &reqwest::Client) -> Result<serde_json::Value, CabError> {
+pub async fn sync_catalogs(
+    pool: &InMemoryStore,
+    client: &reqwest::Client,
+) -> Result<serde_json::Value, CabError> {
     let catalog = sync_models_dev_catalog(client).await?;
     sync_artificial_analysis_catalog(pool, client).await?;
     Ok(catalog)
 }
 
-pub async fn sync_models_dev_catalog(client: &reqwest::Client) -> Result<serde_json::Value, CabError> {
+pub async fn sync_models_dev_catalog(
+    client: &reqwest::Client,
+) -> Result<serde_json::Value, CabError> {
     sync_models_dev_json(client, models_dev_catalog_url()).await
 }
 
@@ -71,9 +76,7 @@ async fn sync_models_dev_json(
         ))
     })?;
 
-    tracing::info!(
-        "Downloaded models.dev data from {url}",
-    );
+    tracing::info!("Downloaded models.dev data from {url}",);
     Ok(json)
 }
 

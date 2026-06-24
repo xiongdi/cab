@@ -170,9 +170,10 @@ pub async fn handle_proxied_request(
                 if let Some(record) = usage_record
                     && let Some(sqlite_pool) = pool.sqlite()
                     && let Ok(conn) = sqlite_pool.get()
-                    && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record) {
-                        tracing::warn!("Failed to record usage: {e}");
-                    }
+                    && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record)
+                {
+                    tracing::warn!("Failed to record usage: {e}");
+                }
             });
 
             Ok(final_response)

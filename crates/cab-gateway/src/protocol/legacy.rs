@@ -245,20 +245,22 @@ impl OpenAiChatStreamConverter {
                 );
             }
             if let Some(id) = call.get("id").and_then(|v| v.as_str())
-                && let Some(tool) = self.tool_calls.get_mut(&openai_index) {
-                    tool.id = id.to_string();
-                }
+                && let Some(tool) = self.tool_calls.get_mut(&openai_index)
+            {
+                tool.id = id.to_string();
+            }
             if let Some(name) = call
                 .get("function")
                 .and_then(|f| f.get("name"))
                 .and_then(|n| n.as_str())
-                && let Some(tool) = self.tool_calls.get_mut(&openai_index) {
-                    tool.name = name.to_string();
-                    if !tool.pending_args.is_empty() {
-                        let buffered = std::mem::take(&mut tool.pending_args);
-                        self.push_tool_input_delta(openai_index, &buffered);
-                    }
+                && let Some(tool) = self.tool_calls.get_mut(&openai_index)
+            {
+                tool.name = name.to_string();
+                if !tool.pending_args.is_empty() {
+                    let buffered = std::mem::take(&mut tool.pending_args);
+                    self.push_tool_input_delta(openai_index, &buffered);
                 }
+            }
             if let Some(args) = call
                 .get("function")
                 .and_then(|f| f.get("arguments"))
@@ -867,12 +869,9 @@ impl<S> Drop for TokenTrackingStream<S> {
         if let Some(sqlite_pool) = pool.sqlite()
             && let Ok(conn) = sqlite_pool.get()
         {
-            if let Err(e) = cab_db::sqlite::update_log_tokens(
-                &conn,
-                &log_id,
-                input_tokens,
-                output_tokens,
-            ) {
+            if let Err(e) =
+                cab_db::sqlite::update_log_tokens(&conn, &log_id, input_tokens, output_tokens)
+            {
                 tracing::warn!("Failed to update log tokens in SQLite: {e}");
             }
         }

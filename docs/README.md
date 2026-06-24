@@ -6,13 +6,13 @@ Published at: **https://xiongdi.github.io/cab/**
 
 ## Site structure
 
-| Section | Purpose |
-| ------- | ------- |
-| **Home** | Product landing — value prop, features, CTAs |
-| **Getting Started** | Install + 5-minute quick start |
-| **Guides** | Providers, routing, agents, gateway auth |
-| **Reference** | Supported agents, architecture, API |
-| **Project** | Changelog |
+| Section             | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| **Home**            | Product landing — value prop, features, CTAs |
+| **Getting Started** | Install + 5-minute quick start               |
+| **Guides**          | Providers, routing, agents, gateway auth     |
+| **Reference**       | Supported agents, architecture, API          |
+| **Project**         | Changelog                                    |
 
 Each section has English (`src/content/docs/`) and Simplified Chinese (`src/content/docs/zh-cn/`) pages.
 

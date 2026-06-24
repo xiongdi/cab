@@ -46,19 +46,19 @@ If input or output is missing:
 
 **Primary task capability** (`balanced` and `auto` fallback):
 
-| Task | Primary capability |
-| ---- | ------------------ |
-| coding | `coding_index`, else `overall_intelligence` |
-| math | `math_index`, else `overall_intelligence` |
+| Task    | Primary capability                           |
+| ------- | -------------------------------------------- |
+| coding  | `coding_index`, else `overall_intelligence`  |
+| math    | `math_index`, else `overall_intelligence`    |
 | agentic | `agentic_index`, else `overall_intelligence` |
-| general | `overall_intelligence` |
+| general | `overall_intelligence`                       |
 
 **Composite capability** (`auto` only, when all four AA indices exist):
 
-| Task | Weighted blend |
-| ---- | -------------- |
-| coding | 0.55×coding + 0.22×overall + 0.13×agentic + 0.10×math |
-| math | 0.58×math + 0.24×overall + 0.10×coding + 0.08×agentic |
+| Task    | Weighted blend                                        |
+| ------- | ----------------------------------------------------- |
+| coding  | 0.55×coding + 0.22×overall + 0.13×agentic + 0.10×math |
+| math    | 0.58×math + 0.24×overall + 0.10×coding + 0.08×agentic |
 | agentic | 0.42×agentic + 0.28×overall + 0.22×coding + 0.08×math |
 | general | 0.45×overall + 0.22×coding + 0.18×math + 0.15×agentic |
 
@@ -78,13 +78,13 @@ After sorting by **value descending**, equal values break in order:
 
 ### Per-strategy scoring
 
-| Strategy | capability | value | Eligibility |
-| -------- | ---------- | ----- | ----------- |
-| **balanced** | primary task capability | capability / effective_cost (or +∞) | has primary capability |
-| **auto** | composite or primary | same as balanced | capability floor by complexity, see below |
-| **cheapest** | 0 | `-effective_cost` | known input & output |
-| **intelligent** | `coding_index` | same as capability | has `coding_index` |
-| **speed** | `output_speed_tps` | same as capability | has AA speed; else fallback to **cheapest** |
+| Strategy        | capability              | value                               | Eligibility                                 |
+| --------------- | ----------------------- | ----------------------------------- | ------------------------------------------- |
+| **balanced**    | primary task capability | capability / effective_cost (or +∞) | has primary capability                      |
+| **auto**        | composite or primary    | same as balanced                    | capability floor by complexity, see below   |
+| **cheapest**    | 0                       | `-effective_cost`                   | known input & output                        |
+| **intelligent** | `coding_index`          | same as capability                  | has `coding_index`                          |
+| **speed**       | `output_speed_tps`      | same as capability                  | has AA speed; else fallback to **cheapest** |
 
 **Auto capability floor** (filter before rank; if empty, rerank all):
 
@@ -92,12 +92,12 @@ After sorting by **value descending**, equal values break in order:
 min_required = floor + complexity × (ceiling - floor)
 ```
 
-| Task | floor | ceiling |
-| ---- | ----- | ------- |
-| coding | 32 | 88 |
-| math | 38 | 92 |
-| agentic | 42 | 95 |
-| general | 24 | 78 |
+| Task    | floor | ceiling |
+| ------- | ----- | ------- |
+| coding  | 32    | 88      |
+| math    | 38    | 92      |
+| agentic | 42    | 95      |
+| general | 24    | 78      |
 
 Only candidates with `capability ≥ min_required` are ranked; harder prompts skew toward flagship models.
 

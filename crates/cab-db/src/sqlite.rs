@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use cab_core::types::{
-    Agent, Model, PersistedState, Provider, RequestLog, Route, Settings,
-    UsageRecord, UsageSummary, AgentUsageSummary, ModelUsageSummary, ProviderUsageSummary,
+    Agent, AgentUsageSummary, Model, ModelUsageSummary, PersistedState, Provider,
+    ProviderUsageSummary, RequestLog, Route, Settings, UsageRecord, UsageSummary,
 };
 use rusqlite::Connection;
 use serde_json;
@@ -226,11 +226,9 @@ fn migrate_v1_to_v2(conn: &Connection) -> Result<(), String> {
 fn import_catalog_from_json_cache(conn: &Connection) -> Result<(), String> {
     // Only import if catalog_providers is empty
     let has_data: bool = conn
-        .query_row(
-            "SELECT COUNT(*) > 0 FROM catalog_providers",
-            [],
-            |row| row.get(0),
-        )
+        .query_row("SELECT COUNT(*) > 0 FROM catalog_providers", [], |row| {
+            row.get(0)
+        })
         .unwrap_or(false);
     if has_data {
         return Ok(());
@@ -333,10 +331,7 @@ pub fn load_catalog_providers(conn: &Connection) -> Result<HashMap<String, Provi
     Ok(map)
 }
 
-pub fn upsert_catalog_provider(
-    conn: &Connection,
-    provider: &Provider,
-) -> Result<(), String> {
+pub fn upsert_catalog_provider(conn: &Connection, provider: &Provider) -> Result<(), String> {
     let data = serde_json::to_string(provider).map_err(|e| e.to_string())?;
     conn.execute(
         "INSERT OR REPLACE INTO catalog_providers (id, data) VALUES (?1, ?2)",
@@ -509,15 +504,13 @@ pub fn save_settings(conn: &Connection, settings: &Settings) -> Result<(), Strin
 }
 
 pub fn load_settings(conn: &Connection) -> Result<Option<Settings>, String> {
-    let row: Result<String, _> = conn.query_row(
-        "SELECT data FROM settings WHERE id = 1",
-        [],
-        |row| row.get(0),
-    );
+    let row: Result<String, _> =
+        conn.query_row("SELECT data FROM settings WHERE id = 1", [], |row| {
+            row.get(0)
+        });
     match row {
         Ok(data) => {
-            let settings =
-                serde_json::from_str::<Settings>(&data).map_err(|e| e.to_string())?;
+            let settings = serde_json::from_str::<Settings>(&data).map_err(|e| e.to_string())?;
             Ok(Some(settings))
         }
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -535,7 +528,8 @@ pub fn save_state(
     routes: &HashMap<String, Route>,
 ) -> Result<(), String> {
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
-    tx.execute("DELETE FROM agents", []).map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM agents", [])
+        .map_err(|e| e.to_string())?;
     for agent in agents.values() {
         tx.execute(
             "INSERT OR REPLACE INTO agents (id, name, mode, model_id, api_key, endpoint, updated_at)
@@ -575,7 +569,8 @@ pub fn save_state(
         )
         .map_err(|e| format!("Insert route failed: {e}"))?;
     }
-    tx.commit().map_err(|e| format!("State commit failed: {e}"))?;
+    tx.commit()
+        .map_err(|e| format!("State commit failed: {e}"))?;
     Ok(())
 }
 
@@ -611,8 +606,7 @@ pub fn load_state(conn: &Connection) -> Result<PersistedState, String> {
     let route_rows = stmt
         .query_map([], |row| {
             let fallback_str: String = row.get(5)?;
-            let fallback_ids: Vec<String> =
-                serde_json::from_str(&fallback_str).unwrap_or_default();
+            let fallback_ids: Vec<String> = serde_json::from_str(&fallback_str).unwrap_or_default();
             Ok(Route {
                 id: row.get(0)?,
                 name: row.get(1)?,

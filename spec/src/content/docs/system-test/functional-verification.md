@@ -34,7 +34,7 @@ order: 2
 | 策略        | 验证                                                  |
 | ----------- | ----------------------------------------------------- |
 | auto        | 简单 prompt → 低成本模型；复杂 coding → 高 capability |
-| balanced    | 主能力/有效成本比；∞ 时按 capability 降序 tie-break |
+| balanced    | 主能力/有效成本比；∞ 时按 capability 降序 tie-break   |
 | cheapest    | effective_cost 最低                                   |
 | intelligent | coding_index 降序                                     |
 | speed       | output_speed 降序；无数据降级 cheapest                |

@@ -26,12 +26,12 @@ CAB 按配置顺序与 Key 可用性（含 429 冷却）选择要使用的密钥
 
 **模型** 目录展示 models.dev 与 Artificial Analysis 同步的基准数据：
 
-| 字段 | 含义 |
-| ---- | ---- |
-| **Coding index** | AA 编程基准分 |
-| **Intelligence / Agentic** | 通用与 Agentic 能力分 |
-| **Context window** | 最大输入 token |
-| **Price** | 每百万 token 的输入/输出价格 |
+| 字段                       | 含义                         |
+| -------------------------- | ---------------------------- |
+| **Coding index**           | AA 编程基准分                |
+| **Intelligence / Agentic** | 通用与 Agentic 能力分        |
+| **Context window**         | 最大输入 token               |
+| **Price**                  | 每百万 token 的输入/输出价格 |
 
 可单独启用或禁用模型。只有 **已启用提供商上的已启用模型** 才参与路由。
 

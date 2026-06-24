@@ -309,7 +309,8 @@ components:
           type: boolean
     Provider:
       type: object
-      required: [id, name, endpoints, api_key, enabled, created_at, updated_at, api_keys, model_count]
+      required:
+        [id, name, endpoints, api_key, enabled, created_at, updated_at, api_keys, model_count]
       properties:
         id:
           type: string
@@ -410,7 +411,18 @@ components:
           type: integer
     Model:
       type: object
-      required: [id, name, display_name, provider_id, protocol, context_length, enabled, created_at, updated_at]
+      required:
+        [
+          id,
+          name,
+          display_name,
+          provider_id,
+          protocol,
+          context_length,
+          enabled,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -510,7 +522,21 @@ components:
               nullable: true
     ModelEndpoint:
       type: object
-      required: [id, model_id, canonical_slug, provider_name, provider_tag, native_model_id, quantization, status, supports_tools, supports_streaming, enabled, updated_at]
+      required:
+        [
+          id,
+          model_id,
+          canonical_slug,
+          provider_name,
+          provider_tag,
+          native_model_id,
+          quantization,
+          status,
+          supports_tools,
+          supports_streaming,
+          enabled,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -564,7 +590,19 @@ components:
           type: boolean
     Route:
       type: object
-      required: [id, name, agent_pattern, primary_model_id, fallback_model_ids, priority, routing_strategy, enabled, created_at, updated_at]
+      required:
+        [
+          id,
+          name,
+          agent_pattern,
+          primary_model_id,
+          fallback_model_ids,
+          priority,
+          routing_strategy,
+          enabled,
+          created_at,
+          updated_at,
+        ]
       properties:
         id:
           type: string
@@ -636,7 +674,19 @@ components:
           type: boolean
     RequestLog:
       type: object
-      required: [id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status_code]
+      required:
+        [
+          id,
+          timestamp,
+          agent,
+          provider,
+          model,
+          input_tokens,
+          output_tokens,
+          total_tokens,
+          latency_ms,
+          status_code,
+        ]
       properties:
         id:
           type: string
@@ -695,7 +745,16 @@ components:
           type: integer
     DashboardStats:
       type: object
-      required: [total_requests, total_tokens, active_providers, active_models, requests_by_provider, requests_by_model, recent_requests]
+      required:
+        [
+          total_requests,
+          total_tokens,
+          active_providers,
+          active_models,
+          requests_by_provider,
+          requests_by_model,
+          recent_requests,
+        ]
       properties:
         total_requests:
           type: integer
@@ -1051,7 +1110,21 @@ components:
             $ref: '#/components/schemas/StrategyBoardStrategy'
     UsageRecord:
       type: object
-      required: [id, timestamp, provider_id, model_id, service_provider_id, agent_id, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd, subscription]
+      required:
+        [
+          id,
+          timestamp,
+          provider_id,
+          model_id,
+          service_provider_id,
+          agent_id,
+          input_tokens,
+          output_tokens,
+          cache_read_tokens,
+          cache_creation_tokens,
+          cost_usd,
+          subscription,
+        ]
       properties:
         id:
           type: string
@@ -1118,7 +1191,16 @@ components:
           type: number
     UsageSummary:
       type: object
-      required: [total_requests, total_input_tokens, total_output_tokens, total_cost_usd, by_provider, by_model, by_agent]
+      required:
+        [
+          total_requests,
+          total_input_tokens,
+          total_output_tokens,
+          total_cost_usd,
+          by_provider,
+          by_model,
+          by_agent,
+        ]
       properties:
         total_requests:
           type: integer

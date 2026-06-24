@@ -131,7 +131,10 @@ fn strategy_id(strategy: RoutingStrategy) -> &'static str {
     }
 }
 
-fn display_strategy(strategy: RoutingStrategy, candidates: &[RouteCandidate<'_>]) -> RoutingStrategy {
+fn display_strategy(
+    strategy: RoutingStrategy,
+    candidates: &[RouteCandidate<'_>],
+) -> RoutingStrategy {
     if matches!(strategy, RoutingStrategy::Speed)
         && !candidates.iter().any(|candidate| {
             candidate

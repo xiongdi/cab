@@ -161,7 +161,9 @@ pub async fn set_provider_enabled(
         }
     }
     drop(inner);
-    if !changed.is_empty() && let Some(pool) = &store.pool {
+    if !changed.is_empty()
+        && let Some(pool) = &store.pool
+    {
         let conn = pool.get().map_err(|e| e.to_string())?;
         for ep in &changed {
             crate::sqlite::upsert_model_endpoint(&conn, ep)?;
@@ -184,7 +186,9 @@ pub async fn set_provider_tag_enabled(
         }
     }
     drop(inner);
-    if !changed.is_empty() && let Some(pool) = &store.pool {
+    if !changed.is_empty()
+        && let Some(pool) = &store.pool
+    {
         let conn = pool.get().map_err(|e| e.to_string())?;
         for ep in &changed {
             crate::sqlite::upsert_model_endpoint(&conn, ep)?;

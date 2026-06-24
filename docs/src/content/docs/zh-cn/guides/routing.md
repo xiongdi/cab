@@ -46,19 +46,19 @@ effective_cost = blended_input × 10 + output
 
 **任务主能力指数**（`balanced` 与 `auto` 缺省分项时使用）：
 
-| 任务类型 | 主能力 |
-| -------- | ------ |
-| coding | `coding_index`，否则 `overall_intelligence` |
-| math | `math_index`，否则 `overall_intelligence` |
-| agentic | `agentic_index`，否则 `overall_intelligence` |
-| general | `overall_intelligence` |
+| 任务类型 | 主能力                                       |
+| -------- | -------------------------------------------- |
+| coding   | `coding_index`，否则 `overall_intelligence`  |
+| math     | `math_index`，否则 `overall_intelligence`    |
+| agentic  | `agentic_index`，否则 `overall_intelligence` |
+| general  | `overall_intelligence`                       |
 
 **综合能力指数**（仅 `auto`，且四项 AA 指数齐全时）：
 
-| 任务 | 加权公式 |
-| ---- | -------- |
-| coding | 0.55×coding + 0.22×overall + 0.13×agentic + 0.10×math |
-| math | 0.58×math + 0.24×overall + 0.10×coding + 0.08×agentic |
+| 任务    | 加权公式                                              |
+| ------- | ----------------------------------------------------- |
+| coding  | 0.55×coding + 0.22×overall + 0.13×agentic + 0.10×math |
+| math    | 0.58×math + 0.24×overall + 0.10×coding + 0.08×agentic |
 | agentic | 0.42×agentic + 0.28×overall + 0.22×coding + 0.08×math |
 | general | 0.45×overall + 0.22×coding + 0.18×math + 0.15×agentic |
 
@@ -78,13 +78,13 @@ effective_cost = blended_input × 10 + output
 
 ### 各策略评分规则
 
-| 策略 | capability | value | 参与条件 |
-| ---- | ---------- | ----- | -------- |
-| **balanced** | 任务主能力指数 | capability / effective_cost（或 ∞） | 有主能力指数 |
-| **auto** | 综合能力或主能力 | 同上 | 先按复杂度过滤能力门槛，见下 |
-| **cheapest** | 0 | `-effective_cost` | 有已知 input/output |
-| **intelligent** | `coding_index` | 同 capability | 有 `coding_index` |
-| **speed** | `output_speed_tps` | 同 capability | 有 AA 输出速度；全无则降级 **cheapest** |
+| 策略            | capability         | value                               | 参与条件                                |
+| --------------- | ------------------ | ----------------------------------- | --------------------------------------- |
+| **balanced**    | 任务主能力指数     | capability / effective_cost（或 ∞） | 有主能力指数                            |
+| **auto**        | 综合能力或主能力   | 同上                                | 先按复杂度过滤能力门槛，见下            |
+| **cheapest**    | 0                  | `-effective_cost`                   | 有已知 input/output                     |
+| **intelligent** | `coding_index`     | 同 capability                       | 有 `coding_index`                       |
+| **speed**       | `output_speed_tps` | 同 capability                       | 有 AA 输出速度；全无则降级 **cheapest** |
 
 **auto 能力门槛**（过滤后再排序；若过滤后为空则回退全量）：
 
@@ -92,12 +92,12 @@ effective_cost = blended_input × 10 + output
 min_required = floor + complexity × (ceiling - floor)
 ```
 
-| 任务 | floor | ceiling |
-| ---- | ----- | ------- |
-| coding | 32 | 88 |
-| math | 38 | 92 |
-| agentic | 42 | 95 |
-| general | 24 | 78 |
+| 任务    | floor | ceiling |
+| ------- | ----- | ------- |
+| coding  | 32    | 88      |
+| math    | 38    | 92      |
+| agentic | 42    | 95      |
+| general | 24    | 78      |
 
 仅 `capability ≥ min_required` 的候选进入排序；复杂请求倾向旗舰，简单请求允许更便宜模型。
 

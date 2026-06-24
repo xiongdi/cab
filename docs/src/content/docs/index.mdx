@@ -24,18 +24,21 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 Coding agents each expect their own API keys, endpoints, and model lists. CAB sits between your agent CLIs and upstream LLM providers — one local gateway at `http://127.0.0.1:3125/v1` that routes every request to the best enabled model for the job.
 
 <CardGrid stagger>
-	<Card title="One gateway, many agents" icon="rocket">
-		Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, and Pi — all point at the same local CAB endpoint.
-	</Card>
-	<Card title="Smart routing" icon="setting">
-		Pick a strategy — auto, balanced, intelligent, or price — and CAB ranks models by capability, benchmarks, and token cost.
-	</Card>
-	<Card title="Desktop control plane" icon="laptop">
-		Tauri + Svelte dashboard for providers, models, routes, agents, logs, and settings.
-	</Card>
-	<Card title="OpenAI + Anthropic compatible" icon="document">
-		`/v1/chat/completions`, `/v1/messages`, and `/v1/responses` on a single port with protocol conversion when needed.
-	</Card>
+  <Card title="One gateway, many agents" icon="rocket">
+    Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, and Pi — all point at the same local
+    CAB endpoint.
+  </Card>
+  <Card title="Smart routing" icon="setting">
+    Pick a strategy — auto, balanced, intelligent, or price — and CAB ranks models by capability,
+    benchmarks, and token cost.
+  </Card>
+  <Card title="Desktop control plane" icon="laptop">
+    Tauri + Svelte dashboard for providers, models, routes, agents, logs, and settings.
+  </Card>
+  <Card title="OpenAI + Anthropic compatible" icon="document">
+    `/v1/chat/completions`, `/v1/messages`, and `/v1/responses` on a single port with protocol
+    conversion when needed.
+  </Card>
 </CardGrid>
 
 ## How it works
@@ -53,37 +56,37 @@ graph LR
 
 ## Built-in routing strategies
 
-| Strategy | Best for |
-| -------- | -------- |
-| **Auto** | Dynamic selection by task type, complexity, capability, and cost |
-| **Balanced** | Best value — capability vs. 3:1 weighted token cost |
-| **Intelligent** | Hardest coding tasks — highest AA coding index |
-| **Price** | Lowest cost — cheapest enabled model every time |
+| Strategy        | Best for                                                         |
+| --------------- | ---------------------------------------------------------------- |
+| **Auto**        | Dynamic selection by task type, complexity, capability, and cost |
+| **Balanced**    | Best value — capability vs. 3:1 weighted token cost              |
+| **Intelligent** | Hardest coding tasks — highest AA coding index                   |
+| **Price**       | Lowest cost — cheapest enabled model every time                  |
 
 See [Routing strategies](guides/routing/) for details.
 
 ## What's in the dashboard?
 
-| Page | Purpose |
-| ---- | ------- |
-| **Dashboard** | Gateway stats and health overview |
-| **Providers** | LLM provider catalog, API keys, endpoints |
-| **Models** | Model benchmarks, pricing, enable/disable |
-| **Routes** | Custom routing rules and decision preview |
-| **Agents** | Native / Auto / Manual mode per coding agent |
-| **Logs** | JSONL request audit trail |
-| **Settings** | Port, gateway key, log retention |
+| Page          | Purpose                                      |
+| ------------- | -------------------------------------------- |
+| **Dashboard** | Gateway stats and health overview            |
+| **Providers** | LLM provider catalog, API keys, endpoints    |
+| **Models**    | Model benchmarks, pricing, enable/disable    |
+| **Routes**    | Custom routing rules and decision preview    |
+| **Agents**    | Native / Auto / Manual mode per coding agent |
+| **Logs**      | JSONL request audit trail                    |
+| **Settings**  | Port, gateway key, log retention             |
 
 ## Get started
 
 <CardGrid>
-	<Card title="Install" icon="download" link="getting-started/install/">
-		Download desktop installers for Windows, macOS, and Linux.
-	</Card>
-	<Card title="Quick Start" icon="rocket" link="getting-started/quick-start/">
-		Go from zero to a routed agent request in five minutes.
-	</Card>
-	<Card title="Agent setup" icon="approve-check" link="guides/agents/">
-		Native, Auto, and Manual modes explained.
-	</Card>
+  <Card title="Install" icon="download" link="getting-started/install/">
+    Download desktop installers for Windows, macOS, and Linux.
+  </Card>
+  <Card title="Quick Start" icon="rocket" link="getting-started/quick-start/">
+    Go from zero to a routed agent request in five minutes.
+  </Card>
+  <Card title="Agent setup" icon="approve-check" link="guides/agents/">
+    Native, Auto, and Manual modes explained.
+  </Card>
 </CardGrid>
