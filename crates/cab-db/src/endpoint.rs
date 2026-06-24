@@ -118,11 +118,11 @@ pub async fn delete_for_model(store: &InMemoryStore, model_id: &str) -> Result<u
         }
     });
     drop(inner);
-    if deleted > 0 {
-        if let Some(pool) = &store.pool {
-            let conn = pool.get().map_err(|e| e.to_string())?;
-            crate::sqlite::delete_model_endpoints_for(&conn, model_id)?;
-        }
+    if deleted > 0
+        && let Some(pool) = &store.pool
+    {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::delete_model_endpoints_for(&conn, model_id)?;
     }
     Ok(deleted)
 }

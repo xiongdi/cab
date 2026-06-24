@@ -868,12 +868,10 @@ impl<S> Drop for TokenTrackingStream<S> {
         }
         if let Some(sqlite_pool) = pool.sqlite()
             && let Ok(conn) = sqlite_pool.get()
-        {
-            if let Err(e) =
+            && let Err(e) =
                 cab_db::sqlite::update_log_tokens(&conn, &log_id, input_tokens, output_tokens)
-            {
-                tracing::warn!("Failed to update log tokens in SQLite: {e}");
-            }
+        {
+            tracing::warn!("Failed to update log tokens in SQLite: {e}");
         }
     }
 }

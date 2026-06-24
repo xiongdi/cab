@@ -6,6 +6,9 @@ node_modules/
 .svelte-kit/
 build/
 
+# Test coverage reports (generated)
+coverage/
+
 # Local runtime artifacts
 reports/uat/
 .cab-server*.log

@@ -190,11 +190,9 @@ pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     let removed = inner.models.remove(id).is_some();
     drop(inner);
-    if removed {
-        if let Some(pool) = &store.pool {
-            let conn = pool.get().map_err(|e| e.to_string())?;
-            crate::sqlite::delete_catalog_model(&conn, id)?;
-        }
+    if removed && let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::delete_catalog_model(&conn, id)?;
     }
     Ok(removed)
 }

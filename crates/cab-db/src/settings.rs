@@ -114,8 +114,7 @@ mod tests {
         let pool = sqlite::test_pool().unwrap();
         let conn = pool.get().unwrap();
         sqlite::init_schema(&conn).unwrap();
-        let store = InMemoryStore::with_sqlite(pool);
-        store
+        InMemoryStore::with_sqlite(pool)
     }
 
     #[test]

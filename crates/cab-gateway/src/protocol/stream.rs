@@ -982,11 +982,13 @@ where
                         }
                     }
                     "message_start" => {
-                        if let Some(usage) = event.get("message").and_then(|m| m.get("usage")) {
-                            if let Some(in_tok) = usage.get("input_tokens").and_then(|v| v.as_i64())
-                            {
-                                *input_tokens = Some(in_tok);
-                            }
+                        if let Some(in_tok) = event
+                            .get("message")
+                            .and_then(|m| m.get("usage"))
+                            .and_then(|usage| usage.get("input_tokens"))
+                            .and_then(|v| v.as_i64())
+                        {
+                            *input_tokens = Some(in_tok);
                         }
                     }
                     "message_delta" => {
@@ -997,12 +999,12 @@ where
                         {
                             *finish_reason = anthropic_stop_to_openai_finish(stop).to_string();
                         }
-                        if let Some(usage) = event.get("usage") {
-                            if let Some(out_tok) =
-                                usage.get("output_tokens").and_then(|v| v.as_i64())
-                            {
-                                *output_tokens = Some(out_tok);
-                            }
+                        if let Some(out_tok) = event
+                            .get("usage")
+                            .and_then(|usage| usage.get("output_tokens"))
+                            .and_then(|v| v.as_i64())
+                        {
+                            *output_tokens = Some(out_tok);
                         }
                     }
                     "message_stop" => {

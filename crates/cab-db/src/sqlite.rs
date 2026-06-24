@@ -193,9 +193,7 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
         }
         Some(v) if v < SCHEMA_VERSION => {
             // Run migrations sequentially
-            if v < 2 {
-                migrate_v1_to_v2(conn)?;
-            }
+            migrate_v1_to_v2(conn)?;
         }
         _ => {}
     }
