@@ -110,17 +110,17 @@ pub async fn list_routable_model_entries(
         }
 
         // Native vendor reachable without a catalog endpoint row (tests / partial sync).
-        if active.contains(&model.provider_id) && added_providers.insert(model.provider_id.clone())
+        if active.contains(&model.provider_id)
+            && added_providers.insert(model.provider_id.clone())
+            && let Some((input, output)) = known_pricing(model.input_cost, model.output_cost)
         {
-            if let Some((input, output)) = known_pricing(model.input_cost, model.output_cost) {
-                entries.push(RoutableModelEntry {
-                    model: model.clone(),
-                    service_provider_id: model.provider_id.clone(),
-                    endpoint_input_cost: Some(input),
-                    endpoint_output_cost: Some(output),
-                    endpoint_cache_read_cost: cache_read_from_model(&model),
-                });
-            }
+            entries.push(RoutableModelEntry {
+                model: model.clone(),
+                service_provider_id: model.provider_id.clone(),
+                endpoint_input_cost: Some(input),
+                endpoint_output_cost: Some(output),
+                endpoint_cache_read_cost: cache_read_from_model(&model),
+            });
         }
     }
 

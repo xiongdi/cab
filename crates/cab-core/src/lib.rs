@@ -1,6 +1,7 @@
 pub mod benchmark_catalog;
 pub mod config;
 pub mod error;
+pub mod health;
 pub mod model_scores;
 pub mod provider_defaults;
 pub mod routing;
@@ -20,6 +21,7 @@ pub use benchmark_catalog::{
 };
 pub use config::CabConfig;
 pub use error::CabError;
+pub use health::HealthTracker;
 pub use model_scores::{
     ModelIntelligenceIndices, capability_indices_missing, infer_intelligence_indices,
     normalize_legacy_missing_indices,

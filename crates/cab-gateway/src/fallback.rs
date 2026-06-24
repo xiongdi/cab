@@ -251,6 +251,7 @@ pub async fn execute_with_fallback(
                             &api_key,
                         )
                         .await;
+                        pool.health.record_success(&resolved.provider_id);
 
                         let final_response =
                             convert_success_response(response, resolved, request, endpoint).await;

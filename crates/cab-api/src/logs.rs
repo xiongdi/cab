@@ -15,3 +15,12 @@ pub async fn query_logs(
         .map_err(CabError::Database)?;
     Ok(Json(logs))
 }
+
+pub async fn delete_logs(
+    State(state): State<ApiState>,
+) -> Result<impl IntoResponse, CabError> {
+    let deleted = cab_db::log::clear(&state.pool)
+        .await
+        .map_err(CabError::Database)?;
+    Ok(Json(serde_json::json!({ "deleted": deleted })))
+}

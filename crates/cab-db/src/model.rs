@@ -74,6 +74,11 @@ pub async fn create(store: &InMemoryStore, input: &CreateModel) -> Result<Model,
         links: input.links.clone(),
     };
     inner.models.insert(id, model.clone());
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_catalog_model(&conn, &model)?;
+    }
     Ok(model)
 }
 
@@ -169,7 +174,13 @@ pub async fn update(
             m.links = Some(links.clone());
         }
         m.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(Some(m.clone()))
+        let updated = m.clone();
+        drop(inner);
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::upsert_catalog_model(&conn, &updated)?;
+        }
+        Ok(Some(updated))
     } else {
         Ok(None)
     }
@@ -177,7 +188,15 @@ pub async fn update(
 
 pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
-    Ok(inner.models.remove(id).is_some())
+    let removed = inner.models.remove(id).is_some();
+    drop(inner);
+    if removed {
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::delete_catalog_model(&conn, id)?;
+        }
+    }
+    Ok(removed)
 }
 
 #[cfg(test)]

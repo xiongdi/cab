@@ -297,6 +297,68 @@ pub struct RequestLog {
     pub stream: bool,
 }
 
+// ──────────────────────────── Usage Tracking ────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageRecord {
+    pub id: String,
+    pub timestamp: String,
+    pub provider_id: String,
+    pub model_id: String,
+    pub service_provider_id: String,
+    pub agent_id: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub cost_usd: f64,
+    pub subscription: bool,
+    pub request_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct UsageSummary {
+    pub total_requests: i64,
+    pub total_input_tokens: i64,
+    pub total_output_tokens: i64,
+    pub total_cost_usd: f64,
+    pub by_provider: std::collections::HashMap<String, ProviderUsageSummary>,
+    pub by_model: std::collections::HashMap<String, ModelUsageSummary>,
+    pub by_agent: std::collections::HashMap<String, AgentUsageSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ProviderUsageSummary {
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct ModelUsageSummary {
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AgentUsageSummary {
+    pub requests: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cost_usd: f64,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct UsageQuery {
+    pub range: Option<String>,
+    pub group_by: Option<String>,
+    pub per_page: Option<i64>,
+    pub page: Option<i64>,
+}
+
 // ──────────────────────────── Dashboard ────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -364,8 +426,14 @@ fn default_auth_enabled() -> bool {
     true
 }
 
+/// **User runtime config** stored in the SQLite `settings` table, editable via `PUT /api/settings`.
+///
+/// This is the runtime counterpart to `cab.toml` (system bootstrap). See `cab_core::config::CabConfig`
+/// for the full priority chain. In short: `gateway_port` here is the runtime value used at bind time;
+/// `cab.toml [gateway] port` is only the first-install default.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
+    /// Runtime gateway port (editable via API). On first install this is seeded from `cab.toml`.
     pub gateway_port: i64,
     pub log_retention_days: i64,
     pub gateway_key: String,

@@ -66,6 +66,14 @@
       glow: 'rgba(6,182,212,0.15)',
       border: 'rgba(6,182,212,0.25)',
     },
+    {
+      id: 'agentic',
+      icon: '🤖',
+      color: '#ff6b6b',
+      bg: 'rgba(255,107,107,0.06)',
+      glow: 'rgba(255,107,107,0.15)',
+      border: 'rgba(255,107,107,0.25)',
+    },
   ] as const;
 
   let hasLoaded = $state(false);
@@ -271,6 +279,7 @@
     if (strategyId === 'speed') return i18n.t('routes.speed');
     if (strategyId === 'cheapest') return i18n.t('routes.composite_price');
     if (strategyId === 'balanced' || strategyId === 'auto') return i18n.t('routes.value_score');
+    if (strategyId === 'agentic') return i18n.t('routes.agentic_index');
     return i18n.t('routes.intel');
   }
 
@@ -280,7 +289,8 @@
     route: RoutableModel
   ): string {
     if (displayStrategy === 'speed') {
-      return summary.capability != null ? `${summary.capability.toFixed(1)} t/s` : '—';
+      if (summary.value == null || !Number.isFinite(summary.value)) return '—';
+      return `${summary.value.toFixed(2)}s`;
     }
     if (displayStrategy === 'cheapest') {
       const cost = endpointEffectiveTokenCost(route);
@@ -289,14 +299,15 @@
     if (displayStrategy === 'balanced' || displayStrategy === 'auto') {
       return formatExplainValue(summary);
     }
-    if (displayStrategy === 'intelligent') {
-      return summary.capability != null ? summary.capability.toFixed(1) : '—';
+    if (displayStrategy === 'intelligent' || displayStrategy === 'agentic') {
+      return summary.value != null && Number.isFinite(summary.value) ? summary.value.toFixed(1) : '—';
     }
     return '—';
   }
 
-  function formatExplainValue(candidate: RankedModelSummary): string {
+  function formatExplainValue(candidate: RankedModelSummary, strategy?: string): string {
     if (candidate.value != null && Number.isFinite(candidate.value)) {
+      if (strategy === 'speed') return `${candidate.value.toFixed(2)}s`;
       return candidate.value.toFixed(2);
     }
     if (candidate.value_unbounded) {
@@ -397,12 +408,25 @@
               </thead>
               <tbody>
                 {#each previewResult.ranked_candidates as candidate}
+                  {@const strategy = previewResult.resolved?.strategy ?? ''}
                   <tr>
                     <td>{previewRankById.get(`${candidate.model_id}\0${candidate.provider_id}`) ?? '—'}</td>
                     <td>{candidate.model_id}</td>
                     <td>{providerMap.get(candidate.provider_id)?.name ?? candidate.provider_id}</td>
-                    <td>{candidate.capability != null ? candidate.capability.toFixed(1) : '—'}</td>
-                    <td>{formatExplainValue(candidate)}</td>
+                    <td>
+                      {#if strategy === 'intelligent' || strategy === 'agentic'}
+                        {candidate.value != null && Number.isFinite(candidate.value) ? candidate.value.toFixed(1) : '—'}
+                      {:else}
+                        {candidate.capability != null ? candidate.capability.toFixed(1) : '—'}
+                      {/if}
+                    </td>
+                    <td>
+                      {#if strategy === 'intelligent' || strategy === 'agentic'}
+                        {candidate.capability != null && Number.isFinite(candidate.capability) ? candidate.capability.toFixed(2) : '—'}
+                      {:else}
+                        {formatExplainValue(candidate, strategy)}
+                      {/if}
+                    </td>
                   </tr>
                 {/each}
               </tbody>

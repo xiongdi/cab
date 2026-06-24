@@ -21,6 +21,9 @@ pub trait RouteCatalog: Send + Sync {
     async fn list_routable_entries(
         &self,
     ) -> Result<Vec<crate::routability::RoutableModelEntry>, CabError>;
+    fn is_provider_healthy(&self, _provider_id: &str) -> bool {
+        true
+    }
 }
 
 #[async_trait]
@@ -98,5 +101,9 @@ impl RouteCatalog for InMemoryStore {
         crate::routability::list_routable_model_entries(self)
             .await
             .map_err(CabError::Database)
+    }
+
+    fn is_provider_healthy(&self, provider_id: &str) -> bool {
+        self.health.is_healthy(provider_id)
     }
 }

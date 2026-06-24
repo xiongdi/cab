@@ -174,70 +174,8 @@ pub fn record_manual(id: &str, title: &str, details: &str) {
 }
 
 fn read_settings_summary() -> String {
-    let path = cab_db::settings::settings_file_path();
-    let Ok(content) = std::fs::read_to_string(&path) else {
-        return format!("settings: missing ({})", path.display());
-    };
-    let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return "settings: invalid JSON".to_string();
-    };
-
-    let mut lines = vec![format!("- settings: `{}`", path.display())];
-    if let Some(port) = json.get("gateway_port").and_then(|v| v.as_i64()) {
-        lines.push(format!("- gateway_port: {port}"));
-    }
-
-    if let Some(providers) = json.get("providers").and_then(|v| v.as_object()) {
-        let enabled: Vec<String> = providers
-            .iter()
-            .filter(|(_, v)| v.get("enabled").and_then(|e| e.as_bool()).unwrap_or(false))
-            .map(|(k, v)| {
-                let anthropic = v
-                    .get("endpoints")
-                    .and_then(|e| e.as_array())
-                    .map(|eps| {
-                        eps.iter().any(|ep| {
-                            ep.get("enabled").and_then(|e| e.as_bool()).unwrap_or(false)
-                                && ep.get("protocol").and_then(|p| p.as_str()) == Some("anthropic")
-                        })
-                    })
-                    .unwrap_or(false);
-                if anthropic {
-                    format!("{k} (+anthropic)")
-                } else {
-                    k.clone()
-                }
-            })
-            .collect();
-        lines.push(format!(
-            "- enabled providers ({}): {}",
-            enabled.len(),
-            if enabled.is_empty() {
-                "(none)".into()
-            } else {
-                enabled.join(", ")
-            }
-        ));
-    }
-
-    if let Some(models) = json.get("models").and_then(|v| v.as_object()) {
-        let enabled: Vec<&str> = models
-            .iter()
-            .filter(|(_, v)| v.get("enabled").and_then(|e| e.as_bool()).unwrap_or(false))
-            .map(|(k, _)| k.as_str())
-            .collect();
-        lines.push(format!(
-            "- enabled models ({}): {}",
-            enabled.len(),
-            if enabled.is_empty() {
-                "(none)".into()
-            } else {
-                enabled.join(", ")
-            }
-        ));
-    }
-
-    lines.join("\n")
+    let db_path = cab_db::sqlite::db_path();
+    format!("- database: `{}`", db_path.display())
 }
 
 fn cab_version() -> String {

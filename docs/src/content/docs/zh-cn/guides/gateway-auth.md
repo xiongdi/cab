@@ -55,13 +55,15 @@ Authorization: Bearer <gateway_key>
 
 ## 无头服务
 
-无需桌面 UI 时：
+无需桌面 UI 时（用于发布测试或生产环境）：
 
 ```bash
 cargo run -p cab-server
 ```
 
 无头守护进程提供相同的网关和管理 API，同时提供内置 UI 的静态文件服务。
+
+> 日常开发请使用 `npm run dev:server`（cargo watch 热重载），参见 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md)。
 
 ## 相关
 

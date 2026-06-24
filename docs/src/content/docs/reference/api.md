@@ -52,7 +52,7 @@ This powers the **Routes → Explain routing** preview in the dashboard.
 
 ## Strategy board
 
-`POST /api/routing/strategy-board` accepts an agent ID and sample message body. Returns fully ranked candidate lists for all five built-in strategies (`auto`, `balanced`, `cheapest`, `intelligent`, `speed`). Ranking matches gateway `cab-core::routing`; the Routes page strategy tables consume this API only (no duplicate client-side sort).
+`POST /api/routing/strategy-board` accepts an agent ID and sample message body. Returns fully ranked candidate lists for all six built-in strategies (`auto`, `balanced`, `cheapest`, `intelligent`, `speed`, `agentic`). Ranking matches gateway `cab-core::routing`; the Routes page strategy tables consume this API only (no duplicate client-side sort).
 
 ## Related
 

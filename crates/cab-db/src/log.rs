@@ -1,15 +1,23 @@
 use crate::InMemoryStore;
 use cab_core::types::{LogQuery, PaginatedLogs, RequestLog};
 
+const MAX_MEMORY_LOGS: usize = 500;
+
 pub async fn insert(store: &InMemoryStore, log: &RequestLog) -> Result<(), String> {
-    crate::log_store::append(log)?;
+    // Persist to SQLite (no-op if no pool, e.g. in tests)
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::append_log(&conn, log)?;
+    }
+
+    // Update in-memory ring buffer
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     if let Some(pos) = inner.request_logs.iter().position(|l| l.id == log.id) {
         inner.request_logs[pos] = log.clone();
     } else {
         inner.request_logs.push(log.clone());
-        if inner.request_logs.len() > crate::log_store::MAX_MEMORY_LOGS {
-            let overflow = inner.request_logs.len() - crate::log_store::MAX_MEMORY_LOGS;
+        if inner.request_logs.len() > MAX_MEMORY_LOGS {
+            let overflow = inner.request_logs.len() - MAX_MEMORY_LOGS;
             inner.request_logs.drain(0..overflow);
         }
     }
@@ -79,31 +87,21 @@ pub async fn recent(store: &InMemoryStore, limit: i64) -> Result<Vec<RequestLog>
     Ok(logs[..lim].to_vec())
 }
 
+/// Clear all request logs from SQLite and the in-memory store.
+pub async fn clear(store: &InMemoryStore) -> Result<i64, String> {
+    let mut deleted: i64 = 0;
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        deleted = crate::sqlite::clear_all_logs(&conn)?;
+    }
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    inner.request_logs.clear();
+    Ok(deleted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    struct TestHome {
-        _dir: tempfile::TempDir,
-        _lock: std::sync::MutexGuard<'static, ()>,
-    }
-
-    impl TestHome {
-        fn new() -> Self {
-            let lock = crate::TEST_HOME_LOCK
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let dir = tempfile::tempdir().unwrap();
-            unsafe {
-                std::env::set_var("HOME", dir.path());
-                std::env::remove_var("USERPROFILE");
-            }
-            Self {
-                _dir: dir,
-                _lock: lock,
-            }
-        }
-    }
 
     fn log(id: &str, agent: &str, provider: &str, model: &str, status: i32) -> RequestLog {
         RequestLog {
@@ -129,7 +127,6 @@ mod tests {
 
     #[tokio::test]
     async fn logs_insert_update_query_filters_pagination_and_recent() {
-        let _home = TestHome::new();
         let store = InMemoryStore::new();
         insert(&store, &log("1", "codex", "p1", "m1", 200))
             .await

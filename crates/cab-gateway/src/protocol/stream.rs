@@ -329,8 +329,8 @@ where
                         }
                     }
                     "response.output_item.added" => {
-                        if let Some(item) = event.get("item") {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
+                        if let Some(item) = event.get("item")
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
                                 let call_id = item
                                     .get("call_id")
                                     .and_then(|v| v.as_str())
@@ -359,7 +359,6 @@ where
                                     },
                                 );
                             }
-                        }
                     }
                     "response.function_call_arguments.delta" => {
                         let call_id = event
@@ -722,8 +721,8 @@ where
                         }
                     }
                     "response.output_item.added" => {
-                        if let Some(item) = event.get("item") {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
+                        if let Some(item) = event.get("item")
+                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call") {
                                 let call_id = item
                                     .get("call_id")
                                     .and_then(|v| v.as_str())
@@ -748,7 +747,6 @@ where
                                     }),
                                 );
                             }
-                        }
                     }
                     "response.function_call_arguments.delta" => {
                         let call_id = event
@@ -881,6 +879,8 @@ where
     let mut next_tool_idx = 0u64;
     let mut finish_reason = "stop".to_string();
     let mut done = false;
+    let mut input_tokens: Option<i64> = None;
+    let mut output_tokens: Option<i64> = None;
 
     futures::stream::poll_fn(move |cx| {
         loop {
@@ -895,7 +895,9 @@ where
                            pending: &mut Vec<Bytes>,
                            block_tools: &mut HashMap<u32, (String, String, u64)>,
                            next_tool_idx: &mut u64,
-                           finish_reason: &mut String| {
+                           finish_reason: &mut String,
+                           input_tokens: &mut Option<i64>,
+                           output_tokens: &mut Option<i64>| {
                 let Some(payload) = sse_line_payload(line) else {
                     return false;
                 };
@@ -905,8 +907,8 @@ where
                 match event.get("type").and_then(|t| t.as_str()).unwrap_or("") {
                     "content_block_start" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                        if let Some(block) = event.get("content_block") {
-                            if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+                        if let Some(block) = event.get("content_block")
+                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
                                 let id = block
                                     .get("id")
                                     .and_then(|v| v.as_str())
@@ -933,7 +935,6 @@ where
                                     None,
                                 );
                             }
-                        }
                     }
                     "content_block_delta" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -960,8 +961,7 @@ where
                             "input_json_delta" => {
                                 if let Some(partial) =
                                     delta.get("partial_json").and_then(|t| t.as_str())
-                                {
-                                    if let Some((_, _, tool_idx)) = block_tools.get(&index) {
+                                    && let Some((_, _, tool_idx)) = block_tools.get(&index) {
                                         push_openai_chat_sse(
                                             pending,
                                             serde_json::json!({
@@ -973,9 +973,15 @@ where
                                             None,
                                         );
                                     }
-                                }
                             }
                             _ => {}
+                        }
+                    }
+                    "message_start" => {
+                        if let Some(usage) = event.get("message").and_then(|m| m.get("usage")) {
+                            if let Some(in_tok) = usage.get("input_tokens").and_then(|v| v.as_i64()) {
+                                *input_tokens = Some(in_tok);
+                            }
                         }
                     }
                     "message_delta" => {
@@ -986,9 +992,27 @@ where
                         {
                             *finish_reason = anthropic_stop_to_openai_finish(stop).to_string();
                         }
+                        if let Some(usage) = event.get("usage") {
+                            if let Some(out_tok) = usage.get("output_tokens").and_then(|v| v.as_i64()) {
+                                *output_tokens = Some(out_tok);
+                            }
+                        }
                     }
                     "message_stop" => {
-                        push_openai_chat_sse(pending, serde_json::json!({}), Some(&finish_reason));
+                        let mut final_chunk = serde_json::json!({
+                            "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]
+                        });
+                        let mut usage = serde_json::json!({});
+                        if let Some(inp) = input_tokens {
+                            usage["prompt_tokens"] = serde_json::json!(inp);
+                        }
+                        if let Some(out) = output_tokens {
+                            usage["completion_tokens"] = serde_json::json!(out);
+                        }
+                        if !usage.as_object().map(|m| m.is_empty()).unwrap_or(true) {
+                            final_chunk["usage"] = usage;
+                        }
+                        pending.push(Bytes::from(format!("data: {}\n\n", final_chunk)));
                         pending.push(Bytes::from("data: [DONE]\n\n".to_string()));
                         return true;
                     }
@@ -1006,6 +1030,8 @@ where
                             &mut block_tools,
                             &mut next_tool_idx,
                             &mut finish_reason,
+                            &mut input_tokens,
+                            &mut output_tokens,
                         ) {
                             done = true;
                             break;
@@ -1021,6 +1047,8 @@ where
                             &mut block_tools,
                             &mut next_tool_idx,
                             &mut finish_reason,
+                            &mut input_tokens,
+                            &mut output_tokens,
                         );
                     }
                     if !done {
@@ -1100,8 +1128,8 @@ where
                 match event.get("type").and_then(|t| t.as_str()).unwrap_or("") {
                     "content_block_start" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-                        if let Some(block) = event.get("content_block") {
-                            if block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
+                        if let Some(block) = event.get("content_block")
+                            && block.get("type").and_then(|t| t.as_str()) == Some("tool_use") {
                                 let call_id = block
                                     .get("id")
                                     .and_then(|v| v.as_str())
@@ -1123,7 +1151,6 @@ where
                                     }),
                                 );
                             }
-                        }
                     }
                     "content_block_delta" => {
                         let index = event.get("index").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
@@ -1160,8 +1187,7 @@ where
                             "input_json_delta" => {
                                 if let Some(partial) =
                                     delta.get("partial_json").and_then(|t| t.as_str())
-                                {
-                                    if let Some(call_id) = block_tools.get(&index) {
+                                    && let Some(call_id) = block_tools.get(&index) {
                                         push_responses_sse(
                                             pending,
                                             "response.function_call_arguments.delta",
@@ -1172,7 +1198,6 @@ where
                                             }),
                                         );
                                     }
-                                }
                             }
                             _ => {}
                         }
@@ -1254,8 +1279,7 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
     if let Some(reasoning) = message
         .and_then(|m| m.get("reasoning_content"))
         .and_then(|c| c.as_str())
-    {
-        if !reasoning.is_empty() {
+        && !reasoning.is_empty() {
             sse.push_str(&format!(
                 "data: {}\n\n",
                 serde_json::json!({
@@ -1263,12 +1287,10 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
                 })
             ));
         }
-    }
     if let Some(content) = message
         .and_then(|m| m.get("content"))
         .and_then(|c| c.as_str())
-    {
-        if !content.is_empty() {
+        && !content.is_empty() {
             sse.push_str(&format!(
                 "data: {}\n\n",
                 serde_json::json!({
@@ -1276,7 +1298,6 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
                 })
             ));
         }
-    }
     if let Some(Value::Array(tool_calls)) = message.and_then(|m| m.get("tool_calls")) {
         for call in tool_calls {
             let idx = call.get("index").and_then(|v| v.as_u64()).unwrap_or(0);

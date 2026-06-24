@@ -27,6 +27,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - First start after upgrade writes initial `state.json` from current agent defaults.
 - All API and Gateway clients must send `Authorization: Bearer {gateway_key}` (Agents in auto mode receive this automatically).
 
+## [0.3.0] - 2026-06-24
+
+### Added
+
+- **SQLite storage backend**: all persistent data (settings, state, catalog, logs, usage records) consolidated into a single `~/.cab/cab.db` file. Removed `settings.json`, `state.json`, `catalog/*.json` files, and JSONL log files.
+- **Database schema migration** (v1→v2): automatic one-time import of existing `catalog.json` cache on first startup.
+- **Agentic routing strategy** (`agentic`): routes to models with the highest `agentic_index` score.
+- **`GET /api/usage` endpoint** and **Usage page** in the dashboard for per-model and per-provider token usage analytics.
+- **Health check module** (`cab-core::health`) for internal system health diagnostics.
+- **API type generation** (`src/lib/api-types.ts`) for frontend TypeScript integration.
+- **OpenAPI spec** expanded with usage, health, and catalog status endpoints.
+
+### Changed
+
+- **Unified routing strategy rankings**: all five strategies now use positive-semantic primary/secondary metric pairs with per-strategy comparator directions. No more encoding tricks (`-cost`, `-time`). Route explainer displays raw metrics with unit suffixes.
+- **Speed strategy** now uses AA-style "Total Response Time for N Output Tokens" (`TTFT + 1000/tps`) as a single composite primary metric instead of separate speed→TTFT→cost tiebreaks.
+- **Cheapest strategy** secondary key is now `overall_intelligence` (was `coding_index`).
+- **Request-aware routing** now estimates output tokens from request body to compute a dynamic input:output ratio for value scoring.
+- **Route candidate ranking** unified: subscription pool distinction removed; all candidates ranked by the same strategy comparator.
+- Database file permissions restricted to `0600` (owner-only) and directory to `0700` to protect gateway_key and provider API keys.
+- `.cab/` directory created with restricted permissions on first run.
+
+### Fixed
+
+- Removed unused `_path` parameter from `sync_models_dev_json` and cleaned up dead imports.
+- Updated stale doc comments referencing `settings.json` to reflect SQLite storage.
+
+### Migration
+
+- **Breaking**: `~/.cab/settings.json`, `~/.cab/state.json`, `~/.cab/catalog/*.json`, and `~/.cab/logs/*.jsonl` are no longer used. On first startup after upgrade, catalog data is automatically imported from the old cache files (if present). Settings and state are re-initialized from defaults.
+- Existing `gateway_key` is regenerated on first SQLite startup (update agent configs accordingly).
+- All clients continue to use `Authorization: Bearer {gateway_key}` — no protocol changes.
+
 ## [Unreleased]
 
 ## [0.2.7] - 2026-06-15

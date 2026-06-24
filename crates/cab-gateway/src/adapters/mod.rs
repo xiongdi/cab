@@ -12,7 +12,7 @@ use axum::body::Bytes;
 use axum::http::HeaderMap;
 use axum::response::Response;
 use cab_core::CabError;
-use cab_core::types::RequestLog;
+use cab_core::types::{RequestLog, UsageRecord};
 use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -110,6 +110,7 @@ pub async fn handle_proxied_request(
             let mut input_tokens = 0;
             let mut output_tokens = 0;
             let mut final_response = response;
+            let mut usage_json: Option<serde_json::Value> = None;
 
             if stream {
                 let (parts, body) = final_response.into_parts();
@@ -133,6 +134,7 @@ pub async fn handle_proxied_request(
                     && let Some(usage) = json_val.get("usage")
                 {
                     (input_tokens, output_tokens) = adapter.extract_usage(usage);
+                    usage_json = Some(usage.clone());
                 }
                 final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
             }
@@ -142,7 +144,7 @@ pub async fn handle_proxied_request(
                 timestamp: Utc::now().to_rfc3339(),
                 agent: agent.clone(),
                 provider: provider_name,
-                model: model_name,
+                model: model_name.clone(),
                 input_tokens,
                 output_tokens,
                 total_tokens: input_tokens + output_tokens,
@@ -153,15 +155,30 @@ pub async fn handle_proxied_request(
                 stream,
             };
             let pool = state.pool.clone();
+            let usage_record = build_usage_record(
+                usage_json.as_ref(),
+                &agent,
+                &resolved.provider_id,
+                &model_name,
+                input_tokens,
+                output_tokens,
+            );
             tokio::spawn(async move {
                 if let Err(e) = cab_db::log::insert(&pool, &log).await {
                     tracing::error!("Failed to log request: {e}");
                 }
+                if let Some(record) = usage_record
+                    && let Some(sqlite_pool) = pool.sqlite()
+                    && let Ok(conn) = sqlite_pool.get()
+                    && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record) {
+                        tracing::warn!("Failed to record usage: {e}");
+                    }
             });
 
             Ok(final_response)
         }
         Err(e) => {
+            state.pool.health.record_failure(&resolved.provider_id);
             let status_code = match &e {
                 CabError::ProviderError { status, .. } => *status as i32,
                 CabError::Proxy(_) => 502,
@@ -193,4 +210,51 @@ pub async fn handle_proxied_request(
             Err(e)
         }
     }
+}
+
+fn build_usage_record(
+    usage: Option<&serde_json::Value>,
+    agent: &str,
+    provider_id: &str,
+    model_name: &str,
+    input_tokens: i64,
+    output_tokens: i64,
+) -> Option<UsageRecord> {
+    if input_tokens == 0 && output_tokens == 0 {
+        return None;
+    }
+
+    let (cache_read, cache_creation) = if let Some(u) = usage {
+        let cr = u
+            .get("cache_read_input_tokens")
+            .or_else(|| u.get("cache_read_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cc = u
+            .get("cache_creation_input_tokens")
+            .or_else(|| u.get("cache_creation_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        (cr, cc)
+    } else {
+        (0, 0)
+    };
+
+    let cost_usd = 0.0;
+
+    Some(UsageRecord {
+        id: Uuid::new_v4().to_string(),
+        timestamp: Utc::now().to_rfc3339(),
+        provider_id: provider_id.to_string(),
+        model_id: model_name.to_string(),
+        service_provider_id: provider_id.to_string(),
+        agent_id: agent.to_string(),
+        input_tokens,
+        output_tokens,
+        cache_read_tokens: cache_read,
+        cache_creation_tokens: cache_creation,
+        cost_usd,
+        subscription: false,
+        request_id: None,
+    })
 }

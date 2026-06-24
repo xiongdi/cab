@@ -8,6 +8,8 @@ use cab_core::{
 };
 use cab_db::catalog::RouteCatalog;
 
+const DEFAULT_MAX_FALLBACK_ROUTES: usize = 3;
+
 /// A resolved route target with provider details.
 #[derive(Debug, Clone)]
 pub struct ResolvedRoute {
@@ -224,7 +226,13 @@ async fn resolve_by_strategy(
 
     let ranked = rank_route_candidates(&candidates, parsed, profile);
     let allow_same_provider_fallbacks = !matches!(parsed, RoutingStrategy::Auto);
-    resolve_ranked_routes(catalog, ranked, 3, allow_same_provider_fallbacks).await
+    resolve_ranked_routes(
+        catalog,
+        ranked,
+        DEFAULT_MAX_FALLBACK_ROUTES,
+        allow_same_provider_fallbacks,
+    )
+    .await
 }
 
 async fn resolve_ranked_routes(
@@ -363,6 +371,14 @@ async fn try_resolve_with_provider(
     };
 
     if !provider.enabled || !provider_has_available_key(&provider) {
+        return Ok(None);
+    }
+
+    if !catalog.is_provider_healthy(provider_id) {
+        tracing::debug!(
+            provider_id,
+            "skipping unhealthy provider during route resolution"
+        );
         return Ok(None);
     }
 

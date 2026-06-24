@@ -13,6 +13,9 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 tracing = { workspace = true }
 anyhow = { workspace = true }
+rusqlite = { version = "0.39", features = ["bundled"] }
+r2d2 = "0.8"
+r2d2_sqlite = "0.34"
 
 [dev-dependencies]
 tempfile = "3.27.0"

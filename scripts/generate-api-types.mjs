@@ -1,34 +1,141 @@
 #!/usr/bin/env node
 /**
- * Sync selected OpenAPI schemas into src/lib/types.ts markers.
- * Full codegen can replace this once utoipa export lands in cab-api.
+ * Generate src/lib/api-types.ts from spec/src/content/docs/modules/openapi.yaml.
+ * This is the single source of truth for API types — do not edit api-types.ts manually.
+ * Run: npm run generate-types
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import * as yaml from 'js-yaml';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const typesPath = path.join(root, 'src/lib/types.ts');
 const openapiPath = path.join(root, 'spec/src/content/docs/modules/openapi.yaml');
+const outPath = path.join(root, 'src/lib/api-types.ts');
 
-const source = readFileSync(typesPath, 'utf8');
-if (!source.includes('RouteExplainRequest')) {
-  console.error('RouteExplain types missing from src/lib/types.ts — add them manually first.');
-  process.exit(1);
+const spec = yaml.load(readFileSync(openapiPath, 'utf8'));
+const schemas = spec.components?.schemas ?? {};
+
+function tsType(prop) {
+  if (prop.$ref) {
+    return prop.$ref.replace('#/components/schemas/', '');
+  }
+  if (prop.allOf) {
+    return prop.allOf.map(tsType).join(' & ');
+  }
+  if (prop.oneOf) {
+    return prop.oneOf.map(tsType).join(' | ');
+  }
+  const nullable = prop.nullable === true;
+  let base;
+  switch (prop.type) {
+    case 'string':
+      base = prop.enum ? prop.enum.map((v) => `'${v}'`).join(' | ') : 'string';
+      break;
+    case 'integer':
+    case 'number':
+      base = 'number';
+      break;
+    case 'boolean':
+      base = 'boolean';
+      break;
+    case 'array':
+      base = `Array<${tsType(prop.items ?? {})}>`;
+      break;
+    case 'object':
+      if (prop.additionalProperties) {
+        const ap = prop.additionalProperties;
+        if (ap.$ref) {
+          base = `Record<string, ${tsType(ap)}>`;
+        } else if (ap === true || ap.type === undefined) {
+          base = 'Record<string, unknown>';
+        } else {
+          base = `Record<string, ${tsType(ap)}>`;
+        }
+      } else {
+        base = 'Record<string, unknown>';
+      }
+      break;
+    default:
+      base = 'unknown';
+  }
+  return nullable ? `${base} | null` : base;
 }
 
-const openapi = readFileSync(openapiPath, 'utf8');
-if (!openapi.includes('/api/routing/explain')) {
-  console.error('openapi.yaml is missing /api/routing/explain');
-  process.exit(1);
+function collectProps(schema, schemas) {
+  const props = {};
+  if (schema.$ref) {
+    const refName = schema.$ref.replace('#/components/schemas/', '');
+    const refSchema = schemas[refName];
+    if (refSchema) {
+      Object.assign(props, collectProps(refSchema, schemas));
+    }
+    return props;
+  }
+  if (schema.allOf) {
+    for (const part of schema.allOf) {
+      Object.assign(props, collectProps(part, schemas));
+    }
+    return props;
+  }
+  if (schema.properties) {
+    Object.assign(props, schema.properties);
+  }
+  return props;
 }
 
-const stamp = `// Generated from ${path.relative(root, openapiPath)} on ${new Date().toISOString()}\n`;
-const marker = '// OPENAPI_SYNC_MARKER';
-let next = source;
-if (source.includes(marker)) {
-  next = source.replace(/\/\/ OPENAPI_SYNC_MARKER[\s\S]*?\/\/ END_OPENAPI_SYNC_MARKER\n?/, '');
+function collectRequired(schema, schemas) {
+  const required = new Set();
+  if (schema.$ref) {
+    const refName = schema.$ref.replace('#/components/schemas/', '');
+    const refSchema = schemas[refName];
+    if (refSchema) {
+      for (const r of collectRequired(refSchema, schemas)) required.add(r);
+    }
+    return required;
+  }
+  if (schema.allOf) {
+    for (const part of schema.allOf) {
+      for (const r of collectRequired(part, schemas)) required.add(r);
+    }
+    return required;
+  }
+  for (const r of schema.required ?? []) required.add(r);
+  return required;
 }
-next = next.trimEnd() + `\n\n${marker}\n${stamp}// END_OPENAPI_SYNC_MARKER\n`;
-writeFileSync(typesPath, next);
-console.log(`Synced OpenAPI marker in ${path.relative(root, typesPath)}`);
+
+function genInterface(name, schema) {
+  const required = collectRequired(schema, schemas);
+  const props = collectProps(schema, schemas);
+  const lines = [];
+  for (const [key, prop] of Object.entries(props)) {
+    const optional = !required.has(key);
+    const type = tsType(prop);
+    const desc = prop.description ? `  /** ${prop.description} */\n` : '';
+    lines.push(`${desc}  ${key}${optional ? '?' : ''}: ${type};`);
+  }
+  return `export interface ${name} {\n${lines.join('\n')}\n}`;
+}
+
+const interfaces = [];
+for (const [name, schema] of Object.entries(schemas)) {
+  if (schema.type === 'object' || schema.properties || schema.allOf) {
+    interfaces.push(genInterface(name, schema));
+  } else if (schema.type === 'array') {
+    interfaces.push(`export type ${name} = Array<${tsType(schema.items ?? {})}>;`);
+  } else {
+    interfaces.push(`export type ${name} = ${tsType(schema)};`);
+  }
+}
+
+const header = `// ═══════════════════════════════════════════════════════════════
+// GENERATED CODE — DO NOT EDIT MANUALLY
+// Source: spec/src/content/docs/modules/openapi.yaml
+// Run \`npm run generate-types\` to regenerate
+// ═══════════════════════════════════════════════════════════════
+
+`;
+
+const body = interfaces.join('\n\n') + '\n';
+writeFileSync(outPath, header + body);
+console.log(`Generated ${interfaces.length} types → ${path.relative(root, outPath)}`);

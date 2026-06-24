@@ -3,20 +3,29 @@
 # Agent mode/strategy must already be applied via PUT /api/agents/{id}.
 #
 # Usage: run-real-ca.sh <agent-id> [prompt] [model-or-strategy]
+# Requires: CAB_UAT_BASE_URL, CAB_UAT_GATEWAY_KEY (set by test runner)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-# shellcheck source=scripts/uat/lib.sh
-source "${ROOT}/scripts/uat/lib.sh"
+# Redirect writable dirs to workspace (real /home is ro)
+export XDG_DATA_HOME="${ROOT}/.xdg/data"
+export XDG_STATE_HOME="${ROOT}/.xdg/state"
+export XDG_CACHE_HOME="${ROOT}/.xdg/cache"
+export npm_config_cache="${ROOT}/.xdg/npm-cache"
+export CODEX_HOME="${ROOT}/.xdg/codex"
+export KILO_BIN_HOME="${ROOT}/.xdg/kilo"
+mkdir -p "${XDG_DATA_HOME}" "${XDG_STATE_HOME}" "${XDG_CACHE_HOME}" "${npm_config_cache}" "${CODEX_HOME}" "${KILO_BIN_HOME}"
+# Copy kilocode binary to writable path
+cp "${HOME}/.kilo/bin/kilo" "${KILO_BIN_HOME}/kilo" 2>/dev/null || true
 
 AGENT="${1:?agent id}"
 PROMPT="${2:-Reply CAB UAT ok}"
 MODEL="${3:-balanced}"
 TIMEOUT="${CAB_UAT_CA_TIMEOUT:-180}"
 
-uat_load_settings
+GATEWAY_KEY="${CAB_UAT_GATEWAY_KEY:?CAB_UAT_GATEWAY_KEY not set}"
+BASE="${CAB_UAT_BASE_URL:?CAB_UAT_BASE_URL not set}"
 export OPENAI_API_KEY="${GATEWAY_KEY}"
-BASE="${CAB_UAT_BASE_URL}"
 
 latest_log_id() {
   curl -sf -H "Authorization: Bearer ${GATEWAY_KEY}" \
@@ -36,6 +45,11 @@ cli_missing() {
 }
 
 run_ca() {
+  # Redirect writable dirs that each CLI respects
+  local CA_HOME="${ROOT}/.xdg/home"
+  export HOME="${CA_HOME}"
+  export KILO_BIN="${ROOT}/.xdg/kilo/kilo"
+  export OPENCLAW_STATE_DIR="${ROOT}/.xdg/openclaw"
   case "${AGENT}" in
     claude-code)
       command -v claude >/dev/null || cli_missing

@@ -11,13 +11,13 @@ uat_root() {
 }
 
 uat_load_settings() {
-  local settings="${HOME}/.cab/settings.json"
-  if [[ ! -f "${settings}" ]]; then
-    echo "error: ${settings} not found — configure CAB first" >&2
+  local db="${HOME}/.cab/cab.db"
+  if [[ ! -f "${db}" ]]; then
+    echo "error: ${db} not found — configure CAB first" >&2
     return 1
   fi
-  GATEWAY_PORT="$(python3 -c "import json; print(json.load(open('${settings}'))['gateway_port'])")"
-  GATEWAY_KEY="$(python3 -c "import json; print(json.load(open('${settings}'))['gateway_key'])")"
+  GATEWAY_PORT="$(sqlite3 "${db}" "SELECT data FROM settings WHERE id=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['gateway_port'])")"
+  GATEWAY_KEY="$(sqlite3 "${db}" "SELECT data FROM settings WHERE id=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['gateway_key'])")"
   export GATEWAY_PORT GATEWAY_KEY
   export CAB_UAT_BASE_URL="${CAB_UAT_BASE_URL:-http://127.0.0.1:${GATEWAY_PORT}}"
   export CAB_UAT_GATEWAY_KEY="${CAB_UAT_GATEWAY_KEY:-${GATEWAY_KEY}}"

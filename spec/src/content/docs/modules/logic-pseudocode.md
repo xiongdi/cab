@@ -43,22 +43,32 @@ primary_capability_loose(model, task):
   Agentic  → agentic_index ?? overall_intelligence
   General  → overall_intelligence
 
-composite_capability(model, task):   // 四项 AA 指数齐全时
-  Coding   → 0.55·coding + 0.22·overall + 0.13·agentic + 0.10·math
-  Math     → 0.58·math + 0.24·overall + 0.10·coding + 0.08·agentic
-  Agentic  → 0.42·agentic + 0.28·overall + 0.22·coding + 0.08·math
-  General  → 0.45·overall + 0.22·coding + 0.18·math + 0.15·agentic
+capability_value_score(cap, input, output, cache_read) →
+  cap / raw_effective_cost(input, output, cache_read)
+  （raw ≤ 0 → +∞；input/output 任一缺失 → -∞）
 ```
 
-## 各策略 value / capability
+## 各策略主 / 次排序键
 
-| 策略 | capability | value |
-| ---- | ---------- | ----- |
-| balanced | primary_capability_loose | capability_value_score |
-| auto | composite 或 primary | capability_value_score |
-| cheapest | 0 | -effective_cost |
-| intelligent | coding_index | capability（同左） |
-| speed | output_speed_tps | capability（同左）；全无速度 → 降级 cheapest |
+`value` / `capability` 字段直接存**正数语义值**，比较器方向按策略不同：
+
+| 策略 | value（正数）                          | capability（正数）                | value 方向 | capability 方向 |
+| ---- | ------------------------------------- | -------------------------------- | --------- | ---------------- |
+| balanced（平衡策略） | 性价比 capability_value_score          | 智能指数 overall_intelligence      | DESC      | DESC            |
+| auto | 同 balanced（Auto = Balanced + capability floor filter） | 同上 | DESC      | DESC            |
+| cheapest / price（价格策略） | effective_cost（USD / Mtok）           | 智能指数 overall_intelligence      | ASC       | DESC            |
+| intelligent（代码能力策略） | coding_index                            | 性价比 capability_value_score      | DESC      | DESC            |
+| speed（速度策略）    | total_response_time（秒）              | effective_cost（USD / Mtok）       | ASC       | ASC             |
+
+`Speed` 主键用 AA 风格的「Total Response Time for N Output Tokens」指标
+（`TTFT + N / tps`），同时考虑首 token 延迟与稳态吞吐，比单纯 tps 更贴近用户对「速度」的体感。
+`OUTPUT_TOKENS_FOR_SPEED_RANKING = 1000` 使数值更贴近真实编码场景。value 是正秒数（越小越快），
+capability 是正成本（越小越好）。
+
+主排序键缺失 ⇒ `value = +∞`（ASC 策略）或 `-∞`（DESC 策略），始终沉底。
+次排序键缺失 ⇒ `capability = -∞`，永不赢次级 tiebreak。
+
+`Speed` 整池没有速度数据时降级为 `Cheapest`。
 
 ## Auto 能力门槛（`min_required_capability`）
 
@@ -70,7 +80,7 @@ Math:     floor=38, ceiling=92
 Agentic:  floor=42, ceiling=95
 General:  floor=24, ceiling=78
 
-FILTER capability >= min_required
+FILTER primary_capability_loose(model, task) >= min_required
 IF 结果为空 → 不过滤，对全量候选重新打分排序
 ```
 
@@ -78,24 +88,25 @@ IF 结果为空 → 不过滤，对全量候选重新打分排序
 
 ```
 FOR each routable (model, service_provider) with endpoint prices:
-  计算 capability, value, endpoint_cost
+  计算 primary_score, secondary_score
 
 SORT BY:
-  1. value DESC
-  2. capability DESC
-  3. IF strategy == Speed: time_to_first_token ASC
-  4. endpoint_cost ASC
-  5. model.name ASC
-  6. service_provider_id ASC
+  1. primary_score   <direction per strategy>
+  2. secondary_score <direction per strategy>
+  3. model.name      ASC
+  4. service_provider_id ASC
 ```
 
-`cheapest` 的 value 为负成本，等价于按 effective_cost 升序。
+每个策略的 primary / secondary 由 `score_parts` 写入 `value` / `capability` 字段，
+值为正数语义值。比较器方向按策略不同：balanced / auto / intelligent 用 DESC，
+cheapest / speed 用 ASC。`/api/routing/explain` 直接读取这两个字段渲染给前端，
+配合 `formatStrategyMetric` / `formatExplainValue` 加上单位后缀（`s`、`$/Mtok`）。
 
 ## 路由页策略板（`strategy_board`）
 
 ```
 profile ← build_request_profile(body, agent)
-FOR strategy IN [auto, balanced, cheapest, intelligent, speed]:
+FOR strategy IN [auto, balanced, cheapest, intelligent, speed, agentic]:
   effective ← speed 且无速度数据 ? cheapest : strategy
   candidates ← rank_route_candidates_with_scores(全部端点候选, effective, profile)
 RETURN { strategies: [{ id, display_strategy, task, complexity, candidates }] }

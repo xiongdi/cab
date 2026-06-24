@@ -1,382 +1,51 @@
 /* ═══════════════════════════════════════════════════════════════
    CAB — TypeScript Types
-   Mirrors the Rust backend API types exactly
+   API types are generated from openapi.yaml → see api-types.ts
+   This file re-exports them and adds frontend-only types.
    ═══════════════════════════════════════════════════════════════ */
 
-export interface ApiKeyConfig {
-  key: string;
-  enabled: boolean;
-  /** RFC3339 timestamp when a 429 quota window ends. */
-  quota_reset_at?: string | null;
-}
+export type * from './api-types';
+export {
+  type ApiKeyConfig,
+  type ProviderEndpoint,
+  type Provider,
+  type UpdateProvider,
+  type Model,
+  type RoutableModel,
+  type ModelEndpoint,
+  type UpdateModel,
+  type Route,
+  type CreateRoute,
+  type UpdateRoute,
+  type RequestLog,
+  type LogFilter,
+  type PaginatedLogs,
+  type DashboardStats,
+  type ProviderUserSettings,
+  type ModelUserSettings,
+  type BenchmarkEvaluations,
+  type BenchmarkPerformance,
+  type BenchmarkModelRecord,
+  type ModelCatalogEntry,
+  type Settings,
+  type UpdateSettings,
+  type CatalogSourceStatus,
+  type CatalogStatusResponse,
+  type SyncCatalogResponse,
+  type Agent,
+  type UpdateAgent,
+  type RouteExplainRequest,
+  type DecisionStep,
+  type ResolvedSummary,
+  type RankedModelSummary,
+  type RouteExplainResult,
+  type StrategyBoardRequest,
+  type StrategyBoardStrategy,
+  type StrategyBoardResult,
+} from './api-types';
 
-export interface ProviderEndpoint {
-  id: string;
-  protocol: 'openai-chat' | 'anthropic' | 'openai-responses';
-  url: string;
-  label: string | null;
-  priority: number;
-  enabled: boolean;
-}
+// ── Frontend-only types (not from API) ─────────────────────────
 
-// ── Provider ──────────────────────────────────────────────────
-export interface Provider {
-  id: string;
-  name: string;
-  endpoints: ProviderEndpoint[];
-  api_key: string;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-  privacy_policy_url?: string;
-  terms_of_service_url?: string;
-  status_page_url?: string;
-  headquarters?: string;
-  datacenters?: string[];
-  api_keys: ApiKeyConfig[];
-  api?: string | null;
-  doc?: string | null;
-  env?: string[] | null;
-  npm?: string | null;
-  model_count: number;
-  catalog_models?: string[];
-}
-
-export interface UpdateProvider {
-  name?: string;
-  endpoints?: ProviderEndpoint[];
-  api_key?: string;
-  enabled?: boolean;
-  privacy_policy_url?: string;
-  terms_of_service_url?: string;
-  status_page_url?: string;
-  headquarters?: string;
-  datacenters?: string[];
-  api_keys?: ApiKeyConfig[];
-  api?: string | null;
-  doc?: string | null;
-  env?: string[] | null;
-  npm?: string | null;
-  model_count?: number;
-}
-
-// ── Model ─────────────────────────────────────────────────────
-export interface Model {
-  id: string;
-  name: string;
-  display_name: string;
-  provider_id: string;
-  provider_name?: string;
-  protocol: string; // 'openai' or 'anthropic'
-  context_length: number;
-  input_cost?: number;
-  output_cost?: number;
-  enabled: boolean;
-  overall_intelligence?: number | null;
-  coding_index?: number | null;
-  agentic_index?: number | null;
-  math_index?: number | null;
-  output_speed_tps?: number | null;
-  time_to_first_token_secs?: number | null;
-  created_at: string;
-  updated_at: string;
-  // Catalog metadata
-  canonical_slug?: string;
-  hugging_face_id?: string | null;
-  created?: number;
-  description?: string;
-  architecture?: any;
-  pricing?: any;
-  top_provider?: any;
-  per_request_limits?: any;
-  supported_parameters?: string[];
-  default_parameters?: any;
-  supported_voices?: string[] | null;
-  knowledge_cutoff?: string | null;
-  expiration_date?: string | null;
-  links?: any;
-}
-
-/** Model with the gateway provider that would actually serve requests. */
-export interface RoutableModel extends Model {
-  service_provider_id: string;
-  /** Per-provider pricing; falls back to model-level pricing when absent (older API). */
-  endpoint_input_cost?: number | null;
-  endpoint_output_cost?: number | null;
-  endpoint_cache_read_cost?: number | null;
-}
-
-export interface ModelEndpoint {
-  id: string;
-  model_id: string;
-  canonical_slug: string;
-  provider_name: string;
-  provider_tag: string;
-  native_model_id: string;
-  quantization: string;
-  input_cost?: number | null;
-  output_cost?: number | null;
-  cache_read_cost?: number | null;
-  context_length?: number | null;
-  max_completion_tokens?: number;
-  status: number; // 0 = ok, negative = degraded
-  uptime_30m?: number;
-  uptime_5m?: number;
-  uptime_1d?: number;
-  supports_tools: boolean;
-  supports_streaming: boolean;
-  enabled: boolean;
-  updated_at: string;
-}
-
-export interface UpdateModel {
-  enabled?: boolean;
-}
-
-// ── Route ─────────────────────────────────────────────────────
-export interface Route {
-  id: string;
-  name: string;
-  agent_pattern: string;
-  primary_model_id: string;
-  primary_model_name?: string;
-  fallback_model_ids: string[];
-  fallback_model_names?: string[];
-  priority: number;
-  /** one of: auto | cheapest | balanced | intelligent | speed */
-  routing_strategy: string;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CreateRoute {
-  name: string;
-  agent_pattern: string;
-  primary_model_id: string;
-  fallback_model_ids?: string[];
-  priority?: number;
-  routing_strategy?: string;
-  enabled?: boolean;
-}
-
-export interface UpdateRoute {
-  name?: string;
-  agent_pattern?: string;
-  primary_model_id?: string;
-  fallback_model_ids?: string[];
-  priority?: number;
-  routing_strategy?: string;
-  enabled?: boolean;
-}
-
-// ── Request Log ───────────────────────────────────────────────
-export interface RequestLog {
-  id: string;
-  timestamp: string;
-  agent: string;
-  provider: string;
-  model: string;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-  latency_ms: number;
-  status_code: number;
-  error_message?: string;
-}
-
-export interface LogFilter {
-  agent?: string;
-  provider?: string;
-  model?: string;
-  status?: string;
-  search?: string;
-  page?: number;
-  per_page?: number;
-}
-
-export interface PaginatedLogs {
-  data: RequestLog[];
-  total: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
-}
-
-// ── Dashboard ─────────────────────────────────────────────────
-export interface DashboardStats {
-  total_requests: number;
-  total_tokens: number;
-  active_providers: number;
-  active_models: number;
-  requests_by_provider: Record<string, number>;
-  requests_by_model: Record<string, number>;
-  recent_requests: RequestLog[];
-}
-
-// ── Settings ──────────────────────────────────────────────────
-export interface ProviderUserSettings {
-  enabled?: boolean;
-  api_key?: string;
-  api_keys?: ApiKeyConfig[];
-  endpoints?: ProviderEndpoint[];
-}
-
-export interface ModelUserSettings {
-  enabled?: boolean;
-}
-
-export interface BenchmarkEvaluations {
-  artificial_analysis_intelligence_index?: number | null;
-  artificial_analysis_coding_index?: number | null;
-  artificial_analysis_math_index?: number | null;
-  tau2?: number | null;
-  terminalbench_hard?: number | null;
-  livecodebench?: number | null;
-  scicode?: number | null;
-  gpqa?: number | null;
-  hle?: number | null;
-}
-
-export interface BenchmarkPerformance {
-  median_output_tokens_per_second?: number | null;
-  median_time_to_first_token_seconds?: number | null;
-  median_time_to_first_answer_token?: number | null;
-}
-
-export interface BenchmarkModelRecord {
-  id: string;
-  slug: string;
-  name: string;
-  creator_slug?: string | null;
-  creator_name?: string | null;
-  evaluations: BenchmarkEvaluations;
-  performance?: BenchmarkPerformance;
-}
-
-/** Three-source model view: models.dev + AA + settings.json */
-export interface ModelCatalogEntry {
-  id: string;
-  catalog_id: string;
-  enabled: boolean;
-  models_dev: Record<string, unknown>;
-  artificial_analysis: BenchmarkModelRecord | null;
-  settings: ModelUserSettings;
-}
-
-export interface Settings {
-  gateway_port: number;
-  log_retention_days: number;
-  gateway_status?: 'running' | 'stopped' | 'error';
-  gateway_key: string;
-  artificial_analysis_api_key?: string | null;
-  providers?: Record<string, ProviderUserSettings>;
-  models?: Record<string, ModelUserSettings>;
-}
-
-export interface UpdateSettings {
-  gateway_port?: number;
-  log_retention_days?: number;
-  gateway_key?: string;
-  artificial_analysis_api_key?: string | null;
-  providers?: Record<string, ProviderUserSettings>;
-  models?: Record<string, ModelUserSettings>;
-}
-
-export interface CatalogSourceStatus {
-  id: string;
-  name: string;
-  url: string;
-  cache_path: string;
-  available: boolean;
-  synced_at: string | null;
-  providers?: number | null;
-  models?: number | null;
-}
-
-export interface CatalogStatusResponse {
-  sources: CatalogSourceStatus[];
-}
-
-export interface SyncCatalogResponse {
-  success: boolean;
-  applied_models: number;
-  providers: number;
-  sources: CatalogSourceStatus[];
-}
-
-// ── Agent ─────────────────────────────────────────────────────
-export interface Agent {
-  id: string;
-  name: string;
-  mode: 'native' | 'auto' | 'manual' | 'config';
-  model_id: string | null;
-  model_name?: string; // Client-side mapped helper
-  api_key: string;
-  endpoint: string;
-  updated_at: string;
-}
-
-export interface UpdateAgent {
-  mode?: 'native' | 'auto' | 'manual' | 'config';
-  model_id?: string | null;
-  api_key?: string;
-  endpoint?: string;
-}
-
-// ── Route Explain ─────────────────────────────────────────────
-export interface RouteExplainRequest {
-  agent: string;
-  model?: string | null;
-  body?: Record<string, unknown> | null;
-}
-
-export interface DecisionStep {
-  step: string;
-  matched: boolean;
-  detail: string;
-}
-
-export interface ResolvedSummary {
-  model_id: string;
-  provider_id: string;
-  strategy?: string | null;
-}
-
-export interface RankedModelSummary {
-  model_id: string;
-  provider_id: string;
-  /** Absent when AA benchmark data is not available (not the same as 0). */
-  capability?: number | null;
-  value?: number | null;
-  /** True when value is +∞ (known $0 catalog price). */
-  value_unbounded?: boolean;
-}
-
-export interface RouteExplainResult {
-  resolved: ResolvedSummary | null;
-  decision_steps: DecisionStep[];
-  ranked_candidates: RankedModelSummary[];
-}
-
-export interface StrategyBoardRequest {
-  agent: string;
-  body?: Record<string, unknown> | null;
-}
-
-export interface StrategyBoardStrategy {
-  id: string;
-  display_strategy: string;
-  task: string;
-  complexity: number;
-  candidates: RankedModelSummary[];
-}
-
-export interface StrategyBoardResult {
-  strategies: StrategyBoardStrategy[];
-}
-
-// ── Column config for DataTable ───────────────────────────────
 export interface Column<T = any> {
   key: string;
   label: string;
@@ -386,7 +55,6 @@ export interface Column<T = any> {
   render?: (value: any, row: T) => string;
 }
 
-// ── Toast ─────────────────────────────────────────────────────
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
 export interface Toast {

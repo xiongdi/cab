@@ -27,6 +27,8 @@ import type {
   StrategyBoardRequest,
   StrategyBoardResult,
   RoutableModel,
+  UsageSummary,
+  UsageRecord,
 } from './types';
 
 let resolvedPort: number | null = null;
@@ -222,6 +224,15 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+  },
+
+  usage: {
+    getSummary: (range?: string) =>
+      request<UsageSummary>(`/usage/summary${range ? `?range=${range}` : ''}`),
+    getRecords: (range?: string, perPage?: number) =>
+      request<{ data: UsageRecord[]; total: number }>(
+        `/usage/records?range=${range ?? 'month'}&per_page=${perPage ?? 50}`,
+      ),
   },
 };
 

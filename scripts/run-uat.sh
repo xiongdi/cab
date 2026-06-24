@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Local UAT only — NOT part of CI gate. Uses real API keys from ~/.cab/settings.json.
+# Local UAT only — NOT part of CI gate. Uses real API keys from SQLite (~/.cab/cab.db).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-if [[ ! -f "${HOME}/.cab/settings.json" ]]; then
-  echo "error: ~/.cab/settings.json not found — configure providers in CAB first" >&2
+if [[ ! -f "${HOME}/.cab/cab.db" ]]; then
+  echo "error: ~/.cab/cab.db not found — configure providers in CAB first" >&2
   exit 1
 fi
 

@@ -1,7 +1,7 @@
 {
   "name": "cab",
   "private": true,
-  "version": "0.2.7",
+  "version": "0.3.0",
   "type": "module",
   "engines": {
     "node": ">=24"
@@ -15,6 +15,8 @@
     "check": "vp check && svelte-check --tsconfig ./tsconfig.json",
     "format": "vp fmt .",
     "format:check": "vp fmt --check .",
+    "generate-types": "node scripts/generate-api-types.mjs",
+    "generate-types:check": "node scripts/generate-api-types.mjs && git diff --exit-code src/lib/api-types.ts",
     "coverage": "npm run coverage:frontend && npm run coverage:backend",
     "coverage:backend": "node scripts/run-coverage.mjs backend",
     "coverage:frontend": "vp test --coverage --run",
@@ -31,9 +33,11 @@
     "@sveltejs/kit": "^2",
     "@sveltejs/vite-plugin-svelte": "^7",
     "@tauri-apps/cli": "^2.11.2",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^4.1.8",
     "esbuild": "^0.28.0",
+    "js-yaml": "^5.0.0",
     "svelte": "^5",
     "svelte-check": "^4",
     "typescript": "^6",

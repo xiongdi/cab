@@ -8,6 +8,7 @@ pub mod providers;
 pub mod routes;
 pub mod routing;
 pub mod settings;
+pub mod usage;
 use axum::Router;
 use axum::extract::Request;
 use axum::middleware::Next;
@@ -40,8 +41,8 @@ async fn api_auth_middleware(
     let bypass =
         origin.map(is_trusted).unwrap_or(false) || referer.map(is_trusted).unwrap_or(false);
 
-    if !bypass {
-        if let Err(err) = cab_db::auth::verify(
+    if !bypass
+        && let Err(err) = cab_db::auth::verify(
             &state.pool,
             request
                 .headers()
@@ -52,7 +53,6 @@ async fn api_auth_middleware(
         {
             return err.into_response();
         }
-    }
     next.run(request).await
 }
 
@@ -145,13 +145,16 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/routing/explain", post(routing::explain_routing))
         .route("/api/routing/strategy-board", post(routing::strategy_board))
         // Logs
-        .route("/api/logs", get(logs::query_logs))
+        .route("/api/logs", get(logs::query_logs).delete(logs::delete_logs))
         // Coding Agents
         .route("/api/agents", get(agents::list_agents))
         .route("/api/agents/{id}", get(agents::get_agent))
         .route("/api/agents/{id}", put(agents::update_agent))
         // Dashboard
         .route("/api/dashboard/stats", get(dashboard::get_stats))
+        // Usage
+        .route("/api/usage/summary", get(usage::get_summary))
+        .route("/api/usage/records", get(usage::get_records))
         // Settings
         .route("/api/settings", get(settings::get_settings))
         .route("/api/settings", put(settings::update_settings))

@@ -87,12 +87,22 @@ pub async fn list_for_model(
 pub async fn clear_all(store: &InMemoryStore) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     inner.model_endpoints.clear();
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::clear_model_endpoints(&conn)?;
+    }
     Ok(())
 }
 
 pub async fn upsert(store: &InMemoryStore, ep: &ModelEndpoint) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     inner.model_endpoints.insert(ep.id.clone(), ep.clone());
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_model_endpoint(&conn, ep)?;
+    }
     Ok(())
 }
 
@@ -107,6 +117,13 @@ pub async fn delete_for_model(store: &InMemoryStore, model_id: &str) -> Result<u
             true
         }
     });
+    drop(inner);
+    if deleted > 0 {
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::delete_model_endpoints_for(&conn, model_id)?;
+        }
+    }
     Ok(deleted)
 }
 
@@ -118,7 +135,13 @@ pub async fn set_enabled(
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     if let Some(ep) = inner.model_endpoints.get_mut(id) {
         ep.enabled = enabled;
-        Ok(Some(ep.clone()))
+        let updated = ep.clone();
+        drop(inner);
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::upsert_model_endpoint(&conn, &updated)?;
+        }
+        Ok(Some(updated))
     } else {
         Ok(None)
     }
@@ -130,9 +153,18 @@ pub async fn set_provider_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    let mut changed: Vec<ModelEndpoint> = Vec::new();
     for ep in inner.model_endpoints.values_mut() {
         if ep.provider_name == provider_name || ep.provider_tag == provider_name {
             ep.enabled = enabled;
+            changed.push(ep.clone());
+        }
+    }
+    drop(inner);
+    if !changed.is_empty() && let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        for ep in &changed {
+            crate::sqlite::upsert_model_endpoint(&conn, ep)?;
         }
     }
     Ok(())
@@ -144,9 +176,18 @@ pub async fn set_provider_tag_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    let mut changed: Vec<ModelEndpoint> = Vec::new();
     for ep in inner.model_endpoints.values_mut() {
         if ep.provider_tag == provider_tag {
             ep.enabled = enabled;
+            changed.push(ep.clone());
+        }
+    }
+    drop(inner);
+    if !changed.is_empty() && let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        for ep in &changed {
+            crate::sqlite::upsert_model_endpoint(&conn, ep)?;
         }
     }
     Ok(())

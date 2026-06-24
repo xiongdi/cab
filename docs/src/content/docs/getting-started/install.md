@@ -13,7 +13,7 @@ Download pre-built desktop installers from [GitHub Releases](https://github.com/
 | **macOS** | 10.13 High Sierra+ | Intel + Apple Silicon | Universal `.dmg` package |
 | **Linux** | WebKitGTK 4.1 | x64, ARM64 | Ubuntu 22.04+, Debian 12+, Fedora 36+ tested |
 
-**Headless server** (`cab-server`) runs on the same OS families without WebView. Use `cargo run -p cab-server` or ship your own binary.
+**Headless server** (`cab-server`) runs on the same OS families without WebView. Build from source with `cargo run -p cab-server` for release testing, or use a pre-built binary from GitHub Releases. For daily development, follow the two-terminal workflow in [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) instead.
 
 ## Choose the right package
 

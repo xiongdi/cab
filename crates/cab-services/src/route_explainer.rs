@@ -127,14 +127,19 @@ fn strategy_id(strategy: RoutingStrategy) -> &'static str {
         RoutingStrategy::Cheapest => "cheapest",
         RoutingStrategy::Intelligent => "intelligent",
         RoutingStrategy::Speed => "speed",
+        RoutingStrategy::Agentic => "agentic",
     }
 }
 
 fn display_strategy(strategy: RoutingStrategy, candidates: &[RouteCandidate<'_>]) -> RoutingStrategy {
     if matches!(strategy, RoutingStrategy::Speed)
-        && !candidates
-            .iter()
-            .any(|candidate| candidate.model.output_speed_tps.filter(|speed| *speed > 0.0).is_some())
+        && !candidates.iter().any(|candidate| {
+            candidate
+                .model
+                .output_speed_tps
+                .filter(|speed| *speed > 0.0)
+                .is_some()
+        })
     {
         RoutingStrategy::Cheapest
     } else {
@@ -164,6 +169,7 @@ pub async fn strategy_board(
         RoutingStrategy::Cheapest,
         RoutingStrategy::Intelligent,
         RoutingStrategy::Speed,
+        RoutingStrategy::Agentic,
     ]
     .into_iter()
     .map(|strategy| {
@@ -248,6 +254,7 @@ pub async fn explain(pool: &InMemoryStore, request: &RouteExplainRequest) -> Rou
         RoutingStrategy::Cheapest => "cheapest",
         RoutingStrategy::Intelligent => "intelligent",
         RoutingStrategy::Speed => "speed",
+        RoutingStrategy::Agentic => "agentic",
     };
 
     let ranked = ranked_candidates(pool, strategy, &profile).await;

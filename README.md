@@ -63,21 +63,40 @@ graph TD
 
 - [Rust](https://rustup.rs/) (2024 Edition, `stable` via `rust-toolchain.toml`)
 - [Node.js](https://nodejs.org/) (v24+, LTS)
+- `cargo-watch` for backend hot reload: `cargo install cargo-watch`
 
-### Desktop GUI (Tauri)
+### Daily development (two terminals)
+
+The canonical dev workflow is defined in [AGENTS.md](AGENTS.md) — two processes, globally unique ports:
+
+```bash
+# Terminal A — backend (watch mode, port 3125)
+npm run dev:server
+
+# Terminal B — frontend (hot reload, port 5173)
+npm run dev
+```
+
+Default gateway: `http://127.0.0.1:3125/v1`
+
+> **Port conflicts**: never change ports or stack a second instance. Kill the occupying process first — see `scripts/kill-dev-ports.ps1`.
+
+### Desktop GUI build (Tauri)
+
+For desktop app packaging and testing (not daily dev — conflicts with the watch server on port 3125):
 
 ```bash
 npm install
 npm run tauri:dev
 ```
 
-### Headless server
+### Headless release binary
+
+For release testing or running a pre-built binary without the desktop UI (not daily dev):
 
 ```bash
 cargo run -p cab-server
 ```
-
-Default gateway: `http://127.0.0.1:3125/v1`
 
 ---
 

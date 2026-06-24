@@ -55,13 +55,15 @@ When a model's native protocol differs from what the agent sends (e.g. Anthropic
 
 ## Headless server
 
-Run without the desktop UI:
+Run without the desktop UI (for release testing or production):
 
 ```bash
 cargo run -p cab-server
 ```
 
 The headless daemon serves the same gateway and management API. The built UI is also available as static files from the server.
+
+> For daily development, use `npm run dev:server` (cargo watch with hot reload) instead — see [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md).
 
 ## Related
 

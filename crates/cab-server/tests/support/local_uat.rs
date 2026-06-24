@@ -1,4 +1,4 @@
-//! Local UAT: real ~/.cab/settings.json keys, real upstream LLM calls, packaged cab-server.
+//! Local UAT: real ~/.cab/ keys, real upstream LLM calls, packaged cab-server.
 //!
 //! Enable with `CAB_RUN_UAT=1`. Start the release binary via `./scripts/run-uat.sh`.
 
@@ -26,16 +26,16 @@ pub fn skip_unless_enabled() -> bool {
         return false;
     }
     eprintln!(
-        "skip UAT: set {ENV_ENABLE}=1 to run local acceptance tests with ~/.cab/settings.json keys"
+        "skip UAT: set {ENV_ENABLE}=1 to run local acceptance tests with real keys"
     );
     true
 }
 
-pub fn settings_path() -> PathBuf {
-    cab_db::settings::settings_file_path()
+pub fn db_path() -> PathBuf {
+    cab_db::sqlite::db_path()
 }
 
-/// Mirror production startup: load ~/.cab/settings.json and sync bundled catalog.
+/// Mirror production startup: init SQLite store and sync bundled catalog.
 pub async fn init_local_store() -> InMemoryStore {
     let store = cab_db::init_store().await.expect("init store from ~/.cab");
     cab_api::providers::sync_models_dev_catalog(&store)
@@ -49,15 +49,14 @@ pub async fn spawn_local_server() -> TestServer {
     spawn_test_server(store).await
 }
 
-fn read_gateway_key_from_settings() -> String {
-    let path = settings_path();
-    let content =
-        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-    let json: serde_json::Value = serde_json::from_str(&content).expect("parse settings.json");
-    json.get("gateway_key")
-        .and_then(|v| v.as_str())
-        .expect("gateway_key in settings")
-        .to_string()
+fn read_gateway_key_from_sqlite() -> String {
+    let pool = cab_db::sqlite::pool()
+        .unwrap_or_else(|e| panic!("SQLite pool: {e}"));
+    let conn = pool.get().unwrap_or_else(|e| panic!("SQLite conn: {e}"));
+    let settings = cab_db::sqlite::load_settings(&conn)
+        .unwrap_or_else(|e| panic!("load settings: {e}"))
+        .unwrap_or_else(|| panic!("no settings in SQLite"));
+    settings.gateway_key
 }
 
 /// Connect to the packaged release `cab-server` started by `./scripts/run-uat.sh`.
@@ -68,7 +67,7 @@ pub async fn connect_packaged_server() -> TestServer {
         )
     });
     let gateway_key =
-        std::env::var("CAB_UAT_GATEWAY_KEY").unwrap_or_else(|_| read_gateway_key_from_settings());
+        std::env::var("CAB_UAT_GATEWAY_KEY").unwrap_or_else(|_| read_gateway_key_from_sqlite());
     let client = build_authed_client(&gateway_key);
 
     let health = format!("{base_url}/api/dashboard/stats");
@@ -175,7 +174,7 @@ pub async fn first_anthropic_routable_model(server: &TestServer) -> String {
     panic!(
         "No enabled model with an Anthropic endpoint found. Enable a provider that has protocol \
          \"anthropic\" (e.g. minimax or deepseek) plus at least one model. Config: {}",
-        settings_path().display()
+        db_path().display()
     );
 }
 
@@ -220,7 +219,7 @@ pub async fn first_routable_model(server: &TestServer) -> (String, String) {
 
     panic!(
         "No routable provider+model found. In CAB, enable at least one LLM provider with a valid API key and enable one of its models. Config: {}",
-        settings_path().display()
+        db_path().display()
     );
 }
 

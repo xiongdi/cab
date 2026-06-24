@@ -60,11 +60,10 @@ pub fn upstream_protocol_for_models_dev_model(
     provider: &ModelsDevProvider,
     model: &ModelsDevModel,
 ) -> String {
-    if let Some(override_meta) = model.extra.get("provider") {
-        if let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str()) {
+    if let Some(override_meta) = model.extra.get("provider")
+        && let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str()) {
             return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
         }
-    }
     protocol_for_models_dev_provider(provider)
 }
 
@@ -442,7 +441,7 @@ fn model_enabled_override(settings: &cab_core::types::Settings, model_name: &str
 }
 
 /// Synchronize provider/model catalog from models.dev.
-/// Provider protocols and endpoints come from bundled defaults, overridden by ~/.cab/settings.json.
+/// Provider protocols and endpoints come from bundled defaults, overridden by user settings.
 pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usize, CabError> {
     let defaults = cab_core::load_provider_defaults();
     let settings = cab_db::settings::get(pool)
@@ -456,9 +455,20 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
             .unwrap_or_default(),
     );
 
-    if let Err(e) = crate::benchmarks::sync_catalogs(pool, &client).await {
-        tracing::warn!("Benchmark catalog sync failed (using cache/heuristics): {e}");
-    }
+    // Download live catalog; fall back to cached file if download fails.
+    // The cached file fallback reads from ~/.cab/catalog/models.dev/catalog.json,
+    // a one-time migration path for users upgrading from the old JSON-file-based
+    // storage. New installs that never synced before will have no cached file.
+    let (providers_json, models_json) = match crate::benchmarks::sync_catalogs(pool, &client).await {
+        Ok(json) => (json["providers"].clone(), json["models"].clone()),
+        Err(e) => {
+            tracing::warn!("models.dev download failed, trying cached file: {e}");
+            let file = cab_core::load_models_dev_catalog_file()
+                .map_err(|e2| CabError::Database(format!("{e}; cached file also: {e2}")))?;
+            (file.providers, file.models)
+        }
+    };
+
     if let Err(e) = cab_core::ensure_aa_model_map_file() {
         tracing::warn!("Failed to seed AA model map: {e}");
     }
@@ -467,17 +477,17 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
     }
     let benchmark_catalog = cab_core::load_artificial_analysis_catalog();
     let aa_map = cab_core::load_aa_model_map();
-    let catalog = cab_core::load_models_dev_catalog_file().map_err(CabError::Database)?;
+
     let providers_data: std::collections::HashMap<String, ModelsDevProvider> =
-        serde_json::from_value(catalog.providers).map_err(|e| {
+        serde_json::from_value(providers_json).map_err(|e| {
             CabError::Database(format!(
-                "Failed to parse models.dev providers from catalog.json: {e}"
+                "Failed to parse models.dev providers: {e}"
             ))
         })?;
     let models_data: std::collections::HashMap<String, ModelsDevModel> =
-        serde_json::from_value(catalog.models).map_err(|e| {
+        serde_json::from_value(models_json).map_err(|e| {
             CabError::Database(format!(
-                "Failed to parse models.dev models from catalog.json: {e}"
+                "Failed to parse models.dev models: {e}"
             ))
         })?;
 
@@ -619,8 +629,6 @@ pub async fn sync_models_dev_models(
             Some(canonical_id),
             Some(&display_name),
             context_length,
-            input_cost,
-            None,
         );
         let performance = cab_core::resolve_performance_metrics(
             benchmark_catalog,

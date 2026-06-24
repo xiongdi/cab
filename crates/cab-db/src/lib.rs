@@ -4,12 +4,12 @@ pub mod catalog;
 pub mod dashboard;
 pub mod endpoint;
 pub mod log;
-pub mod log_store;
 pub mod model;
 pub mod provider;
 pub mod routability;
 pub mod route;
 pub mod settings;
+pub mod sqlite;
 pub mod state;
 
 use std::collections::HashMap;
@@ -22,9 +22,11 @@ use crate::endpoint::ModelEndpoint;
 #[cfg(test)]
 pub(crate) static TEST_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InMemoryStore {
     pub inner: Arc<RwLock<StoreData>>,
+    pub health: Arc<cab_core::HealthTracker>,
+    pub pool: Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>,
 }
 
 #[derive(Debug)]
@@ -58,44 +60,124 @@ impl InMemoryStore {
                 settings: settings::default_settings(),
                 model_endpoints: HashMap::new(),
             })),
+            health: Arc::new(cab_core::HealthTracker::new()),
+            pool: None,
         }
+    }
+
+    pub fn with_sqlite(
+        sqlite_pool: r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>,
+    ) -> Self {
+        let store = Self::new();
+        Self {
+            pool: Some(sqlite_pool),
+            ..store
+        }
+    }
+
+    pub fn sqlite(&self) -> Option<&r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>> {
+        self.pool.as_ref()
     }
 }
 
-/// Initialize the in-memory store and load persisted settings from ~/.cab/settings.json.
 pub async fn init_store() -> anyhow::Result<InMemoryStore> {
-    let settings = settings::load_from_disk();
-    let store = InMemoryStore::new();
+    let sqlite_pool = sqlite::init().map_err(|e| anyhow::anyhow!(e))?;
+    let conn = sqlite_pool
+        .get()
+        .map_err(|e| anyhow::anyhow!("Pool get failed: {e}"))?;
+
+    // Load settings from SQLite, or insert defaults if first run
+    let settings = sqlite::load_settings(&conn)
+        .map_err(|e| anyhow::anyhow!(e))?
+        .unwrap_or_else(|| {
+            let s = settings::default_settings();
+            if let Err(e) = sqlite::save_settings(&conn, &s) {
+                tracing::warn!("Failed to seed initial settings into SQLite: {e}");
+            }
+            s
+        });
+
+    // Load agents + routes from SQLite
+    let persisted = sqlite::load_state(&conn).map_err(|e| anyhow::anyhow!(e))?;
+    let has_persisted = !persisted.agents.is_empty() || !persisted.routes.is_empty();
+
+    let store = InMemoryStore::with_sqlite(sqlite_pool);
     {
         let mut inner = store.inner.write().expect("store lock poisoned");
         inner.settings = settings;
+        if has_persisted {
+            inner.agents = persisted.agents;
+            inner.routes = persisted.routes;
+        }
     }
 
-    if let Some(persisted) = state::load_from_disk() {
-        state::merge_into_store(&store, persisted);
-    } else if let Err(e) = state::save_from_store(&store) {
-        tracing::warn!("Failed to write initial state.json: {e}");
+    // Persist initial seed agents/routes if state was empty
+    if !has_persisted
+        && let Err(e) = state::save_from_store(&store)
+    {
+        tracing::warn!("Failed to write initial state: {e}");
     }
 
+    // Load catalog providers, models, and endpoints from SQLite
+    match sqlite::load_catalog_providers(&conn) {
+        Ok(providers) if !providers.is_empty() => {
+            let count = providers.len();
+            let mut inner = store.inner.write().expect("store lock poisoned");
+            inner.providers = providers;
+            tracing::info!("Loaded {count} catalog providers from SQLite");
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!("Failed to load catalog providers from SQLite: {e}"),
+    }
+    match sqlite::load_catalog_models(&conn) {
+        Ok(models) if !models.is_empty() => {
+            let count = models.len();
+            let mut inner = store.inner.write().expect("store lock poisoned");
+            inner.models = models;
+            tracing::info!("Loaded {count} catalog models from SQLite");
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!("Failed to load catalog models from SQLite: {e}"),
+    }
+    match sqlite::load_model_endpoints(&conn) {
+        Ok(endpoints) if !endpoints.is_empty() => {
+            let count = endpoints.len();
+            let mut inner = store.inner.write().expect("store lock poisoned");
+            inner.model_endpoints = endpoints;
+            tracing::info!("Loaded {count} model endpoints from SQLite");
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!("Failed to load model endpoints from SQLite: {e}"),
+    }
+
+    // Enforce log retention
     let retention_days = store
         .inner
         .read()
         .expect("store lock poisoned")
         .settings
         .log_retention_days;
-    if let Err(e) = log_store::enforce_retention(retention_days) {
+    if let Err(e) = sqlite::enforce_log_retention(&conn, retention_days) {
         tracing::warn!("Failed to enforce log retention: {e}");
     }
-    match log_store::load_into_store(&store) {
-        Ok(count) if count > 0 => tracing::info!("Loaded {count} request logs from JSONL"),
+
+    // Load recent logs from SQLite into memory
+    match sqlite::load_logs(&conn, 500) {
+        Ok(logs) if !logs.is_empty() => {
+            let count = logs.len();
+            let mut inner = store.inner.write().expect("store lock poisoned");
+            inner.request_logs = logs;
+            tracing::info!("Loaded {count} request logs from SQLite");
+        }
         Ok(_) => {}
-        Err(e) => tracing::warn!("Failed to load request logs: {e}"),
+        Err(e) => tracing::warn!("Failed to load request logs from SQLite: {e}"),
     }
 
+    drop(conn);
+
     tracing::info!(
-        "In-memory store initialized (settings: {}, state: {})",
-        settings::settings_file_path().display(),
-        state::state_file_path().display()
+        "Store initialized with SQLite at {}",
+        sqlite::db_path().display()
     );
     Ok(store)
 }
@@ -141,13 +223,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn init_store_loads_settings_from_disk() {
+    async fn init_store_creates_sqlite_and_loads_settings() {
         let _home = TestHome::new();
-        let mut settings = settings::default_settings();
-        settings.gateway_port = 4321;
-        settings::save_to_disk(&settings).unwrap();
-
         let store = init_store().await.unwrap();
-        assert_eq!(store.inner.read().unwrap().settings.gateway_port, 4321);
+        assert_eq!(store.inner.read().unwrap().settings.gateway_port, 3125);
+        assert!(store.pool.is_some());
     }
 }

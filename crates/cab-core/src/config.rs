@@ -1,12 +1,26 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+/// **System bootstrap config** loaded from `cab.toml` at process startup.
+///
+/// This is NOT editable via the management API. It provides startup-only values:
+/// - `gateway.host` — the bind address (always used; not overridable at runtime)
+/// - `gateway.port` — the bootstrap default port; seeded into the SQLite `settings`
+///   table on first install. At runtime the port is read from SQLite so the user
+///   can change it from the dashboard without editing `cab.toml`.
+///
+/// Priority chain for the **port**: SQLite `settings` table (runtime, API-editable) →
+/// `cab.toml [gateway] port` (bootstrap default) → hardcoded `3125`.
+///
+/// Priority chain for the **host**: `cab.toml [gateway] host` → hardcoded `127.0.0.1`.
+/// The host is not stored in the settings table — it is a system-level knob.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CabConfig {
     #[serde(default = "default_gateway")]
     pub gateway: GatewayConfig,
 }
 
+/// Gateway system config from `cab.toml`. Not editable via API.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayConfig {
     #[serde(default = "default_host")]

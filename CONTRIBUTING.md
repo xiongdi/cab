@@ -26,15 +26,22 @@ To build and run CAB locally, you need the following prerequisites installed on 
    npm install
    ```
 
-3. **Run in development mode**:
-   - **Run Tauri App (Desktop GUI)**:
-     ```bash
-     npm run tauri:dev
-     ```
-   - **Run Server Mode Only (Backend API & Proxy)**:
-     ```bash
-     cargo run -p cab-server
-     ```
+3. **Run in development mode** (daily dev — see [AGENTS.md](AGENTS.md) for full rules):
+
+   Two terminals, two processes, globally unique ports (3125 backend, 5173 frontend):
+   ```bash
+   # Terminal A — backend (cargo watch, port 3125)
+   npm run dev:server
+
+   # Terminal B — frontend (Vite hot reload, port 5173)
+   npm run dev
+   ```
+
+   > Do **not** use `cargo run -p cab-server`, `npm run tauri:dev`, or `npm run dev:server:once` for daily dev — they conflict with the watch server. See AGENTS.md for the full forbidden list and port-conflict resolution.
+
+4. **Desktop GUI / release testing** (separate from daily dev):
+   - **Tauri desktop app** (for packaging and UI testing): `npm run tauri:dev`
+   - **Headless release binary** (for UAT / production): `cargo run -p cab-server`
 
 4. **Binding to privileged ports (e.g., port 443 for DNS hijacking proxy)**:
    CAB needs `cap_net_bind_service` permission to run on port 443 without root on Linux. You can use the provided helper script:

@@ -97,6 +97,14 @@ pub async fn upsert_catalog_provider(
         inner.providers.insert(id.to_string(), provider);
     }
 
+    drop(inner);
+    // Persist to SQLite
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        if let Some(provider) = store.inner.read().map_err(|e| e.to_string())?.providers.get(id).cloned() {
+            crate::sqlite::upsert_catalog_provider(&conn, &provider)?;
+        }
+    }
     Ok(())
 }
 
@@ -130,10 +138,17 @@ pub async fn ensure_extra_endpoints(
     }
 
     provider.updated_at = chrono::Utc::now().to_rfc3339();
+    let provider_clone = provider.clone();
+    drop(inner);
+    // Persist to SQLite
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_catalog_provider(&conn, &provider_clone)?;
+    }
     Ok(())
 }
 
-/// Apply bundled defaults merged with user overrides from settings.json.
+/// Apply bundled defaults merged with user overrides from settings.
 pub async fn apply_provider_config(
     store: &InMemoryStore,
     provider_id: &str,
@@ -163,6 +178,13 @@ pub async fn apply_provider_config(
     }
 
     provider.updated_at = chrono::Utc::now().to_rfc3339();
+    let provider_clone = provider.clone();
+    drop(inner);
+    // Persist to SQLite
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_catalog_provider(&conn, &provider_clone)?;
+    }
     Ok(())
 }
 
@@ -222,6 +244,11 @@ pub async fn create(store: &InMemoryStore, input: &CreateProvider) -> Result<Pro
         catalog_models: Vec::new(),
     };
     inner.providers.insert(id, provider.clone());
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_catalog_provider(&conn, &provider)?;
+    }
     Ok(provider)
 }
 
@@ -264,7 +291,13 @@ pub async fn update(
             p.model_count = model_count;
         }
         p.updated_at = chrono::Utc::now().to_rfc3339();
-        Ok(Some(p.clone()))
+        let updated = p.clone();
+        drop(inner);
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::upsert_catalog_provider(&conn, &updated)?;
+        }
+        Ok(Some(updated))
     } else {
         Ok(None)
     }
@@ -272,7 +305,15 @@ pub async fn update(
 
 pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
-    Ok(inner.providers.remove(id).is_some())
+    let removed = inner.providers.remove(id).is_some();
+    drop(inner);
+    if removed {
+        if let Some(pool) = &store.pool {
+            let conn = pool.get().map_err(|e| e.to_string())?;
+            crate::sqlite::delete_catalog_provider(&conn, id)?;
+        }
+    }
+    Ok(removed)
 }
 
 fn apply_quota_reset_to_keys(
@@ -312,9 +353,14 @@ pub async fn mark_api_key_quota_reset(
         apply_quota_reset_to_keys(api_keys, key, Some(reset_at_str));
     }
 
-    let settings = inner.settings.clone();
     drop(inner);
-    crate::settings::save_to_disk(&settings)
+    // Persist the modified settings to SQLite
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let s = store.inner.read().map_err(|e| e.to_string())?;
+        crate::sqlite::save_settings(&conn, &s.settings)?;
+    }
+    Ok(())
 }
 
 /// Clear a recovered quota window after a successful upstream call.
@@ -344,9 +390,14 @@ pub async fn clear_api_key_quota_reset(
         return Ok(());
     }
 
-    let settings = inner.settings.clone();
     drop(inner);
-    crate::settings::save_to_disk(&settings)
+    // Persist the modified settings to SQLite
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let s = store.inner.read().map_err(|e| e.to_string())?;
+        crate::sqlite::save_settings(&conn, &s.settings)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

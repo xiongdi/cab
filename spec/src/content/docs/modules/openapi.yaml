@@ -1,13 +1,160 @@
 openapi: 3.1.0
 info:
   title: CAB Management API
-  version: 0.2.0
+  version: 0.2.7
   description: Local management API for Coding Agents Bridge
 servers:
   - url: http://127.0.0.1:3125
 security:
   - bearerAuth: []
 paths:
+  /api/providers:
+    get:
+      summary: List providers
+      operationId: listProviders
+      responses:
+        '200':
+          description: Provider list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Provider'
+  /api/providers/{id}:
+    put:
+      summary: Update provider keys/endpoints
+      operationId: updateProvider
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProvider'
+      responses:
+        '200':
+          description: Updated provider
+  /api/providers/sync:
+    post:
+      summary: Sync models.dev catalog
+      operationId: syncProviders
+      responses:
+        '200':
+          description: Sync result
+  /api/models:
+    get:
+      summary: List models
+      operationId: listModels
+      responses:
+        '200':
+          description: Model list
+  /api/models/catalog:
+    get:
+      summary: Three-source model catalog
+      operationId: getModelCatalog
+      responses:
+        '200':
+          description: Catalog entries
+  /api/models/routable:
+    get:
+      summary: List routable models with serving provider
+      operationId: listRoutableModels
+      responses:
+        '200':
+          description: Routable models
+  /api/models/{id}:
+    put:
+      summary: Enable/disable model
+      operationId: updateModel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModel'
+      responses:
+        '200':
+          description: Updated model
+  /api/model-endpoints:
+    put:
+      summary: Toggle model endpoint
+      operationId: updateModelEndpoint
+      responses:
+        '200':
+          description: Updated endpoint
+  /api/routes:
+    get:
+      summary: List routes
+      operationId: listRoutes
+      responses:
+        '200':
+          description: Route list
+    post:
+      summary: Create route
+      operationId: createRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoute'
+      responses:
+        '200':
+          description: Created route
+  /api/routes/{id}:
+    put:
+      summary: Update route
+      operationId: updateRoute
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoute'
+      responses:
+        '200':
+          description: Updated route
+    delete:
+      summary: Delete route
+      operationId: deleteRoute
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Deleted
+  /api/logs:
+    get:
+      summary: Query request logs
+      operationId: queryLogs
+      responses:
+        '200':
+          description: Paginated logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedLogs'
   /api/agents:
     get:
       summary: List agents
@@ -34,6 +181,62 @@ paths:
       responses:
         '200':
           description: Updated agent
+  /api/dashboard/stats:
+    get:
+      summary: Dashboard statistics
+      operationId: getDashboardStats
+      responses:
+        '200':
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardStats'
+  /api/settings:
+    get:
+      summary: Get settings
+      operationId: getSettings
+      responses:
+        '200':
+          description: Settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+    put:
+      summary: Update settings
+      operationId: updateSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettings'
+      responses:
+        '200':
+          description: Updated settings
+  /api/settings/catalog-status:
+    get:
+      summary: Catalog sync status
+      operationId: getCatalogStatus
+      responses:
+        '200':
+          description: Catalog status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CatalogStatusResponse'
+  /api/settings/sync-catalog:
+    post:
+      summary: Manual catalog sync
+      operationId: syncCatalog
+      responses:
+        '200':
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncCatalogResponse'
   /api/routing/explain:
     post:
       summary: Explain routing decision
@@ -51,41 +254,699 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteExplainResult'
-  /api/settings:
-    get:
-      summary: Get settings
-      operationId: getSettings
+  /api/routing/strategy-board:
+    post:
+      summary: Strategy board comparison
+      operationId: strategyBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StrategyBoardRequest'
       responses:
         '200':
-          description: Settings
-    put:
-      summary: Update settings
-      operationId: updateSettings
-      responses:
-        '200':
-          description: Updated settings
-  /api/logs:
-    get:
-      summary: Query request logs
-      operationId: queryLogs
-      responses:
-        '200':
-          description: Paginated logs
+          description: Strategy board
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StrategyBoardResult'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   schemas:
+    ApiKeyConfig:
+      type: object
+      required: [key, enabled]
+      properties:
+        key:
+          type: string
+        enabled:
+          type: boolean
+        quota_reset_at:
+          type: string
+          nullable: true
+          description: RFC3339 timestamp when a 429 quota window ends.
+    ProviderEndpoint:
+      type: object
+      required: [id, protocol, url, priority, enabled]
+      properties:
+        id:
+          type: string
+        protocol:
+          type: string
+          enum: [openai-chat, anthropic, openai-responses]
+        url:
+          type: string
+        label:
+          type: string
+          nullable: true
+        priority:
+          type: integer
+        enabled:
+          type: boolean
+    Provider:
+      type: object
+      required: [id, name, endpoints, api_key, enabled, created_at, updated_at, api_keys, model_count]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderEndpoint'
+        api_key:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        privacy_policy_url:
+          type: string
+        terms_of_service_url:
+          type: string
+        status_page_url:
+          type: string
+        headquarters:
+          type: string
+        datacenters:
+          type: array
+          items:
+            type: string
+        api_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyConfig'
+        api:
+          type: string
+          nullable: true
+        doc:
+          type: string
+          nullable: true
+        env:
+          type: array
+          items:
+            type: string
+          nullable: true
+        npm:
+          type: string
+          nullable: true
+        model_count:
+          type: integer
+        catalog_models:
+          type: array
+          items:
+            type: string
+    UpdateProvider:
+      type: object
+      properties:
+        name:
+          type: string
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderEndpoint'
+        api_key:
+          type: string
+        enabled:
+          type: boolean
+        privacy_policy_url:
+          type: string
+        terms_of_service_url:
+          type: string
+        status_page_url:
+          type: string
+        headquarters:
+          type: string
+        datacenters:
+          type: array
+          items:
+            type: string
+        api_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyConfig'
+        api:
+          type: string
+          nullable: true
+        doc:
+          type: string
+          nullable: true
+        env:
+          type: array
+          items:
+            type: string
+          nullable: true
+        npm:
+          type: string
+          nullable: true
+        model_count:
+          type: integer
+    Model:
+      type: object
+      required: [id, name, display_name, provider_id, protocol, context_length, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        display_name:
+          type: string
+        provider_id:
+          type: string
+        provider_name:
+          type: string
+        protocol:
+          type: string
+        context_length:
+          type: integer
+        input_cost:
+          type: number
+          nullable: true
+        output_cost:
+          type: number
+          nullable: true
+        enabled:
+          type: boolean
+        overall_intelligence:
+          type: number
+          nullable: true
+        coding_index:
+          type: number
+          nullable: true
+        agentic_index:
+          type: number
+          nullable: true
+        math_index:
+          type: number
+          nullable: true
+        output_speed_tps:
+          type: number
+          nullable: true
+        time_to_first_token_secs:
+          type: number
+          nullable: true
+        created_at:
+          type: string
+        updated_at:
+          type: string
+        canonical_slug:
+          type: string
+        hugging_face_id:
+          type: string
+          nullable: true
+        created:
+          type: integer
+        description:
+          type: string
+        architecture:
+          type: object
+        pricing:
+          type: object
+        top_provider:
+          type: object
+        per_request_limits:
+          type: object
+        supported_parameters:
+          type: array
+          items:
+            type: string
+        default_parameters:
+          type: object
+        supported_voices:
+          type: array
+          items:
+            type: string
+          nullable: true
+        knowledge_cutoff:
+          type: string
+          nullable: true
+        expiration_date:
+          type: string
+          nullable: true
+        links:
+          type: object
+    RoutableModel:
+      allOf:
+        - $ref: '#/components/schemas/Model'
+        - type: object
+          properties:
+            service_provider_id:
+              type: string
+            endpoint_input_cost:
+              type: number
+              nullable: true
+            endpoint_output_cost:
+              type: number
+              nullable: true
+            endpoint_cache_read_cost:
+              type: number
+              nullable: true
+    ModelEndpoint:
+      type: object
+      required: [id, model_id, canonical_slug, provider_name, provider_tag, native_model_id, quantization, status, supports_tools, supports_streaming, enabled, updated_at]
+      properties:
+        id:
+          type: string
+        model_id:
+          type: string
+        canonical_slug:
+          type: string
+        provider_name:
+          type: string
+        provider_tag:
+          type: string
+        native_model_id:
+          type: string
+        quantization:
+          type: string
+        input_cost:
+          type: number
+          nullable: true
+        output_cost:
+          type: number
+          nullable: true
+        cache_read_cost:
+          type: number
+          nullable: true
+        context_length:
+          type: integer
+          nullable: true
+        max_completion_tokens:
+          type: integer
+        status:
+          type: integer
+          description: 0 = ok, negative = degraded
+        uptime_30m:
+          type: number
+        uptime_5m:
+          type: number
+        uptime_1d:
+          type: number
+        supports_tools:
+          type: boolean
+        supports_streaming:
+          type: boolean
+        enabled:
+          type: boolean
+        updated_at:
+          type: string
+    UpdateModel:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+    Route:
+      type: object
+      required: [id, name, agent_pattern, primary_model_id, fallback_model_ids, priority, routing_strategy, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        agent_pattern:
+          type: string
+        primary_model_id:
+          type: string
+        primary_model_name:
+          type: string
+        fallback_model_ids:
+          type: array
+          items:
+            type: string
+        fallback_model_names:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+        routing_strategy:
+          type: string
+          description: 'one of: auto | cheapest | balanced | intelligent | speed | agentic'
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+        updated_at:
+          type: string
+    CreateRoute:
+      type: object
+      required: [name, agent_pattern, primary_model_id]
+      properties:
+        name:
+          type: string
+        agent_pattern:
+          type: string
+        primary_model_id:
+          type: string
+        fallback_model_ids:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+        routing_strategy:
+          type: string
+        enabled:
+          type: boolean
+    UpdateRoute:
+      type: object
+      properties:
+        name:
+          type: string
+        agent_pattern:
+          type: string
+        primary_model_id:
+          type: string
+        fallback_model_ids:
+          type: array
+          items:
+            type: string
+        priority:
+          type: integer
+        routing_strategy:
+          type: string
+        enabled:
+          type: boolean
+    RequestLog:
+      type: object
+      required: [id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status_code]
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: string
+        agent:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        latency_ms:
+          type: integer
+        status_code:
+          type: integer
+        error_message:
+          type: string
+    LogFilter:
+      type: object
+      properties:
+        agent:
+          type: string
+        provider:
+          type: string
+        model:
+          type: string
+        status:
+          type: string
+        search:
+          type: string
+        page:
+          type: integer
+        per_page:
+          type: integer
+    PaginatedLogs:
+      type: object
+      required: [data, total, page, per_page, total_pages]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestLog'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+    DashboardStats:
+      type: object
+      required: [total_requests, total_tokens, active_providers, active_models, requests_by_provider, requests_by_model, recent_requests]
+      properties:
+        total_requests:
+          type: integer
+        total_tokens:
+          type: integer
+        active_providers:
+          type: integer
+        active_models:
+          type: integer
+        requests_by_provider:
+          type: object
+          additionalProperties:
+            type: integer
+        requests_by_model:
+          type: object
+          additionalProperties:
+            type: integer
+        recent_requests:
+          type: array
+          items:
+            $ref: '#/components/schemas/RequestLog'
+    ProviderUserSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        api_key:
+          type: string
+        api_keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApiKeyConfig'
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderEndpoint'
+    ModelUserSettings:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+    BenchmarkEvaluations:
+      type: object
+      properties:
+        artificial_analysis_intelligence_index:
+          type: number
+          nullable: true
+        artificial_analysis_coding_index:
+          type: number
+          nullable: true
+        artificial_analysis_math_index:
+          type: number
+          nullable: true
+        tau2:
+          type: number
+          nullable: true
+        terminalbench_hard:
+          type: number
+          nullable: true
+        livecodebench:
+          type: number
+          nullable: true
+        scicode:
+          type: number
+          nullable: true
+        gpqa:
+          type: number
+          nullable: true
+        hle:
+          type: number
+          nullable: true
+    BenchmarkPerformance:
+      type: object
+      properties:
+        median_output_tokens_per_second:
+          type: number
+          nullable: true
+        median_time_to_first_token_seconds:
+          type: number
+          nullable: true
+        median_time_to_first_answer_token:
+          type: number
+          nullable: true
+    BenchmarkModelRecord:
+      type: object
+      required: [id, slug, name, evaluations]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        name:
+          type: string
+        creator_slug:
+          type: string
+          nullable: true
+        creator_name:
+          type: string
+          nullable: true
+        evaluations:
+          $ref: '#/components/schemas/BenchmarkEvaluations'
+        performance:
+          $ref: '#/components/schemas/BenchmarkPerformance'
+    ModelCatalogEntry:
+      type: object
+      required: [id, catalog_id, enabled, models_dev, artificial_analysis, settings]
+      properties:
+        id:
+          type: string
+        catalog_id:
+          type: string
+        enabled:
+          type: boolean
+        models_dev:
+          type: object
+          additionalProperties: true
+        artificial_analysis:
+          allOf:
+            - $ref: '#/components/schemas/BenchmarkModelRecord'
+          nullable: true
+        settings:
+          $ref: '#/components/schemas/ModelUserSettings'
+    Settings:
+      type: object
+      required: [gateway_port, log_retention_days, gateway_key]
+      properties:
+        gateway_port:
+          type: integer
+        log_retention_days:
+          type: integer
+        gateway_status:
+          type: string
+          enum: [running, stopped, error]
+        gateway_key:
+          type: string
+        auth_enabled:
+          type: boolean
+        artificial_analysis_api_key:
+          type: string
+          nullable: true
+        providers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProviderUserSettings'
+        models:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ModelUserSettings'
+    UpdateSettings:
+      type: object
+      properties:
+        gateway_port:
+          type: integer
+        log_retention_days:
+          type: integer
+        gateway_key:
+          type: string
+        auth_enabled:
+          type: boolean
+        artificial_analysis_api_key:
+          type: string
+          nullable: true
+        providers:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProviderUserSettings'
+        models:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ModelUserSettings'
+    CatalogSourceStatus:
+      type: object
+      required: [id, name, url, cache_path, available]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        cache_path:
+          type: string
+        available:
+          type: boolean
+        synced_at:
+          type: string
+          nullable: true
+        providers:
+          type: integer
+          nullable: true
+        models:
+          type: integer
+          nullable: true
+    CatalogStatusResponse:
+      type: object
+      required: [sources]
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogSourceStatus'
+    SyncCatalogResponse:
+      type: object
+      required: [success, applied_models, providers, sources]
+      properties:
+        success:
+          type: boolean
+        applied_models:
+          type: integer
+        providers:
+          type: integer
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/CatalogSourceStatus'
+    Agent:
+      type: object
+      required: [id, name, mode, model_id, api_key, endpoint, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mode:
+          type: string
+          enum: [native, auto, manual, config]
+        model_id:
+          type: string
+          nullable: true
+        model_name:
+          type: string
+          description: Client-side mapped helper
+        api_key:
+          type: string
+        endpoint:
+          type: string
+        updated_at:
+          type: string
     UpdateAgent:
       type: object
       properties:
         mode:
           type: string
-          enum: [native, auto, manual]
+          enum: [native, auto, manual, config]
         model_id:
           type: string
           nullable: true
+        api_key:
+          type: string
+        endpoint:
+          type: string
     RouteExplainRequest:
       type: object
       required: [agent]
@@ -97,11 +958,54 @@ components:
           nullable: true
         body:
           type: object
+          additionalProperties: true
+          nullable: true
+    DecisionStep:
+      type: object
+      required: [step, matched, detail]
+      properties:
+        step:
+          type: string
+        matched:
+          type: boolean
+        detail:
+          type: string
+    ResolvedSummary:
+      type: object
+      required: [model_id, provider_id]
+      properties:
+        model_id:
+          type: string
+        provider_id:
+          type: string
+        strategy:
+          type: string
+          nullable: true
+    RankedModelSummary:
+      type: object
+      required: [model_id, provider_id]
+      properties:
+        model_id:
+          type: string
+        provider_id:
+          type: string
+        capability:
+          type: number
+          nullable: true
+          description: Absent when AA benchmark data is not available (not the same as 0).
+        value:
+          type: number
+          nullable: true
+        value_unbounded:
+          type: boolean
+          description: True when value is +infinity (known $0 catalog price).
     RouteExplainResult:
       type: object
+      required: [decision_steps, ranked_candidates]
       properties:
         resolved:
-          type: object
+          allOf:
+            - $ref: '#/components/schemas/ResolvedSummary'
           nullable: true
         decision_steps:
           type: array
@@ -111,23 +1015,128 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RankedModelSummary'
-    DecisionStep:
+    StrategyBoardRequest:
       type: object
+      required: [agent]
       properties:
-        step:
+        agent:
           type: string
-        matched:
-          type: boolean
-        detail:
-          type: string
-    RankedModelSummary:
+        body:
+          type: object
+          additionalProperties: true
+          nullable: true
+    StrategyBoardStrategy:
       type: object
+      required: [id, display_strategy, task, complexity, candidates]
       properties:
-        model_id:
+        id:
+          type: string
+        display_strategy:
+          type: string
+        task:
+          type: string
+        complexity:
+          type: number
+        candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/RankedModelSummary'
+    StrategyBoardResult:
+      type: object
+      required: [strategies]
+      properties:
+        strategies:
+          type: array
+          items:
+            $ref: '#/components/schemas/StrategyBoardStrategy'
+    UsageRecord:
+      type: object
+      required: [id, timestamp, provider_id, model_id, service_provider_id, agent_id, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, cost_usd, subscription]
+      properties:
+        id:
+          type: string
+        timestamp:
           type: string
         provider_id:
           type: string
-        capability:
+        model_id:
+          type: string
+        service_provider_id:
+          type: string
+        agent_id:
+          type: string
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cache_read_tokens:
+          type: integer
+        cache_creation_tokens:
+          type: integer
+        cost_usd:
           type: number
-        value:
+        subscription:
+          type: boolean
+        request_id:
+          type: string
+          nullable: true
+    ProviderUsageSummary:
+      type: object
+      required: [requests, input_tokens, output_tokens, cost_usd]
+      properties:
+        requests:
+          type: integer
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cost_usd:
           type: number
+    ModelUsageSummary:
+      type: object
+      required: [requests, input_tokens, output_tokens, cost_usd]
+      properties:
+        requests:
+          type: integer
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cost_usd:
+          type: number
+    AgentUsageSummary:
+      type: object
+      required: [requests, input_tokens, output_tokens, cost_usd]
+      properties:
+        requests:
+          type: integer
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cost_usd:
+          type: number
+    UsageSummary:
+      type: object
+      required: [total_requests, total_input_tokens, total_output_tokens, total_cost_usd, by_provider, by_model, by_agent]
+      properties:
+        total_requests:
+          type: integer
+        total_input_tokens:
+          type: integer
+        total_output_tokens:
+          type: integer
+        total_cost_usd:
+          type: number
+        by_provider:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ProviderUsageSummary'
+        by_model:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/ModelUsageSummary'
+        by_agent:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/AgentUsageSummary'

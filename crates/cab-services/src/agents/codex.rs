@@ -129,8 +129,8 @@ impl AgentIntegration for Integration {
                     .map(|t| t.starts_with("cab-token-"))
                     .unwrap_or(false);
 
-                if let Some(toks) = obj.get("tokens").and_then(|t| t.as_object()) {
-                    if !is_cab_token {
+                if let Some(toks) = obj.get("tokens").and_then(|t| t.as_object())
+                    && !is_cab_token {
                         let acc = toks.get("access_token").cloned();
                         let ref_t = toks.get("refresh_token").cloned();
                         let id_t = toks.get("id_token").cloned();
@@ -153,17 +153,15 @@ impl AgentIntegration for Integration {
                             obj.insert("cab_backup_auth_mode".to_string(), m);
                         }
                     }
-                }
 
                 let current_api_key = obj.get("OPENAI_API_KEY").and_then(|v| v.as_str());
                 let is_cab_api_key = current_api_key
                     .map(|k| k.starts_with("cab-token-"))
                     .unwrap_or(false);
-                if let Some(k) = obj.get("OPENAI_API_KEY") {
-                    if !is_cab_api_key {
+                if let Some(k) = obj.get("OPENAI_API_KEY")
+                    && !is_cab_api_key {
                         obj.insert("cab_backup_openai_api_key".to_string(), k.clone());
                     }
-                }
 
                 // Set our CAB managed ChatGPT auth
                 obj.insert(
@@ -212,9 +210,9 @@ impl AgentIntegration for Integration {
             }
 
             // Restore backup fields in auth.json if they exist
-            if auth_path.exists() {
-                if let Ok(content) = fs::read_to_string(&auth_path) {
-                    if let Ok(mut auth_json) = serde_json::from_str::<serde_json::Value>(&content) {
+            if auth_path.exists()
+                && let Ok(content) = fs::read_to_string(&auth_path)
+                    && let Ok(mut auth_json) = serde_json::from_str::<serde_json::Value>(&content) {
                         let mut modified = false;
                         if let Some(obj) = auth_json.as_object_mut() {
                             if let Some(bak_acc) = obj.remove("cab_backup_access_token") {
@@ -288,14 +286,11 @@ impl AgentIntegration for Integration {
                                 }
                             }
                         }
-                        if modified {
-                            if let Ok(pretty) = serde_json::to_string_pretty(&auth_json) {
+                        if modified
+                            && let Ok(pretty) = serde_json::to_string_pretty(&auth_json) {
                                 let _ = fs::write(&auth_path, pretty);
                             }
-                        }
                     }
-                }
-            }
         }
 
         if let Ok(pretty) = toml::to_string_pretty(&toml_val) {

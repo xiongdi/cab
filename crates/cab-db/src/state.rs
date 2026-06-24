@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use cab_core::types::{Agent, PersistedState};
 
@@ -7,57 +6,18 @@ use crate::InMemoryStore;
 
 pub const STATE_VERSION: u32 = 1;
 
-pub fn state_file_path() -> PathBuf {
-    crate::settings::settings_file_path()
-        .parent()
-        .map(|p| p.join("state.json"))
-        .unwrap_or_else(|| PathBuf::from("state.json"))
-}
-
+/// Persist agents + routes to SQLite. No-op if no pool is available.
 pub fn save_from_store(store: &InMemoryStore) -> Result<(), String> {
-    let inner = store.inner.read().map_err(|e| e.to_string())?;
-    let state = PersistedState {
-        version: STATE_VERSION,
-        agents: inner.agents.clone(),
-        routes: inner.routes.clone(),
+    let (agents, routes) = {
+        let inner = store.inner.read().map_err(|e| e.to_string())?;
+        (inner.agents.clone(), inner.routes.clone())
     };
-    drop(inner);
-    save_to_disk(&state)
-}
 
-pub fn save_to_disk(state: &PersistedState) -> Result<(), String> {
-    let path = state_file_path();
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::save_state(&conn, &agents, &routes)?;
     }
-
-    let content = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, &content).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
-    tracing::info!("Saved state to {}", path.display());
     Ok(())
-}
-
-pub fn load_from_disk() -> Option<PersistedState> {
-    let path = state_file_path();
-    if !path.exists() {
-        return None;
-    }
-
-    match std::fs::read_to_string(&path) {
-        Ok(content) => match serde_json::from_str::<PersistedState>(&content) {
-            Ok(state) => Some(state),
-            Err(e) => {
-                tracing::warn!("Failed to parse {}: {e}", path.display());
-                None
-            }
-        },
-        Err(e) => {
-            tracing::warn!("Failed to read {}: {e}", path.display());
-            None
-        }
-    }
 }
 
 pub fn merge_into_store(store: &InMemoryStore, state: PersistedState) {
@@ -106,54 +66,28 @@ pub fn seed_agents() -> HashMap<String, Agent> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TEST_HOME_LOCK;
+    use crate::sqlite;
 
-    struct TestHome {
-        _dir: tempfile::TempDir,
-        _lock: std::sync::MutexGuard<'static, ()>,
+    fn test_store() -> InMemoryStore {
+        let pool = sqlite::test_pool().unwrap();
+        let conn = pool.get().unwrap();
+        sqlite::init_schema(&conn).unwrap();
+        InMemoryStore::with_sqlite(pool)
     }
 
-    impl TestHome {
-        fn new() -> Self {
-            let lock = TEST_HOME_LOCK
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let dir = tempfile::tempdir().unwrap();
-            unsafe {
-                std::env::set_var("HOME", dir.path());
-                std::env::remove_var("USERPROFILE");
-            }
-            Self {
-                _dir: dir,
-                _lock: lock,
-            }
-        }
-    }
-
-    #[test]
-    fn save_and_load_round_trip() {
-        let _home = TestHome::new();
-        let store = InMemoryStore::new();
+    #[tokio::test]
+    async fn save_and_load_round_trip() {
+        let store = test_store();
         {
             let mut inner = store.inner.write().unwrap();
             inner.agents.get_mut("codex").unwrap().mode = "auto".to_string();
         }
         save_from_store(&store).unwrap();
-        let loaded = load_from_disk().expect("state file");
+
+        // Verify by reading from SQLite
+        let conn = store.pool.as_ref().unwrap().get().unwrap();
+        let loaded = sqlite::load_state(&conn).unwrap();
         assert_eq!(loaded.agents["codex"].mode, "auto");
         assert_eq!(loaded.version, STATE_VERSION);
-    }
-
-    #[test]
-    fn atomic_write_uses_tmp_file() {
-        let _home = TestHome::new();
-        let state = PersistedState {
-            version: STATE_VERSION,
-            agents: seed_agents(),
-            routes: HashMap::new(),
-        };
-        save_to_disk(&state).unwrap();
-        assert!(state_file_path().exists());
-        assert!(!state_file_path().with_extension("json.tmp").exists());
     }
 }

@@ -1,6 +1,7 @@
 use axum::Json;
 use axum::body::Bytes;
 use axum::extract::State;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::http::HeaderMap;
 use axum::response::{IntoResponse, Response};
 use cab_core::CabError;
@@ -21,6 +22,128 @@ pub async fn handle_chat_completions(
     body: Bytes,
 ) -> Result<Response, CabError> {
     handle_proxied_request(&OPENAI_CHAT, state, headers, body).await
+}
+
+/// GET /v1/responses — WebSocket upgrade for Codex Responses API.
+///
+/// Codex uses WebSocket to connect for real-time Responses API.
+/// This handler accepts the upgrade, routes the request through CAB's
+/// existing HTTP proxy logic, and sends the response back as a WS message.
+pub async fn handle_responses_ws(
+    State(state): State<Arc<GatewayState>>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws_socket(socket, state, headers))
+}
+
+async fn handle_ws_socket(
+    mut socket: WebSocket,
+    state: Arc<GatewayState>,
+    headers: HeaderMap,
+) {
+    // Wait for the first text message (the responses.create event)
+    let msg = match socket.recv().await {
+        Some(Ok(Message::Text(text))) => text,
+        Some(Ok(Message::Close(_))) | None => return,
+        Some(Ok(_)) => return, // ignore binary/ping/pong
+        Some(Err(e)) => {
+            tracing::warn!("WebSocket recv error: {e}");
+            return;
+        }
+    };
+
+    // Parse the responses.create event and extract the inner response request
+    let body_bytes = match parse_ws_message(&msg) {
+        Ok(body) => body,
+        Err(e) => {
+            let _ = socket
+                .send(Message::Text(
+                    format!(r#"{{"type":"error","error":{{"message":"{e}"}}}}"#).into(),
+                ))
+                .await;
+            return;
+        }
+    };
+
+    // Route through the existing responses proxy logic
+    match handle_proxied_request(&OPENAI_RESPONSES, state, headers, body_bytes).await {
+        Ok(http_resp) => {
+            // Read the response body and send it over WebSocket
+            let parts = http_resp.into_parts();
+            let body_bytes = axum::body::to_bytes(parts.1, 10 * 1024 * 1024).await;
+            match body_bytes {
+                Ok(bytes) => {
+                    // Send response.created event (using the response body)
+                    if let Ok(resp_val) =
+                        serde_json::from_slice::<serde_json::Value>(&bytes)
+                    {
+                        // Send response.created
+                        let created = serde_json::json!({
+                            "type": "response.created",
+                            "response": resp_val,
+                        });
+                        let _ = socket
+                            .send(Message::Text(created.to_string().into()))
+                            .await;
+
+                        // Send response.completed
+                        let completed = serde_json::json!({
+                            "type": "response.completed",
+                            "response": resp_val,
+                        });
+                        let _ = socket
+                            .send(Message::Text(completed.to_string().into()))
+                            .await;
+                    } else {
+                        // If response is not valid JSON, send it raw
+                        let _ = socket
+                            .send(Message::Text(
+                                String::from_utf8_lossy(&bytes).to_string().into(),
+                            ))
+                            .await;
+                    }
+                }
+                Err(e) => {
+                    let _ = socket
+                        .send(Message::Text(
+                            format!(r#"{{"type":"error","error":{{"message":"{e}"}}}}"#).into(),
+                        ))
+                        .await;
+                }
+            }
+        }
+        Err(err) => {
+            let err_msg = err.to_string().replace('"', "\\\"");
+            let _ = socket
+                .send(Message::Text(
+                    format!(r#"{{"type":"error","error":{{"message":"{err_msg}"}}}}"#).into(),
+                ))
+                .await;
+        }
+    }
+}
+
+/// Parse a WebSocket text message (responses.create event) and return
+/// the inner response body as bytes suitable for handle_proxied_request.
+fn parse_ws_message(msg: &str) -> Result<Bytes, String> {
+    let json: serde_json::Value =
+        serde_json::from_str(msg).map_err(|e| format!("Invalid JSON: {e}"))?;
+
+    // Expect: {"type":"responses.create","response":{...}}
+    let resp = json
+        .get("response")
+        .ok_or_else(|| "Missing 'response' field".to_string())?;
+
+    // Ensure stream=false for WS (already streaming via the socket)
+    let mut body = resp.clone();
+    if body.get("stream").and_then(|v| v.as_bool()).unwrap_or(false) {
+        body["stream"] = serde_json::Value::Bool(false);
+    }
+
+    serde_json::to_vec(&body)
+        .map(Bytes::from)
+        .map_err(|e| format!("Serialize error: {e}"))
 }
 
 /// POST /v1/responses

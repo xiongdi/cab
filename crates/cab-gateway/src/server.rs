@@ -17,7 +17,10 @@ pub fn gateway_router(state: GatewayState) -> Router {
             "/v1/chat/completions",
             post(openai::handle_chat_completions),
         )
-        .route("/v1/responses", post(openai::handle_responses))
+        .route(
+            "/v1/responses",
+            post(openai::handle_responses).get(openai::handle_responses_ws),
+        )
         .route("/v1/messages", post(anthropic::handle_messages))
         .route("/v1/models", get(openai::handle_list_models))
         .layer(middleware::from_fn_with_state(

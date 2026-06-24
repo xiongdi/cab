@@ -467,16 +467,16 @@ pub fn resolve_performance_metrics(
     display_name: Option<&str>,
     context_length: i64,
 ) -> ModelPerformanceMetrics {
-    if let Some(catalog) = catalog {
-        if let Some(record) = catalog.lookup_record(
+    if let Some(catalog) = catalog
+        && let Some(record) = catalog.lookup_record(
             catalog_model_id,
             canonical_slug,
             display_name,
             context_length,
             aa_map,
-        ) {
-            return performance_from_record(&record);
-        }
+        )
+    {
+        return performance_from_record(&record);
     }
     ModelPerformanceMetrics::default()
 }
@@ -488,8 +488,6 @@ pub fn resolve_intelligence_indices(
     canonical_slug: Option<&str>,
     display_name: Option<&str>,
     context_length: i64,
-    _input_cost: Option<f64>,
-    _description: Option<&str>,
 ) -> ModelIntelligenceIndices {
     if let Some(catalog) = catalog {
         if let Some(indices) = catalog.lookup(
@@ -761,8 +759,6 @@ mod tests {
             None,
             None,
             128_000,
-            Some(0.14),
-            None,
         );
         assert_eq!(resolved.overall_intelligence, Some(39.0));
     }
@@ -783,8 +779,6 @@ mod tests {
             None,
             None,
             1_000_000,
-            Some(0.2),
-            None,
         );
         assert!(resolved.is_missing());
     }

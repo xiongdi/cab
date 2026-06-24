@@ -66,22 +66,27 @@ async fn st_gateway_rejects_missing_auth() {
 #[tokio::test]
 async fn st_agent_config_survives_restart() {
     let _home = support::TestHome::new();
-    let store = InMemoryStore::new();
+    // Create a SQLite-backed store, init schema, update agent (persists to SQLite).
+    let pool = cab_db::sqlite::pool().expect("pool");
     {
-        cab_db::agent::update(
-            &store,
-            "codex",
-            &cab_core::types::UpdateAgent {
-                mode: Some("auto".to_string()),
-                model_id: Some(Some("balanced".to_string())),
-                api_key: None,
-                endpoint: None,
-            },
-        )
-        .await
-        .expect("update agent");
+        let conn = pool.get().expect("conn");
+        cab_db::sqlite::init_schema(&conn).expect("schema");
     }
+    let store = InMemoryStore::with_sqlite(pool);
+    cab_db::agent::update(
+        &store,
+        "codex",
+        &cab_core::types::UpdateAgent {
+            mode: Some("auto".to_string()),
+            model_id: Some(Some("balanced".to_string())),
+            api_key: None,
+            endpoint: None,
+        },
+    )
+    .await
+    .expect("update agent");
 
+    // Restart: init_store re-reads from SQLite.
     let reloaded = cab_db::init_store().await.expect("init store");
     let agent = cab_db::agent::get_by_id(&reloaded, "codex")
         .await
@@ -171,9 +176,15 @@ async fn st_settings_endpoint_available_on_combined_router() {
 }
 
 #[tokio::test]
-async fn st_logs_survive_restart_via_jsonl() {
+async fn st_logs_survive_restart_via_sqlite() {
     let _home = support::TestHome::new();
-    let store = InMemoryStore::new();
+    // Create a SQLite-backed store, insert a log (persists to SQLite).
+    let pool = cab_db::sqlite::pool().expect("pool");
+    {
+        let conn = pool.get().expect("conn");
+        cab_db::sqlite::init_schema(&conn).expect("schema");
+    }
+    let store = InMemoryStore::with_sqlite(pool);
     cab_db::log::insert(
         &store,
         &cab_core::types::RequestLog {

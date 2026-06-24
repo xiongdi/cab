@@ -78,6 +78,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let gateway_port = settings.gateway_port as u16;
 
+    let port_source = if settings.gateway_port == config.gateway.port as i64 {
+        "cab.toml (default)"
+    } else {
+        "user override (via API)"
+    };
+    tracing::info!(
+        host = %config.gateway.host,
+        port = gateway_port,
+        port_source,
+        "Gateway bind config (host from cab.toml, port from settings)"
+    );
+
     let http_addr = format!("{}:{}", config.gateway.host, gateway_port);
     let http_addr_parsed: std::net::SocketAddr =
         http_addr.parse().expect("Failed to parse HTTP address");

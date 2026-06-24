@@ -2,9 +2,8 @@ use cab_core::CabError;
 use cab_core::benchmark_catalog::{
     BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
     artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
-    load_artificial_analysis_catalog, models_dev_catalog_path, models_dev_catalog_url,
-    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key, write_catalog_file,
-    write_raw_catalog_file,
+    load_artificial_analysis_catalog, models_dev_catalog_url,
+    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
@@ -36,21 +35,20 @@ struct ArtificialAnalysisCreator {
     name: String,
 }
 
-pub async fn sync_catalogs(pool: &InMemoryStore, client: &reqwest::Client) -> Result<(), CabError> {
-    sync_models_dev_catalog(client).await?;
+pub async fn sync_catalogs(pool: &InMemoryStore, client: &reqwest::Client) -> Result<serde_json::Value, CabError> {
+    let catalog = sync_models_dev_catalog(client).await?;
     sync_artificial_analysis_catalog(pool, client).await?;
-    Ok(())
+    Ok(catalog)
 }
 
-pub async fn sync_models_dev_catalog(client: &reqwest::Client) -> Result<(), CabError> {
-    sync_models_dev_json(client, models_dev_catalog_url(), models_dev_catalog_path()).await
+pub async fn sync_models_dev_catalog(client: &reqwest::Client) -> Result<serde_json::Value, CabError> {
+    sync_models_dev_json(client, models_dev_catalog_url()).await
 }
 
 async fn sync_models_dev_json(
     client: &reqwest::Client,
     url: &str,
-    path: std::path::PathBuf,
-) -> Result<(), CabError> {
+) -> Result<serde_json::Value, CabError> {
     let resp = client.get(url).send().await.map_err(|e| {
         CabError::Proxy(format!(
             "Failed to download models.dev data from {url}: {e}"
@@ -73,9 +71,10 @@ async fn sync_models_dev_json(
         ))
     })?;
 
-    write_raw_catalog_file(&path, &json).map_err(CabError::Database)?;
-    tracing::info!("Cached models.dev data from {url} at {}", path.display());
-    Ok(())
+    tracing::info!(
+        "Downloaded models.dev data from {url}",
+    );
+    Ok(json)
 }
 
 pub async fn sync_artificial_analysis_catalog(
@@ -154,12 +153,9 @@ pub async fn sync_artificial_analysis_catalog(
         models,
     };
 
-    let path = artificial_analysis_models_path();
-    write_catalog_file(&path, &file).map_err(CabError::Database)?;
     tracing::info!(
-        "Cached {} Artificial Analysis benchmark records at {}",
+        "Synced {} Artificial Analysis benchmark records",
         file.models.len(),
-        path.display()
     );
 
     if let Err(e) = ensure_aa_model_map_file() {
@@ -235,31 +231,22 @@ mod tests {
     #[tokio::test]
     async fn sync_models_dev_json_writes_successful_response() {
         let server = spawn_router(Router::new().route("/models.json", get(models_dev_json))).await;
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("models.json");
 
         sync_models_dev_json(
             &reqwest::Client::new(),
             &format!("{}/models.json", server.base_url),
-            path.clone(),
         )
         .await
         .unwrap();
-
-        let cached: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-        assert_eq!(cached["models"]["provider/model"]["name"], "Provider Model");
     }
 
     #[tokio::test]
     async fn sync_models_dev_json_reports_http_and_parse_errors() {
         let error_server =
             spawn_router(Router::new().route("/models.json", get(upstream_error))).await;
-        let dir = tempfile::tempdir().unwrap();
         let err = sync_models_dev_json(
             &reqwest::Client::new(),
             &format!("{}/models.json", error_server.base_url),
-            dir.path().join("error.json"),
         )
         .await
         .unwrap_err();
@@ -270,7 +257,6 @@ mod tests {
         let err = sync_models_dev_json(
             &reqwest::Client::new(),
             &format!("{}/models.json", invalid_server.base_url),
-            dir.path().join("invalid.json"),
         )
         .await
         .unwrap_err();

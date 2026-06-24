@@ -13,7 +13,7 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 | **macOS** | 10.13 High Sierra+ | Intel + Apple Silicon | 通用 `.dmg` 安装包 |
 | **Linux** | WebKitGTK 4.1 | x64、ARM64 | 已在 Ubuntu 22.04+、Debian 12+、Fedora 36+ 验证 |
 
-**无头服务**（`cab-server`）可在相同操作系统上运行，无需 WebView。使用 `cargo run -p cab-server` 或自行编译部署。
+**无头服务**（`cab-server`）可在相同操作系统上运行，无需 WebView。从源码构建请用 `cargo run -p cab-server`（用于发布测试），或使用 GitHub Releases 的预编译二进制。日常开发请遵循 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) 中的双终端工作流。
 
 ## 选择安装包
 

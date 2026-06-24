@@ -244,24 +244,21 @@ impl OpenAiChatStreamConverter {
                     },
                 );
             }
-            if let Some(id) = call.get("id").and_then(|v| v.as_str()) {
-                if let Some(tool) = self.tool_calls.get_mut(&openai_index) {
+            if let Some(id) = call.get("id").and_then(|v| v.as_str())
+                && let Some(tool) = self.tool_calls.get_mut(&openai_index) {
                     tool.id = id.to_string();
                 }
-            }
             if let Some(name) = call
                 .get("function")
                 .and_then(|f| f.get("name"))
                 .and_then(|n| n.as_str())
-            {
-                if let Some(tool) = self.tool_calls.get_mut(&openai_index) {
+                && let Some(tool) = self.tool_calls.get_mut(&openai_index) {
                     tool.name = name.to_string();
                     if !tool.pending_args.is_empty() {
                         let buffered = std::mem::take(&mut tool.pending_args);
                         self.push_tool_input_delta(openai_index, &buffered);
                     }
                 }
-            }
             if let Some(args) = call
                 .get("function")
                 .and_then(|f| f.get("arguments"))
@@ -396,6 +393,10 @@ impl OpenAiChatStreamConverter {
             .and_then(|u| u.get("completion_tokens"))
             .and_then(|v| v.as_u64())
             .unwrap_or(self.output_tokens);
+        let input_tokens = usage
+            .and_then(|u| u.get("prompt_tokens"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
 
         if self.thinking_block_started {
             self.pending.push(anthropic_stream_event(
@@ -409,12 +410,16 @@ impl OpenAiChatStreamConverter {
                 serde_json::json!({"type": "content_block_stop", "index": self.text_block_index}),
             ));
         }
+        let mut delta_usage = serde_json::json!({"output_tokens": output_tokens});
+        if input_tokens > 0 {
+            delta_usage["input_tokens"] = serde_json::json!(input_tokens);
+        }
         self.pending.push(anthropic_stream_event(
             "message_delta",
             serde_json::json!({
                 "type": "message_delta",
                 "delta": {"stop_reason": stop_reason, "stop_sequence": null},
-                "usage": {"output_tokens": output_tokens}
+                "usage": delta_usage
             }),
         ));
         self.pending.push(anthropic_stream_event(
@@ -858,6 +863,18 @@ impl<S> Drop for TokenTrackingStream<S> {
             log.input_tokens = input_tokens;
             log.output_tokens = output_tokens;
             log.total_tokens = input_tokens + output_tokens;
+        }
+        if let Some(sqlite_pool) = pool.sqlite()
+            && let Ok(conn) = sqlite_pool.get()
+        {
+            if let Err(e) = cab_db::sqlite::update_log_tokens(
+                &conn,
+                &log_id,
+                input_tokens,
+                output_tokens,
+            ) {
+                tracing::warn!("Failed to update log tokens in SQLite: {e}");
+            }
         }
     }
 }
