@@ -5,6 +5,15 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-06-25
+
+### Security
+
+- **Management API authentication bypass closed.** The `Origin`/`Referer` same-origin shortcut for `/api/*` is now additionally gated on the connection originating from loopback. A `host = "0.0.0.0"` / LAN deployment can no longer be reached unauthenticated via a forged `Referer`/`Origin` header — remote callers must present the `gateway_key`. The local browser dashboard on `127.0.0.1` is unaffected.
+- **Provider credential fragments no longer leak.** Upstream provider error bodies (which occasionally echo partial API keys) are now scrubbed before being returned to gateway clients and before being persisted in request logs.
+- **Endpoint URL validation.** Provider endpoint updates reject non-`http(s)` URLs (e.g. `file://`, `gopher://`), reducing the SSRF surface of the upstream forwarder. Self-hosted / LAN endpoints remain allowed.
+- **CORS tightened.** The management API now reflects only trusted local dashboard origins (`localhost`/`127.0.0.1`/`[::1]`/`tauri`) instead of `*`.
+
 ## [0.4.0] - 2026-06-24
 
 ### Added
