@@ -10,12 +10,36 @@ pub mod routing;
 pub mod settings;
 pub mod usage;
 use axum::Router;
-use axum::extract::Request;
+use axum::extract::{ConnectInfo, Request};
+use axum::http::HeaderValue;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use cab_db::InMemoryStore;
-use tower_http::cors::{Any, CorsLayer};
+use std::net::SocketAddr;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+
+/// Origins that belong to the local dashboard (browser dev server, the bundled
+/// UI served on the gateway port, and the Tauri shell).
+fn is_trusted_local_origin(val: &str) -> bool {
+    val.starts_with("http://localhost:")
+        || val.starts_with("http://127.0.0.1:")
+        || val.starts_with("http://[::1]:")
+        || val.starts_with("tauri://")
+        || val.starts_with("http://tauri.")
+}
+
+/// Whether the connection itself originates from the loopback interface.
+///
+/// `ConnectInfo` is injected by `into_make_service_with_connect_info`. When it
+/// is absent (e.g. some test harnesses) we fail closed and require a token.
+fn peer_is_loopback(request: &Request) -> bool {
+    request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip().is_loopback())
+        .unwrap_or(false)
+}
 
 async fn api_auth_middleware(
     axum::extract::State(state): axum::extract::State<ApiState>,
@@ -31,15 +55,16 @@ async fn api_auth_middleware(
         .get("referer")
         .and_then(|v| v.to_str().ok());
 
-    let is_trusted = |val: &str| {
-        val.starts_with("http://localhost:")
-            || val.starts_with("http://127.0.0.1:")
-            || val.starts_with("tauri://")
-            || val.starts_with("http://tauri.")
-    };
+    let has_trusted_origin = origin.map(is_trusted_local_origin).unwrap_or(false)
+        || referer.map(is_trusted_local_origin).unwrap_or(false);
 
-    let bypass =
-        origin.map(is_trusted).unwrap_or(false) || referer.map(is_trusted).unwrap_or(false);
+    // The dashboard runs in a browser and cannot attach the gateway key, so we
+    // allow it through on a trusted same-host origin. `Origin`/`Referer` are
+    // trivially spoofable by non-browser clients, so the bypass is additionally
+    // gated on the TCP peer being loopback. This keeps a `host = "0.0.0.0"` /
+    // LAN deployment from exposing the management API (and its secrets)
+    // unauthenticated to remote callers.
+    let bypass = has_trusted_origin && peer_is_loopback(&request);
 
     if !bypass
         && let Err(err) = cab_db::auth::verify(
@@ -91,8 +116,15 @@ pub struct ApiState {
 pub fn api_router(pool: InMemoryStore) -> Router {
     let state = ApiState { pool };
 
+    // Only reflect trusted local dashboard origins instead of `*`, so a hostile
+    // web page cannot read management API responses cross-origin from a browser.
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
+            origin
+                .to_str()
+                .map(is_trusted_local_origin)
+                .unwrap_or(false)
+        }))
         .allow_methods(Any)
         .allow_headers(Any);
 

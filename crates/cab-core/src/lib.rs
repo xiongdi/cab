@@ -20,7 +20,7 @@ pub use benchmark_catalog::{
     save_aa_model_map,
 };
 pub use config::CabConfig;
-pub use error::CabError;
+pub use error::{CabError, redact_secrets};
 pub use health::HealthTracker;
 pub use model_scores::{
     ModelIntelligenceIndices, capability_indices_missing, infer_intelligence_indices,

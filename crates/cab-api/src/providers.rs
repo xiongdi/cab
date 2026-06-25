@@ -49,6 +49,32 @@ pub async fn create_provider(
     ))
 }
 
+/// Reject endpoint URLs that the gateway would later proxy to with stored
+/// provider credentials. Only `http`/`https` are allowed (blocking `file://`,
+/// `gopher://`, and other SSRF-prone schemes). Private/loopback hosts are
+/// intentionally permitted because CAB legitimately supports self-hosted and
+/// LAN model servers.
+fn validate_endpoint_urls(endpoints: &[cab_core::types::ProviderEndpoint]) -> Result<(), CabError> {
+    for ep in endpoints {
+        let url = ep.url.trim();
+        if url.is_empty() {
+            continue;
+        }
+        let lower = url.to_ascii_lowercase();
+        if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+            return Err(CabError::InvalidRequest(format!(
+                "Endpoint URL must use http or https: {url}"
+            )));
+        }
+        if url.chars().any(|c| c.is_whitespace()) {
+            return Err(CabError::InvalidRequest(
+                "Endpoint URL must not contain whitespace.".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub async fn update_provider(
     State(state): State<ApiState>,
     Path(id): Path<String>,
@@ -64,6 +90,10 @@ pub async fn update_provider(
             "Only provider API key, endpoints, and enabled status can be changed manually."
                 .to_string(),
         ));
+    }
+
+    if let Some(ref endpoints) = input.endpoints {
+        validate_endpoint_urls(endpoints)?;
     }
 
     let api_keys = input

@@ -197,7 +197,7 @@ pub async fn handle_proxied_request(
                 total_tokens: 0,
                 latency_ms,
                 status: status_code,
-                error: Some(e.to_string()),
+                error: Some(cab_core::redact_secrets(&e.to_string())),
                 path: adapter.log_path().to_string(),
                 stream,
             };

@@ -96,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("CAB HTTP Gateway running at http://{}", http_addr);
     axum_server::bind(http_addr_parsed)
-        .serve(app.into_make_service())
+        .serve(app.into_make_service_with_connect_info::<std::net::SocketAddr>())
         .await?;
 
     Ok(())

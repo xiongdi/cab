@@ -77,7 +77,12 @@ async fn start_server(port: u16, ready: tokio::sync::oneshot::Sender<()>) {
 
     let _ = ready.send(());
 
-    axum::serve(listener, app).await.expect("Server error");
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .expect("Server error");
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
