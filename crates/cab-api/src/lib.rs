@@ -2,6 +2,7 @@ pub mod agents;
 pub mod benchmarks;
 pub mod catalog_provider_urls;
 pub mod dashboard;
+pub mod diagnostics;
 pub mod logs;
 pub mod models;
 pub mod providers;
@@ -176,6 +177,10 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/routes/{id}", delete(routes::delete_route))
         .route("/api/routing/explain", post(routing::explain_routing))
         .route("/api/routing/strategy-board", post(routing::strategy_board))
+        .route(
+            "/api/diagnostics/tool-weights",
+            get(diagnostics::tool_weights),
+        )
         // Logs
         .route("/api/logs", get(logs::query_logs).delete(logs::delete_logs))
         // Coding Agents

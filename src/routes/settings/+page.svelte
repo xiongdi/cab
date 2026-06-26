@@ -21,6 +21,8 @@
   let formRetention = $state(30);
   let formKey = $state('');
   let formArtificialAnalysisKey = $state('');
+  let formCacheAffinity = $state(true);
+  let formCacheShaping = $state(true);
   let showKey = $state(false);
   let showArtificialAnalysisKey = $state(false);
 
@@ -59,17 +61,23 @@
       formRetention = settings.log_retention_days;
       formKey = settings.gateway_key || '';
       formArtificialAnalysisKey = settings.artificial_analysis_api_key || '';
+      formCacheAffinity = settings.cache_affinity_enabled ?? true;
+      formCacheShaping = settings.cache_request_shaping_enabled ?? true;
     } catch {
       settings = {
         gateway_port: 3125,
         log_retention_days: 30,
         gateway_key: '',
+        cache_affinity_enabled: true,
+        cache_request_shaping_enabled: true,
         artificial_analysis_api_key: '',
       };
       formPort = 3125;
       formRetention = 30;
       formKey = '';
       formArtificialAnalysisKey = '';
+      formCacheAffinity = true;
+      formCacheShaping = true;
     } finally {
       loading = false;
     }
@@ -84,6 +92,8 @@
         gateway_port: formPort,
         log_retention_days: formRetention,
         gateway_key: formKey,
+        cache_affinity_enabled: formCacheAffinity,
+        cache_request_shaping_enabled: formCacheShaping,
         artificial_analysis_api_key: formArtificialAnalysisKey.trim() || null,
       };
       settings = await api.settings.update(data);
@@ -405,6 +415,26 @@
           </div>
           <p class="help-text">{i18n.t('settings.artificial_analysis_key_tip')}</p>
         </div>
+        <div class="form-group">
+          <div class="toggle-row">
+            <label class="toggle">
+              <input type="checkbox" bind:checked={formCacheAffinity} />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="label" style="margin:0">{i18n.t('settings.cache_affinity')}</span>
+          </div>
+          <p class="help-text">{i18n.t('settings.cache_affinity_tip')}</p>
+        </div>
+        <div class="form-group">
+          <div class="toggle-row">
+            <label class="toggle">
+              <input type="checkbox" bind:checked={formCacheShaping} />
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="label" style="margin:0">{i18n.t('settings.cache_shaping')}</span>
+          </div>
+          <p class="help-text">{i18n.t('settings.cache_shaping_tip')}</p>
+        </div>
         <div style="margin-top:20px">
           <button type="submit" class="btn btn-primary" disabled={saving}>
             <svg
@@ -578,6 +608,12 @@
     display: flex;
     gap: 8px;
     align-items: center;
+  }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .key-input-container .input {

@@ -1,7 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api } from '$lib/api';
-  import type { RequestLog, PaginatedLogs, Column, LogFilter } from '$lib/types';
+  import type {
+    RequestLog,
+    PaginatedLogs,
+    Column,
+    LogFilter,
+    ToolWeightSnapshot,
+  } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import { i18n } from '$lib/i18n.svelte';
@@ -14,6 +20,9 @@
   let loading = $state(true);
   let autoRefresh = $state(false);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
+
+  // Tool-schema weight diagnostics (cache prefix).
+  let toolWeights = $state<ToolWeightSnapshot[]>([]);
 
   // Filters
   let filterAgent = $state('');
@@ -60,6 +69,20 @@
       render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
     },
     {
+      key: 'cache_read_tokens',
+      label: i18n.t('logs.cache_hit'),
+      sortable: true,
+      align: 'right' as const,
+      render: (v: number, row: RequestLog) => {
+        const cacheRead = v ?? 0;
+        const denom = (row.input_tokens ?? 0) + cacheRead;
+        if (denom <= 0) return '<span class="mono" style="color:var(--text-muted)">—</span>';
+        const pct = Math.round((cacheRead / denom) * 100);
+        const color = pct >= 50 ? 'var(--success)' : pct > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
+        return `<span class="mono" style="color:${color}" title="${cacheRead.toLocaleString()} cached tokens">${pct}%</span>`;
+      },
+    },
+    {
       key: 'latency_ms',
       label: i18n.t('logs.latency'),
       sortable: true,
@@ -78,7 +101,10 @@
   ];
   });
 
-  onMount(loadLogs);
+  onMount(() => {
+    loadLogs();
+    loadToolWeights();
+  });
 
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval);
@@ -87,7 +113,10 @@
   function toggleAutoRefresh() {
     autoRefresh = !autoRefresh;
     if (autoRefresh) {
-      refreshInterval = setInterval(loadLogs, 5000);
+      refreshInterval = setInterval(() => {
+        loadLogs();
+        loadToolWeights();
+      }, 5000);
     } else {
       if (refreshInterval) clearInterval(refreshInterval);
       refreshInterval = null;
@@ -117,6 +146,23 @@
     } finally {
       loading = false;
     }
+  }
+
+  async function loadToolWeights() {
+    try {
+      toolWeights = await api.diagnostics.toolWeights();
+    } catch {
+      toolWeights = [];
+    }
+  }
+
+  function capturedAgo(ms: number): string {
+    const secs = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (secs < 60) return i18n.tParams('logs.tool_weights_ago_s', { n: secs });
+    const mins = Math.round(secs / 60);
+    if (mins < 60) return i18n.tParams('logs.tool_weights_ago_m', { n: mins });
+    const hrs = Math.round(mins / 60);
+    return i18n.tParams('logs.tool_weights_ago_h', { n: hrs });
   }
 
   function goPage(p: number) {
@@ -192,6 +238,51 @@
   </select>
   <button class="btn btn-ghost btn-sm" onclick={clearFilters}>{i18n.t('common.clear')}</button>
 </div>
+
+{#if toolWeights.length > 0}
+  <details class="weights-panel">
+    <summary>
+      <span class="weights-title">{i18n.t('logs.tool_weights_title')}</span>
+      <span class="weights-hint">{i18n.t('logs.tool_weights_hint')}</span>
+    </summary>
+    <div class="weights-body">
+      {#each toolWeights as snap (snap.agent)}
+        {@const max = snap.tools[0]?.tokens ?? 0}
+        <div class="weights-agent">
+          <div class="weights-agent-head">
+            <span class="weights-agent-name mono">{snap.agent}</span>
+            <span class="weights-agent-meta">
+              {i18n.tParams('logs.tool_weights_summary', {
+                count: snap.tool_count,
+                tokens: snap.total_tokens.toLocaleString(),
+              })}
+              · {capturedAgo(snap.captured_at_ms)}
+            </span>
+          </div>
+          <ul class="weights-list">
+            {#each snap.tools.slice(0, 12) as tool (tool.name)}
+              <li class="weights-row">
+                <span class="weights-name mono" title={tool.name}>{tool.name}</span>
+                <span class="weights-bar-track">
+                  <span
+                    class="weights-bar-fill"
+                    style="width: {max > 0 ? Math.max(2, Math.round((tool.tokens / max) * 100)) : 0}%"
+                  ></span>
+                </span>
+                <span class="weights-tokens mono">~{tool.tokens.toLocaleString()}</span>
+              </li>
+            {/each}
+          </ul>
+          {#if snap.tools.length > 12}
+            <div class="weights-more">
+              {i18n.tParams('logs.tool_weights_more', { n: snap.tools.length - 12 })}
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </details>
+{/if}
 
 {#if loading && logs.length === 0}
   <div class="skeleton" style="height: 300px; border-radius: var(--radius-lg);"></div>
@@ -324,5 +415,115 @@
     background: var(--accent-muted);
     color: var(--accent-text);
     border-color: rgba(59, 130, 246, 0.2);
+  }
+
+  .weights-panel {
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border-radius: var(--radius-lg);
+    background: var(--surface-1, rgba(255, 255, 255, 0.02));
+    overflow: hidden;
+  }
+
+  .weights-panel summary {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+  }
+
+  .weights-panel summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .weights-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .weights-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .weights-body {
+    padding: 4px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .weights-agent-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+
+  .weights-agent-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .weights-agent-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .weights-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .weights-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 220px) 1fr auto;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .weights-name {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .weights-bar-track {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+
+  .weights-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--accent, #3b82f6);
+  }
+
+  .weights-tokens {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+    min-width: 64px;
+  }
+
+  .weights-more {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
   }
 </style>

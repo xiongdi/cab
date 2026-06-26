@@ -133,6 +133,8 @@ mod tests {
             input_tokens: tokens,
             output_tokens: 0,
             total_tokens: tokens,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
             latency_ms: 1,
             status: 200,
             error: None,

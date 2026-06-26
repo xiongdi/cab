@@ -347,6 +347,14 @@ export const translations = {
       model: '选用模型',
       tokens: 'Token 消耗 (入/出)',
       latency: '响应耗时',
+      cache_hit: '缓存命中',
+      tool_weights_title: '工具 Schema 权重（缓存前缀）',
+      tool_weights_hint: '工具定义占据可缓存前缀，估算各工具 token 占比，便于裁剪过重的 schema',
+      tool_weights_summary: '{count} 个工具 · 约 {tokens} tokens',
+      tool_weights_more: '另有 {n} 个工具未显示',
+      tool_weights_ago_s: '{n} 秒前',
+      tool_weights_ago_m: '{n} 分钟前',
+      tool_weights_ago_h: '{n} 小时前',
       status_code: '状态码',
       auto_refresh: '自动刷新',
       auto_refresh_on: '自动刷新中',
@@ -376,6 +384,12 @@ export const translations = {
       artificial_analysis_key: 'Artificial Analysis API Key',
       artificial_analysis_key_tip:
         '用于同步 Artificial Analysis 模型基准数据。留空则使用环境变量 ARTIFICIAL_ANALYSIS_API_KEY 或 AA_API_KEY。',
+      cache_affinity: '缓存命中优化（会话粘性）',
+      cache_affinity_tip:
+        '开启后，同一会话会固定打到首次选中的服务商与模型，让上游的前缀缓存（cache hit）在多轮对话间持续命中、显著降低输入成本。仅在路由切换服务商时失效后重选。',
+      cache_shaping: '缓存命中优化（请求整形）',
+      cache_shaping_tip:
+        '开启后，转发前会对请求体做缓存友好的整形：按名称稳定排序工具定义，并在转发到 Anthropic 端点且客户端未自行设置时注入 cache_control 缓存断点（命中 tools + system 前缀）。不改变请求语义。',
       copy_key: '复制',
       refresh_key: '刷新',
       sync_key: '同步至智能体',
@@ -811,6 +825,15 @@ export const translations = {
       model: 'Model Used',
       tokens: 'Tokens (In/Out)',
       latency: 'Latency',
+      cache_hit: 'Cache hit',
+      tool_weights_title: 'Tool schema weight (cache prefix)',
+      tool_weights_hint:
+        'Tool definitions sit in the cacheable prefix; estimated per-tool token cost helps prune heavy schemas',
+      tool_weights_summary: '{count} tools · ~{tokens} tokens',
+      tool_weights_more: '{n} more tools hidden',
+      tool_weights_ago_s: '{n}s ago',
+      tool_weights_ago_m: '{n}m ago',
+      tool_weights_ago_h: '{n}h ago',
       status_code: 'Status',
       auto_refresh: 'Auto Refresh',
       auto_refresh_on: 'Auto-refresh ON',
@@ -840,6 +863,12 @@ export const translations = {
       artificial_analysis_key: 'Artificial Analysis API Key',
       artificial_analysis_key_tip:
         'Used to sync Artificial Analysis model benchmark data. Leave empty to use ARTIFICIAL_ANALYSIS_API_KEY or AA_API_KEY.',
+      cache_affinity: 'Cache-hit optimization (session affinity)',
+      cache_affinity_tip:
+        'Pin each conversation to the provider and model it first resolved to, so the upstream prefix cache keeps hitting across turns and cuts input cost. The pin is re-evaluated only when its target becomes unavailable.',
+      cache_shaping: 'Cache-hit optimization (request shaping)',
+      cache_shaping_tip:
+        'Rewrite outgoing requests for cache friendliness: tool definitions are sorted by name for a stable prefix, and Anthropic cache_control breakpoints are injected (over the tools + system prefix) when forwarding to an Anthropic endpoint and the client set none. Request semantics are unchanged.',
       copy_key: 'Copy',
       refresh_key: 'Refresh',
       sync_key: 'Sync to Agents',

@@ -196,6 +196,8 @@ async fn st_logs_survive_restart_via_sqlite() {
             input_tokens: 3,
             output_tokens: 5,
             total_tokens: 8,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
             latency_ms: 42,
             status: 200,
             error: None,

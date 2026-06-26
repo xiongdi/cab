@@ -428,6 +428,40 @@ async fn resolve_model_by_name(
     Ok(None)
 }
 
+/// Re-resolve a specific model on a specific provider, bypassing scoring.
+///
+/// Used by session affinity to keep a conversation pinned to the provider+model
+/// it first resolved to (so the upstream prefix cache keeps hitting). Returns
+/// `None` when the pinned target is no longer usable — model/provider disabled,
+/// no available key, or marked unhealthy — so the caller falls back to normal
+/// routing and re-pins.
+pub async fn resolve_model_on_provider(
+    catalog: &impl RouteCatalog,
+    model_name: &str,
+    provider_id: &str,
+) -> Result<Option<ResolvedRoute>, cab_core::CabError> {
+    let Some(model) = catalog.model_by_name(model_name).await? else {
+        return Ok(None);
+    };
+    if !model.enabled {
+        return Ok(None);
+    }
+    let Some(resolved) = try_resolve_with_provider(catalog, &model, provider_id).await? else {
+        return Ok(None);
+    };
+    Ok(Some(ResolvedRoute {
+        model: resolved.model,
+        provider_id: resolved.provider_id,
+        api_keys: resolved.api_keys,
+        endpoint_candidates: resolved.endpoint_candidates,
+        provider_api_key: resolved.provider_api_key,
+        model_protocol: resolved.model_protocol,
+        provider_name: resolved.provider_name,
+        provider_routing: resolved.provider_routing,
+        fallback_models: vec![],
+    }))
+}
+
 // Removed hardcoded benchmarks; scores come from the synced catalog.
 
 #[cfg(test)]

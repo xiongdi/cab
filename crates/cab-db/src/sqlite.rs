@@ -114,7 +114,9 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
              status INTEGER NOT NULL,
              error TEXT,
              path TEXT NOT NULL,
-             stream INTEGER NOT NULL DEFAULT 0
+             stream INTEGER NOT NULL DEFAULT 0,
+             cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+             cache_creation_tokens INTEGER NOT NULL DEFAULT 0
          );
 
          CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON request_logs(timestamp);
@@ -173,6 +175,16 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
          ",
     )
     .map_err(|e| format!("Schema init failed: {e}"))?;
+
+    // Ensure cache-token columns exist on databases created before they were added.
+    // ALTER is idempotent here — the "duplicate column" error on already-migrated
+    // databases is expected and ignored.
+    for column in ["cache_read_tokens", "cache_creation_tokens"] {
+        let _ = conn.execute(
+            &format!("ALTER TABLE request_logs ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"),
+            [],
+        );
+    }
 
     let current: Option<u32> = conn
         .query_row(
@@ -666,8 +678,8 @@ pub fn load_state(conn: &Connection) -> Result<PersistedState, String> {
 pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
     conn.execute(
         "INSERT OR REPLACE INTO request_logs
-         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         rusqlite::params![
             log.id,
             log.timestamp,
@@ -682,6 +694,8 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
             log.error,
             log.path,
             log.stream as i64,
+            log.cache_read_tokens,
+            log.cache_creation_tokens,
         ],
     )
     .map_err(|e| format!("Append log failed: {e}"))?;
@@ -693,10 +707,22 @@ pub fn update_log_tokens(
     log_id: &str,
     input_tokens: i64,
     output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_creation_tokens: i64,
 ) -> Result<(), String> {
     conn.execute(
-        "UPDATE request_logs SET input_tokens = ?2, output_tokens = ?3, total_tokens = ?4 WHERE id = ?1",
-        rusqlite::params![log_id, input_tokens, output_tokens, input_tokens + output_tokens],
+        "UPDATE request_logs
+         SET input_tokens = ?2, output_tokens = ?3, total_tokens = ?4,
+             cache_read_tokens = ?5, cache_creation_tokens = ?6
+         WHERE id = ?1",
+        rusqlite::params![
+            log_id,
+            input_tokens,
+            output_tokens,
+            input_tokens + output_tokens,
+            cache_read_tokens,
+            cache_creation_tokens,
+        ],
     )
     .map_err(|e| format!("Update log tokens failed: {e}"))?;
     Ok(())
@@ -705,7 +731,7 @@ pub fn update_log_tokens(
 pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream
+            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens
              FROM request_logs ORDER BY timestamp DESC LIMIT ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -725,6 +751,8 @@ pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, Str
                 error: row.get(10)?,
                 path: row.get(11)?,
                 stream: row.get::<_, i64>(12)? != 0,
+                cache_read_tokens: row.get(13)?,
+                cache_creation_tokens: row.get(14)?,
             })
         })
         .map_err(|e| e.to_string())?;

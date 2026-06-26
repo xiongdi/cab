@@ -12,6 +12,8 @@ pub fn default_settings() -> Settings {
         log_retention_days: 30,
         gateway_key: generate_gateway_key(),
         auth_enabled: true,
+        cache_affinity_enabled: true,
+        cache_request_shaping_enabled: true,
         artificial_analysis_api_key: None,
         providers: Default::default(),
         models: Default::default(),
@@ -36,6 +38,12 @@ pub fn merge_settings(current: &Settings, update: &UpdateSettings) -> Settings {
     }
     if let Some(auth_enabled) = update.auth_enabled {
         merged.auth_enabled = auth_enabled;
+    }
+    if let Some(cache_affinity_enabled) = update.cache_affinity_enabled {
+        merged.cache_affinity_enabled = cache_affinity_enabled;
+    }
+    if let Some(cache_request_shaping_enabled) = update.cache_request_shaping_enabled {
+        merged.cache_request_shaping_enabled = cache_request_shaping_enabled;
     }
     if let Some(aa_key) = &update.artificial_analysis_api_key {
         merged.artificial_analysis_api_key = aa_key.clone();

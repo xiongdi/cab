@@ -26,6 +26,10 @@ pub(crate) static TEST_HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new((
 pub struct InMemoryStore {
     pub inner: Arc<RwLock<StoreData>>,
     pub health: Arc<cab_core::HealthTracker>,
+    /// Session-sticky routing pins for upstream prefix-cache stability.
+    pub affinity: Arc<cab_core::SessionAffinity>,
+    pub prefix_shapes: Arc<cab_core::PrefixShapeTracker>,
+    pub tool_weights: Arc<cab_core::ToolWeightTracker>,
     pub pool: Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>,
 }
 
@@ -61,6 +65,9 @@ impl InMemoryStore {
                 model_endpoints: HashMap::new(),
             })),
             health: Arc::new(cab_core::HealthTracker::new()),
+            affinity: Arc::new(cab_core::SessionAffinity::new()),
+            prefix_shapes: Arc::new(cab_core::PrefixShapeTracker::new()),
+            tool_weights: Arc::new(cab_core::ToolWeightTracker::new()),
             pool: None,
         }
     }

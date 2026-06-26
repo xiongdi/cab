@@ -1,3 +1,4 @@
+pub mod affinity;
 pub mod benchmark_catalog;
 pub mod config;
 pub mod error;
@@ -6,8 +7,12 @@ pub mod model_scores;
 pub mod provider_defaults;
 pub mod routing;
 pub mod subscription_quota;
+pub mod tool_weights;
 pub mod types;
 
+pub use affinity::{
+    PrefixShape, PrefixShapeTracker, SessionAffinity, SessionPin, prefix_shape, session_key,
+};
 pub use benchmark_catalog::{
     AaModelMapFile, BenchmarkCatalog, BenchmarkCatalogFile, CatalogSourceStatus,
     ModelsDevCatalogFile, aa_model_map_path, aa_model_map_status,
@@ -40,6 +45,9 @@ pub use routing::{
 };
 pub use subscription_quota::{
     DEFAULT_QUOTA_RESET_SECS, extract_retry_after, is_key_rate_limited, resolve_quota_reset_at,
+};
+pub use tool_weights::{
+    ToolSchemaCost, ToolWeightSnapshot, ToolWeightTracker, estimate_tokens, tool_schema_costs,
 };
 pub use types::{
     ordered_api_keys, provider_has_available_key, provider_has_configured_key,

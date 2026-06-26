@@ -10,6 +10,9 @@ pub struct ProxyRequest {
     pub headers: axum::http::HeaderMap,
     pub stream: bool,
     pub path_suffix: String,
+    /// When true, rewrite the forwarded body for upstream prefix-cache
+    /// friendliness (deterministic tool ordering + Anthropic `cache_control`).
+    pub shape_requests: bool,
 }
 
 fn is_messages_path(path_suffix: &str) -> bool {
@@ -220,6 +223,9 @@ pub async fn execute_with_fallback(
                         if needs_responses_shim || needs_messages_to_responses_shim {
                             obj.insert("stream".to_string(), serde_json::Value::Bool(false));
                         }
+                    }
+                    if request.shape_requests {
+                        crate::shaping::shape_request(&mut converted_val, &endpoint.protocol);
                     }
                     if let Ok(new_body_bytes) = serde_json::to_vec(&converted_val) {
                         rewritten_body = bytes::Bytes::from(new_body_bytes);
@@ -627,6 +633,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "chat/completions".into(),
+            shape_requests: false,
         };
 
         let (response, provider, routed_model) = execute_with_fallback(
@@ -671,6 +678,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "v1/messages".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -714,6 +722,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "v1/messages".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -758,6 +767,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: true,
             path_suffix: "v1/messages".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -802,6 +812,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: true,
             path_suffix: "v1/messages".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -848,6 +859,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: true,
             path_suffix: "responses".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -902,6 +914,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "chat/completions".into(),
+            shape_requests: false,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -966,6 +979,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "chat/completions".into(),
+            shape_requests: false,
         };
 
         let (response, provider, routed_model) = execute_with_fallback(
@@ -992,6 +1006,7 @@ data: [DONE]\n\n",
             headers: HeaderMap::new(),
             stream: false,
             path_suffix: "chat/completions".into(),
+            shape_requests: false,
         };
         let err = execute_with_fallback(
             &reqwest::Client::new(),

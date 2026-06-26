@@ -235,6 +235,8 @@ mod tests {
             log_retention_days: 30,
             gateway_key: String::new(),
             auth_enabled: true,
+            cache_affinity_enabled: true,
+            cache_request_shaping_enabled: true,
             artificial_analysis_api_key: None,
             providers: HashMap::new(),
             models: HashMap::new(),

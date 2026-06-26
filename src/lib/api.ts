@@ -29,6 +29,7 @@ import type {
   RoutableModel,
   UsageSummary,
   UsageRecord,
+  ToolWeightSnapshot,
 } from './types';
 
 let resolvedPort: number | null = null;
@@ -233,6 +234,11 @@ export const api = {
       request<{ data: UsageRecord[]; total: number }>(
         `/usage/records?range=${range ?? 'month'}&per_page=${perPage ?? 50}`
       ),
+  },
+
+  // ── Diagnostics ───────────────────────────────────────────
+  diagnostics: {
+    toolWeights: () => request<ToolWeightSnapshot[]>('/diagnostics/tool-weights'),
   },
 };
 

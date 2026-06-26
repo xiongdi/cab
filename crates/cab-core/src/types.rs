@@ -288,6 +288,12 @@ pub struct RequestLog {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub total_tokens: i64,
+    /// Input tokens served from the upstream prefix cache (billed at a discount).
+    #[serde(default)]
+    pub cache_read_tokens: i64,
+    /// Input tokens written to the upstream prefix cache this turn.
+    #[serde(default)]
+    pub cache_creation_tokens: i64,
     pub latency_ms: i64,
     #[serde(rename = "status_code")]
     pub status: i32,
@@ -426,6 +432,14 @@ fn default_auth_enabled() -> bool {
     true
 }
 
+fn default_cache_affinity_enabled() -> bool {
+    true
+}
+
+fn default_cache_request_shaping_enabled() -> bool {
+    true
+}
+
 /// **User runtime config** stored in the SQLite `settings` table, editable via `PUT /api/settings`.
 ///
 /// This is the runtime counterpart to `cab.toml` (system bootstrap). See `cab_core::config::CabConfig`
@@ -439,6 +453,16 @@ pub struct Settings {
     pub gateway_key: String,
     #[serde(default = "default_auth_enabled")]
     pub auth_enabled: bool,
+    /// Pin a conversation to the provider+model it first resolved to, so the
+    /// upstream prefix cache keeps hitting across turns instead of cold-starting
+    /// whenever re-scoring or a rate-limit would otherwise switch providers.
+    #[serde(default = "default_cache_affinity_enabled")]
+    pub cache_affinity_enabled: bool,
+    /// Rewrite outgoing requests for upstream prefix-cache friendliness:
+    /// deterministically order tool schemas and inject Anthropic `cache_control`
+    /// breakpoints (only when the client did not already set them).
+    #[serde(default = "default_cache_request_shaping_enabled")]
+    pub cache_request_shaping_enabled: bool,
     /// Artificial Analysis API key for benchmark sync.
     #[serde(default)]
     pub artificial_analysis_api_key: Option<String>,
@@ -455,6 +479,8 @@ pub struct UpdateSettings {
     pub log_retention_days: Option<i64>,
     pub gateway_key: Option<String>,
     pub auth_enabled: Option<bool>,
+    pub cache_affinity_enabled: Option<bool>,
+    pub cache_request_shaping_enabled: Option<bool>,
     /// Outer None = field omitted; inner None = clear the key.
     pub artificial_analysis_api_key: Option<Option<String>>,
 }

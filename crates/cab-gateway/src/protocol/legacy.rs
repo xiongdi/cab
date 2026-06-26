@@ -773,6 +773,8 @@ pub struct TokenTrackingStream<S> {
     buffer: Vec<u8>,
     input_tokens: i64,
     output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_creation_tokens: i64,
 }
 
 impl<S> TokenTrackingStream<S> {
@@ -784,6 +786,8 @@ impl<S> TokenTrackingStream<S> {
             buffer: Vec::new(),
             input_tokens: 0,
             output_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
         }
     }
 
@@ -799,11 +803,13 @@ impl<S> TokenTrackingStream<S> {
                     && !data_content.is_empty()
                     && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
                 {
-                    // Anthropic message_start event: message.usage.input_tokens
-                    if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage"))
-                        && let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
-                    {
-                        self.input_tokens = in_tokens;
+                    // Anthropic message_start event: message.usage.input_tokens (+ cache counts)
+                    if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
+                        if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
+                        {
+                            self.input_tokens = in_tokens;
+                        }
+                        self.track_cache_tokens(usage);
                     }
                     // Anthropic message_delta event: usage.output_tokens
                     // OpenAI stream chunk usage: usage.prompt_tokens, usage.completion_tokens
@@ -826,9 +832,34 @@ impl<S> TokenTrackingStream<S> {
                         {
                             self.output_tokens = out_tokens;
                         }
+                        self.track_cache_tokens(usage);
                     }
                 }
             }
+        }
+    }
+}
+
+impl<S> TokenTrackingStream<S> {
+    fn track_cache_tokens(&mut self, usage: &serde_json::Value) {
+        if let Some(cr) = usage
+            .get("cache_read_input_tokens")
+            .or_else(|| usage.get("cache_read_tokens"))
+            .or_else(|| {
+                usage
+                    .get("prompt_tokens_details")
+                    .and_then(|details| details.get("cached_tokens"))
+            })
+            .and_then(|v| v.as_i64())
+        {
+            self.cache_read_tokens = cr.max(0);
+        }
+        if let Some(cc) = usage
+            .get("cache_creation_input_tokens")
+            .or_else(|| usage.get("cache_creation_tokens"))
+            .and_then(|v| v.as_i64())
+        {
+            self.cache_creation_tokens = cc.max(0);
         }
     }
 }
@@ -859,17 +890,27 @@ impl<S> Drop for TokenTrackingStream<S> {
         let log_id = self.log_id.clone();
         let input_tokens = self.input_tokens;
         let output_tokens = self.output_tokens;
+        let cache_read_tokens = self.cache_read_tokens;
+        let cache_creation_tokens = self.cache_creation_tokens;
         if let Ok(mut data) = pool.inner.write()
             && let Some(log) = data.request_logs.iter_mut().find(|l| l.id == log_id)
         {
             log.input_tokens = input_tokens;
             log.output_tokens = output_tokens;
             log.total_tokens = input_tokens + output_tokens;
+            log.cache_read_tokens = cache_read_tokens;
+            log.cache_creation_tokens = cache_creation_tokens;
         }
         if let Some(sqlite_pool) = pool.sqlite()
             && let Ok(conn) = sqlite_pool.get()
-            && let Err(e) =
-                cab_db::sqlite::update_log_tokens(&conn, &log_id, input_tokens, output_tokens)
+            && let Err(e) = cab_db::sqlite::update_log_tokens(
+                &conn,
+                &log_id,
+                input_tokens,
+                output_tokens,
+                cache_read_tokens,
+                cache_creation_tokens,
+            )
         {
             tracing::warn!("Failed to update log tokens in SQLite: {e}");
         }
@@ -1286,6 +1327,8 @@ data: [DONE]\n\n";
                 input_tokens: 0,
                 output_tokens: 0,
                 total_tokens: 0,
+                cache_read_tokens: 0,
+                cache_creation_tokens: 0,
                 latency_ms: 0,
                 status: 200,
                 error: None,
@@ -1296,7 +1339,7 @@ data: [DONE]\n\n";
 
         let chunks = futures::stream::iter(vec![
             Ok(Bytes::from_static(
-                br#"data: {"message":{"usage":{"input_tokens":3}}}
+                br#"data: {"message":{"usage":{"input_tokens":3,"cache_read_input_tokens":42,"cache_creation_input_tokens":9}}}
 "#,
             )),
             Ok(Bytes::from_static(
@@ -1319,6 +1362,8 @@ data: [DONE]
         assert_eq!(log.input_tokens, 7);
         assert_eq!(log.output_tokens, 11);
         assert_eq!(log.total_tokens, 18);
+        assert_eq!(log.cache_read_tokens, 42);
+        assert_eq!(log.cache_creation_tokens, 9);
     }
 
     #[tokio::test]

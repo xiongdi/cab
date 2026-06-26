@@ -207,6 +207,8 @@ export interface RequestLog {
   input_tokens: number;
   output_tokens: number;
   total_tokens: number;
+  cache_read_tokens?: number;
+  cache_creation_tokens?: number;
   latency_ms: number;
   status_code: number;
   error_message?: string;
@@ -288,12 +290,27 @@ export interface ModelCatalogEntry {
   settings: ModelUserSettings;
 }
 
+export interface ToolSchemaCost {
+  name: string;
+  tokens: number;
+}
+
+export interface ToolWeightSnapshot {
+  agent: string;
+  captured_at_ms: number;
+  total_tokens: number;
+  tool_count: number;
+  tools: ToolSchemaCost[];
+}
+
 export interface Settings {
   gateway_port: number;
   log_retention_days: number;
   gateway_status?: 'running' | 'stopped' | 'error';
   gateway_key: string;
   auth_enabled?: boolean;
+  cache_affinity_enabled?: boolean;
+  cache_request_shaping_enabled?: boolean;
   artificial_analysis_api_key?: string | null;
   providers?: Record<string, ProviderUserSettings>;
   models?: Record<string, ModelUserSettings>;
@@ -304,6 +321,8 @@ export interface UpdateSettings {
   log_retention_days?: number;
   gateway_key?: string;
   auth_enabled?: boolean;
+  cache_affinity_enabled?: boolean;
+  cache_request_shaping_enabled?: boolean;
   artificial_analysis_api_key?: string | null;
   providers?: Record<string, ProviderUserSettings>;
   models?: Record<string, ModelUserSettings>;
