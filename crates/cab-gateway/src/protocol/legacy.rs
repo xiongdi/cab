@@ -766,28 +766,24 @@ pub fn chat_to_responses(openai_resp: &Value, model_name: &str) -> Value {
     )
 }
 
+use cab_core::types::RequestLog;
+
 pub struct TokenTrackingStream<S> {
     inner: S,
     pool: cab_db::InMemoryStore,
-    log_id: String,
+    /// Full request log (all fields except token counts are pre-filled). Token
+    /// counts are accumulated during streaming and the log is persisted on Drop.
+    log: RequestLog,
     buffer: Vec<u8>,
-    input_tokens: i64,
-    output_tokens: i64,
-    cache_read_tokens: i64,
-    cache_creation_tokens: i64,
 }
 
 impl<S> TokenTrackingStream<S> {
-    pub fn new(inner: S, pool: cab_db::InMemoryStore, log_id: String) -> Self {
+    pub fn new(inner: S, pool: cab_db::InMemoryStore, log: RequestLog) -> Self {
         Self {
             inner,
             pool,
-            log_id,
+            log,
             buffer: Vec::new(),
-            input_tokens: 0,
-            output_tokens: 0,
-            cache_read_tokens: 0,
-            cache_creation_tokens: 0,
         }
     }
 
@@ -807,7 +803,7 @@ impl<S> TokenTrackingStream<S> {
                     if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
                         if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
                         {
-                            self.input_tokens = in_tokens;
+                            self.log.input_tokens = in_tokens;
                         }
                         self.track_cache_tokens(usage);
                     }
@@ -816,21 +812,21 @@ impl<S> TokenTrackingStream<S> {
                     if let Some(usage) = json_val.get("usage") {
                         if let Some(in_tokens) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
                         {
-                            self.input_tokens = in_tokens;
+                            self.log.input_tokens = in_tokens;
                         }
                         if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
                         {
-                            self.input_tokens = in_tokens;
+                            self.log.input_tokens = in_tokens;
                         }
                         if let Some(out_tokens) =
                             usage.get("completion_tokens").and_then(|v| v.as_i64())
                         {
-                            self.output_tokens = out_tokens;
+                            self.log.output_tokens = out_tokens;
                         }
                         if let Some(out_tokens) =
                             usage.get("output_tokens").and_then(|v| v.as_i64())
                         {
-                            self.output_tokens = out_tokens;
+                            self.log.output_tokens = out_tokens;
                         }
                         self.track_cache_tokens(usage);
                     }
@@ -852,14 +848,14 @@ impl<S> TokenTrackingStream<S> {
             })
             .and_then(|v| v.as_i64())
         {
-            self.cache_read_tokens = cr.max(0);
+            self.log.cache_read_tokens = cr.max(0);
         }
         if let Some(cc) = usage
             .get("cache_creation_input_tokens")
             .or_else(|| usage.get("cache_creation_tokens"))
             .and_then(|v| v.as_i64())
         {
-            self.cache_creation_tokens = cc.max(0);
+            self.log.cache_creation_tokens = cc.max(0);
         }
     }
 }
@@ -886,33 +882,36 @@ where
 
 impl<S> Drop for TokenTrackingStream<S> {
     fn drop(&mut self) {
+        self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
         let pool = self.pool.clone();
-        let log_id = self.log_id.clone();
-        let input_tokens = self.input_tokens;
-        let output_tokens = self.output_tokens;
-        let cache_read_tokens = self.cache_read_tokens;
-        let cache_creation_tokens = self.cache_creation_tokens;
-        if let Ok(mut data) = pool.inner.write()
-            && let Some(log) = data.request_logs.iter_mut().find(|l| l.id == log_id)
-        {
-            log.input_tokens = input_tokens;
-            log.output_tokens = output_tokens;
-            log.total_tokens = input_tokens + output_tokens;
-            log.cache_read_tokens = cache_read_tokens;
-            log.cache_creation_tokens = cache_creation_tokens;
+        let log = self.log.clone();
+
+        // Update the in-memory ring buffer synchronously — no async, no race.
+        // This is the canonical insert for the request log; we must NOT rely on
+        // a concurrent `tokio::spawn` in the caller to win a race against us.
+        if let Ok(mut data) = pool.inner.write() {
+            if let Some(pos) = data.request_logs.iter().position(|l| l.id == log.id) {
+                data.request_logs[pos] = log.clone();
+            } else {
+                data.request_logs.push(log.clone());
+                if data.request_logs.len() > 500 {
+                    let overflow = data.request_logs.len() - 500;
+                    data.request_logs.drain(0..overflow);
+                }
+            }
         }
-        if let Some(sqlite_pool) = pool.sqlite()
-            && let Ok(conn) = sqlite_pool.get()
-            && let Err(e) = cab_db::sqlite::update_log_tokens(
-                &conn,
-                &log_id,
-                input_tokens,
-                output_tokens,
-                cache_read_tokens,
-                cache_creation_tokens,
-            )
-        {
-            tracing::warn!("Failed to update log tokens in SQLite: {e}");
+
+        // Best-effort SQLite persist when a tokio runtime is available (the
+        // normal case — streaming happens inside an active axum request).
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                if let Some(sqlite_pool) = pool.sqlite()
+                    && let Ok(conn) = sqlite_pool.get()
+                    && let Err(e) = cab_db::sqlite::append_log(&conn, &log)
+                {
+                    tracing::warn!("Failed to persist streamed log to SQLite: {e}");
+                }
+            });
         }
     }
 }
@@ -1313,29 +1312,27 @@ data: [DONE]\n\n";
     }
 
     #[tokio::test]
-    async fn token_tracking_stream_updates_request_log_on_drop() {
+    async fn token_tracking_stream_persists_full_log_on_drop() {
         let pool = cab_db::InMemoryStore::new();
         let log_id = "log-1".to_string();
-        {
-            let mut data = pool.inner.write().unwrap();
-            data.request_logs.push(RequestLog {
-                id: log_id.clone(),
-                timestamp: "now".into(),
-                agent: "codex".into(),
-                provider: "test".into(),
-                model: "model".into(),
-                input_tokens: 0,
-                output_tokens: 0,
-                total_tokens: 0,
-                cache_read_tokens: 0,
-                cache_creation_tokens: 0,
-                latency_ms: 0,
-                status: 200,
-                error: None,
-                path: "/v1/chat/completions".into(),
-                stream: true,
-            });
-        }
+
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "codex".into(),
+            provider: "test".into(),
+            model: "model".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 42,
+            status: 200,
+            error: None,
+            path: "/v1/chat/completions".into(),
+            stream: true,
+        };
 
         let chunks = futures::stream::iter(vec![
             Ok(Bytes::from_static(
@@ -1349,7 +1346,7 @@ data: [DONE]
 "#,
             )),
         ]);
-        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), log_id.clone());
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
         while stream.next().await.is_some() {}
         drop(stream);
 
@@ -1364,6 +1361,9 @@ data: [DONE]
         assert_eq!(log.total_tokens, 18);
         assert_eq!(log.cache_read_tokens, 42);
         assert_eq!(log.cache_creation_tokens, 9);
+        assert_eq!(log.latency_ms, 42);
+        assert_eq!(log.agent, "codex");
+        assert_eq!(log.status, 200);
     }
 
     #[tokio::test]

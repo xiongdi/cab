@@ -168,11 +168,33 @@ pub async fn handle_proxied_request(
             let mut usage_json: Option<serde_json::Value> = None;
 
             if stream {
+                // Stream path: wrap the body in a TokenTrackingStream that
+                // accumulates token counts (including cache tokens) from SSE
+                // events and persists the full RequestLog on Drop.  Do NOT
+                // spawn a separate insert here — that would race with the Drop
+                // and routinely wipe out the cache-token data.
+                let log = RequestLog {
+                    id: log_id,
+                    timestamp: Utc::now().to_rfc3339(),
+                    agent: agent.clone(),
+                    provider: provider_name,
+                    model: model_name.clone(),
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    total_tokens: 0,
+                    cache_read_tokens: 0,
+                    cache_creation_tokens: 0,
+                    latency_ms,
+                    status: 200,
+                    error: None,
+                    path: adapter.log_path().to_string(),
+                    stream: true,
+                };
                 let (parts, body) = final_response.into_parts();
                 let tracking_stream = crate::protocol::TokenTrackingStream::new(
                     body.into_data_stream(),
                     state.pool.clone(),
-                    log_id.clone(),
+                    log,
                 );
                 final_response =
                     Response::from_parts(parts, axum::body::Body::from_stream(tracking_stream));
@@ -193,47 +215,47 @@ pub async fn handle_proxied_request(
                     usage_json = Some(usage.clone());
                 }
                 final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
-            }
 
-            let log = RequestLog {
-                id: log_id,
-                timestamp: Utc::now().to_rfc3339(),
-                agent: agent.clone(),
-                provider: provider_name,
-                model: model_name.clone(),
-                input_tokens,
-                output_tokens,
-                total_tokens: input_tokens + output_tokens,
-                cache_read_tokens,
-                cache_creation_tokens,
-                latency_ms,
-                status: 200,
-                error: None,
-                path: adapter.log_path().to_string(),
-                stream,
-            };
-            let pool = state.pool.clone();
-            let usage_record = build_usage_record(
-                usage_json.as_ref(),
-                &agent,
-                &resolved.provider_id,
-                &model_name,
-                input_tokens,
-                output_tokens,
-                &resolved.model,
-            );
-            tokio::spawn(async move {
-                if let Err(e) = cab_db::log::insert(&pool, &log).await {
-                    tracing::error!("Failed to log request: {e}");
-                }
-                if let Some(record) = usage_record
-                    && let Some(sqlite_pool) = pool.sqlite()
-                    && let Ok(conn) = sqlite_pool.get()
-                    && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record)
-                {
-                    tracing::warn!("Failed to record usage: {e}");
-                }
-            });
+                let log = RequestLog {
+                    id: log_id,
+                    timestamp: Utc::now().to_rfc3339(),
+                    agent: agent.clone(),
+                    provider: provider_name,
+                    model: model_name.clone(),
+                    input_tokens,
+                    output_tokens,
+                    total_tokens: input_tokens + output_tokens,
+                    cache_read_tokens,
+                    cache_creation_tokens,
+                    latency_ms,
+                    status: 200,
+                    error: None,
+                    path: adapter.log_path().to_string(),
+                    stream: false,
+                };
+                let pool = state.pool.clone();
+                let usage_record = build_usage_record(
+                    usage_json.as_ref(),
+                    &agent,
+                    &resolved.provider_id,
+                    &model_name,
+                    input_tokens,
+                    output_tokens,
+                    &resolved.model,
+                );
+                tokio::spawn(async move {
+                    if let Err(e) = cab_db::log::insert(&pool, &log).await {
+                        tracing::error!("Failed to log request: {e}");
+                    }
+                    if let Some(record) = usage_record
+                        && let Some(sqlite_pool) = pool.sqlite()
+                        && let Ok(conn) = sqlite_pool.get()
+                        && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record)
+                    {
+                        tracing::warn!("Failed to record usage: {e}");
+                    }
+                });
+            }
 
             Ok(final_response)
         }

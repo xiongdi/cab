@@ -702,32 +702,6 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
     Ok(())
 }
 
-pub fn update_log_tokens(
-    conn: &Connection,
-    log_id: &str,
-    input_tokens: i64,
-    output_tokens: i64,
-    cache_read_tokens: i64,
-    cache_creation_tokens: i64,
-) -> Result<(), String> {
-    conn.execute(
-        "UPDATE request_logs
-         SET input_tokens = ?2, output_tokens = ?3, total_tokens = ?4,
-             cache_read_tokens = ?5, cache_creation_tokens = ?6
-         WHERE id = ?1",
-        rusqlite::params![
-            log_id,
-            input_tokens,
-            output_tokens,
-            input_tokens + output_tokens,
-            cache_read_tokens,
-            cache_creation_tokens,
-        ],
-    )
-    .map_err(|e| format!("Update log tokens failed: {e}"))?;
-    Ok(())
-}
-
 pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, String> {
     let mut stmt = conn
         .prepare(
