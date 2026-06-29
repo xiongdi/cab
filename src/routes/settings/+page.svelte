@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import type { Settings, UpdateSettings, CatalogSourceStatus } from '$lib/types';
+  import type { Settings, UpdateSettings, CatalogSourceStatus, CheckUpdateResponse } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Card from '$lib/components/Card.svelte';
   import { toast } from '$lib/components/Toast.svelte';
@@ -53,6 +53,44 @@
     }
   }
 
+  let updateChecking = $state(false);
+  let updateInstalling = $state(false);
+  let updateInfo = $state<CheckUpdateResponse | null>(null);
+  let updateChecked = $state(false);
+
+  async function handleCheckUpdate() {
+    updateChecking = true;
+    try {
+      updateInfo = await api.update.check();
+      updateChecked = true;
+      if (!updateInfo.available) {
+        toast.success(i18n.t('settings.update_not_available'));
+      } else {
+        toast.success(i18n.t('settings.update_available').replace('{version}', updateInfo.latest_version));
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : i18n.t('common.error'));
+    } finally {
+      updateChecking = false;
+    }
+  }
+
+  async function handleInstallUpdate() {
+    updateInstalling = true;
+    try {
+      const res = await api.update.install();
+      if (res.success) {
+        toast.success(i18n.t('settings.update_success'));
+      } else {
+        toast.error(res.message);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : i18n.t('common.error'));
+    } finally {
+      updateInstalling = false;
+    }
+  }
+
   onMount(async () => {
     loading = true;
     try {
@@ -83,6 +121,13 @@
     }
 
     await loadCatalogStatus();
+
+    try {
+      updateInfo = await api.update.check();
+      updateChecked = true;
+    } catch {
+      // Silent check fail
+    }
   });
 
   async function handleSave(showSyncToast = false) {
@@ -523,11 +568,32 @@
   <!-- Info -->
   <div class="info-section">
     <Card>
-      <h3 class="card-section-title">{i18n.t('settings.about')}</h3>
-      <div class="about-grid">
+      <div class="about-header">
+        <h3 class="card-section-title" style="margin-bottom: 0;">{i18n.t('settings.about')}</h3>
+        <button
+          type="button"
+          class="btn btn-secondary btn-sm"
+          onclick={handleCheckUpdate}
+          disabled={updateChecking || updateInstalling}
+        >
+          {#if updateChecking}
+            <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+            &nbsp;{i18n.t('settings.checking_update')}
+          {:else}
+            {i18n.t('settings.check_update')}
+          {/if}
+        </button>
+      </div>
+
+      <div class="about-grid" style="margin-top: 16px;">
         <div class="about-row">
           <span class="about-label">{i18n.t('settings.version')}</span>
-          <span class="about-value mono">{appVersion}</span>
+          <span class="about-value mono">
+            {appVersion}
+            {#if updateInfo && !updateInfo.available && updateChecked}
+              <span class="update-badge success">{i18n.t('settings.update_not_available')}</span>
+            {/if}
+          </span>
         </div>
         <div class="about-row">
           <span class="about-label">{i18n.t('settings.runtime')}</span>
@@ -542,6 +608,54 @@
           <span class="about-value">MIT</span>
         </div>
       </div>
+
+      {#if updateInfo && updateInfo.available}
+        <div class="update-banner">
+          <div class="update-header">
+            <div class="update-title">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="update-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              <span>{i18n.t('settings.update_available').replace('{version}', updateInfo.latest_version)}</span>
+            </div>
+            {#if updateInfo.published_at}
+              <span class="update-date">{new Date(updateInfo.published_at).toLocaleDateString()}</span>
+            {/if}
+          </div>
+          
+          {#if updateInfo.release_notes}
+            <div class="update-notes">
+              <span class="update-notes-title">{i18n.t('settings.release_notes')}</span>
+              <pre class="update-notes-content">{updateInfo.release_notes}</pre>
+            </div>
+          {/if}
+          
+          <div class="update-actions">
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              onclick={handleInstallUpdate}
+              disabled={updateInstalling}
+            >
+              {#if updateInstalling}
+                <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                &nbsp;{i18n.t('settings.updating')}
+              {:else}
+                {i18n.t('settings.update_btn')}
+              {/if}
+            </button>
+            {#if updateInfo.download_url}
+              <a
+                href={updateInfo.download_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-secondary btn-sm"
+                style="text-decoration: none;"
+              >
+                手动下载
+              </a>
+            {/if}
+          </div>
+        </div>
+      {/if}
     </Card>
   </div>
 {/if}
@@ -723,6 +837,108 @@
     }
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  .about-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .update-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    font-weight: 600;
+  }
+
+  .update-badge.success {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+  }
+
+  .update-banner {
+    margin-top: 16px;
+    padding: 16px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .update-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .update-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #3b82f6;
+  }
+
+  .update-icon {
+    color: #3b82f6;
+    animation: bounce 2s infinite;
+  }
+
+  .update-date {
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .update-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+  }
+
+  .update-notes-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .update-notes-content {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+    margin: 0;
+    scrollbar-width: thin;
+  }
+
+  .update-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
     }
   }
 </style>

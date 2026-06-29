@@ -9,6 +9,7 @@ pub mod providers;
 pub mod routes;
 pub mod routing;
 pub mod settings;
+pub mod update;
 pub mod usage;
 use axum::Router;
 use axum::extract::{ConnectInfo, Request};
@@ -200,6 +201,9 @@ pub fn api_router(pool: InMemoryStore) -> Router {
             get(settings::get_catalog_status),
         )
         .route("/api/settings/sync-catalog", post(settings::sync_catalog))
+        // Updates
+        .route("/api/update/check", get(update::check_update))
+        .route("/api/update/install", post(update::install_update))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             api_auth_middleware,

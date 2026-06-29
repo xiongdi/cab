@@ -127,10 +127,20 @@ pub async fn handle_proxied_request(
     .await
     .map_err(CabError::Database)?;
 
-    let upstream_protocol = endpoint_meta
-        .as_ref()
-        .and_then(|ep| ep.upstream_protocol.as_deref())
-        .unwrap_or_else(|| adapter.protocol());
+    let client_protocol = adapter.protocol();
+    let has_native_endpoint = provider
+        .endpoints
+        .iter()
+        .any(|e| e.protocol == client_protocol && e.enabled);
+
+    let upstream_protocol = if has_native_endpoint {
+        client_protocol
+    } else {
+        endpoint_meta
+            .as_ref()
+            .and_then(|ep| ep.upstream_protocol.as_deref())
+            .unwrap_or(client_protocol)
+    };
 
     let endpoint_candidates = pick_endpoints_for_protocol(&provider, upstream_protocol);
 

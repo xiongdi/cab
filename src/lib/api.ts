@@ -22,6 +22,8 @@ import type {
   SyncCatalogResponse,
   Agent,
   UpdateAgent,
+  CheckUpdateResponse,
+  InstallUpdateResponse,
   RouteExplainRequest,
   RouteExplainResult,
   StrategyBoardRequest,
@@ -214,6 +216,12 @@ export const api = {
     getCatalogStatus: () => request<CatalogStatusResponse>('/settings/catalog-status'),
 
     syncCatalog: () => request<SyncCatalogResponse>('/settings/sync-catalog', { method: 'POST' }),
+  },
+
+  // ── Updates ────────────────────────────────────────────────
+  update: {
+    check: () => request<CheckUpdateResponse>('/update/check'),
+    install: () => request<InstallUpdateResponse>('/update/install', { method: 'POST' }),
   },
 
   // ── Agents ────────────────────────────────────────────────

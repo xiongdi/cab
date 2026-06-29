@@ -21,9 +21,86 @@ use serde_json::Value;
 
 /// Apply cache-friendly shaping to a request body destined for `endpoint_protocol`.
 pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
+    if let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) {
+        normalize_system_messages(messages);
+        if endpoint_protocol == "openai-chat" || endpoint_protocol == "openai-responses" {
+            realign_openai_system_prompt(messages);
+        }
+    }
     sort_tools(body);
     if endpoint_protocol == "anthropic" {
         inject_anthropic_cache_control(body);
+    }
+}
+
+fn normalize_system_messages(messages: &mut Vec<Value>) {
+    messages.retain(|msg| {
+        if let Some(role) = msg.get("role").and_then(Value::as_str) {
+            if role == "system" {
+                if let Some(content) = msg.get("content").and_then(Value::as_str) {
+                    if content.contains("x-anthropic-billing-header") {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    });
+}
+
+fn extract_dynamic_parts(content: &str) -> (String, Option<String>) {
+    let git_idx = content.find("gitStatus:");
+    let date_idx = content.find("# currentDate");
+
+    match (git_idx, date_idx) {
+        (Some(g), Some(d)) => {
+            let first = std::cmp::min(g, d);
+            let static_part = content[..first].trim().to_string();
+            let dynamic_part = content[first..].trim().to_string();
+            (static_part, Some(dynamic_part))
+        }
+        (Some(g), None) => {
+            let static_part = content[..g].trim().to_string();
+            let dynamic_part = content[g..].trim().to_string();
+            (static_part, Some(dynamic_part))
+        }
+        (None, Some(d)) => {
+            let static_part = content[..d].trim().to_string();
+            let dynamic_part = content[d..].trim().to_string();
+            (static_part, Some(dynamic_part))
+        }
+        (None, None) => (content.to_string(), None),
+    }
+}
+
+fn realign_openai_system_prompt(messages: &mut Vec<Value>) {
+    let mut target_idx = None;
+    let mut max_len = 0;
+
+    for (i, msg) in messages.iter().enumerate() {
+        if let Some(role) = msg.get("role").and_then(Value::as_str) {
+            if role == "system" {
+                if let Some(content) = msg.get("content").and_then(Value::as_str) {
+                    if content.len() > max_len {
+                        max_len = content.len();
+                        target_idx = Some(i);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(idx) = target_idx {
+        let content = messages[idx]["content"].as_str().unwrap().to_string();
+        let (static_part, dynamic_part) = extract_dynamic_parts(&content);
+        if let Some(dyn_part) = dynamic_part {
+            messages[idx]["content"] = Value::String(static_part);
+            let dyn_message = serde_json::json!({
+                "role": "system",
+                "content": dyn_part
+            });
+            messages.push(dyn_message);
+        }
     }
 }
 
@@ -226,5 +303,48 @@ mod tests {
         assert_eq!(tool_names(&body), vec!["a", "b"]);
         // system stays a plain string for non-anthropic endpoints.
         assert!(body["system"].is_string());
+    }
+
+    #[test]
+    fn test_normalize_system_messages() {
+        let mut body = json!({
+            "messages": [
+                { "role": "system", "content": "x-anthropic-billing-header: cc_version=2.1.141.b75; cc_entrypoint=sdk-cli; cch=835ab;" },
+                { "role": "system", "content": "You are a Claude agent." },
+                { "role": "user", "content": "Hello" }
+            ]
+        });
+
+        let messages = body["messages"].as_array_mut().unwrap();
+        normalize_system_messages(messages);
+
+        assert_eq!(body["messages"].as_array().unwrap().len(), 2);
+        assert_eq!(body["messages"][0]["content"], "You are a Claude agent.");
+        assert_eq!(body["messages"][1]["content"], "Hello");
+    }
+
+    #[test]
+    fn test_realign_openai_system_prompt() {
+        let mut messages = vec![
+            json!({
+                "role": "system",
+                "content": "You are a helpful assistant.\n\ngitStatus: modified files\n\n# currentDate\nToday's date is 2026/06/29."
+            }),
+            json!({
+                "role": "user",
+                "content": "Hello"
+            }),
+        ];
+
+        realign_openai_system_prompt(&mut messages);
+
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0]["content"], "You are a helpful assistant.");
+        assert_eq!(messages[1]["content"], "Hello");
+        assert_eq!(messages[2]["role"], "system");
+        assert_eq!(
+            messages[2]["content"],
+            "gitStatus: modified files\n\n# currentDate\nToday's date is 2026/06/29."
+        );
     }
 }

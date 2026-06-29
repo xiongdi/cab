@@ -466,3 +466,17 @@ export interface UsageSummary {
   by_model: Record<string, ModelUsageSummary>;
   by_agent: Record<string, AgentUsageSummary>;
 }
+
+export interface CheckUpdateResponse {
+  available: boolean;
+  current_version: string;
+  latest_version: string;
+  release_notes: string;
+  download_url: string | null;
+  published_at: string | null;
+}
+
+export interface InstallUpdateResponse {
+  success: boolean;
+  message: string;
+}
