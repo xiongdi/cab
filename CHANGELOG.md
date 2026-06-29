@@ -5,6 +5,14 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-06-29
+
+### Added
+
+- **Auto-Update & Check-Update**. Added background checking and one-click update installation on the Svelte dashboard, pulling release assets directly from GitHub releases.
+- **DeepSeek Prompt Cache Optimization & Realignment**. Added automatic extraction of dynamic parameters (`gitStatus` and `currentDate`) from the system prompt, appending them at the end of the messages history for OpenAI-compatible (DeepSeek) endpoints. This ensures the massive system prompt prefix is 100% static and hits the cache.
+- **Protocol Priority Routing**. Native client protocol matching takes first priority during endpoint resolution to avoid translation when native endpoints are available.
+
 ## [0.5.0] - 2026-06-26
 
 ### Added
