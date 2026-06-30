@@ -2,7 +2,7 @@
 name = "cab-gateway"
 version.workspace = true
 edition.workspace = true
-license.workspace = true
+license-file.workspace = true
 
 [dependencies]
 cab-core = { path = "../cab-core" }

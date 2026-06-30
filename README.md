@@ -118,4 +118,4 @@ Configure modes in the **Agents** page: **Native** (bypass CAB), **Auto** (routi
 
 ## License
 
-[MIT License](LICENSE)
+[Auditable Commercial License (ACL) v1.0](LICENSE)

@@ -64,34 +64,28 @@ fn select_asset(assets: &[GithubAsset]) -> Option<&GithubAsset> {
     for asset in assets {
         let name = asset.name.to_lowercase();
         match os {
-            "windows" => {
-                if name.ends_with(".msi") || name.ends_with(".exe") {
-                    if arch == "aarch64" && name.contains("arm64") {
-                        return Some(asset);
-                    } else if arch == "x86_64"
-                        && (name.contains("x64")
-                            || name.contains("amd64")
-                            || name.contains("setup"))
-                    {
-                        return Some(asset);
-                    }
-                }
+            "windows"
+                if (name.ends_with(".msi") || name.ends_with(".exe"))
+                    && ((arch == "aarch64" && name.contains("arm64"))
+                        || (arch == "x86_64"
+                            && (name.contains("x64")
+                                || name.contains("amd64")
+                                || name.contains("setup")))) =>
+            {
+                return Some(asset);
             }
             "macos" => {
                 if name.ends_with(".dmg") || name.contains("universal") {
                     return Some(asset);
                 }
             }
-            "linux" => {
-                if name.ends_with(".deb") || name.ends_with(".appimage") {
-                    if arch == "aarch64" && name.contains("arm64") {
-                        return Some(asset);
-                    } else if arch == "x86_64"
-                        && (name.contains("amd64") || name.contains("x86_64"))
-                    {
-                        return Some(asset);
-                    }
-                }
+            "linux"
+                if (name.ends_with(".deb") || name.ends_with(".appimage"))
+                    && ((arch == "aarch64" && name.contains("arm64"))
+                        || (arch == "x86_64"
+                            && (name.contains("amd64") || name.contains("x86_64")))) =>
+            {
+                return Some(asset);
             }
             _ => {}
         }
@@ -101,20 +95,20 @@ fn select_asset(assets: &[GithubAsset]) -> Option<&GithubAsset> {
     for asset in assets {
         let name = asset.name.to_lowercase();
         match os {
-            "windows" => {
-                if name.ends_with(".msi") || name.ends_with(".exe") {
-                    return Some(asset);
-                }
+            "windows" if name.ends_with(".msi") || name.ends_with(".exe") => {
+                return Some(asset);
             }
             "macos" => {
                 if name.ends_with(".dmg") || name.ends_with(".tar.gz") {
                     return Some(asset);
                 }
             }
-            "linux" => {
-                if name.ends_with(".deb") || name.ends_with(".appimage") || name.ends_with(".rpm") {
-                    return Some(asset);
-                }
+            "linux"
+                if name.ends_with(".deb")
+                    || name.ends_with(".appimage")
+                    || name.ends_with(".rpm") =>
+            {
+                return Some(asset);
             }
             _ => {}
         }

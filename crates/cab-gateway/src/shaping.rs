@@ -35,16 +35,12 @@ pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
 
 fn normalize_system_messages(messages: &mut Vec<Value>) {
     messages.retain(|msg| {
-        if let Some(role) = msg.get("role").and_then(Value::as_str) {
-            if role == "system" {
-                if let Some(content) = msg.get("content").and_then(Value::as_str) {
-                    if content.contains("x-anthropic-billing-header") {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
+        let is_target = msg.get("role").and_then(Value::as_str) == Some("system")
+            && msg
+                .get("content")
+                .and_then(Value::as_str)
+                .is_some_and(|c| c.contains("x-anthropic-billing-header"));
+        !is_target
     });
 }
 
@@ -78,14 +74,14 @@ fn realign_openai_system_prompt(messages: &mut Vec<Value>) {
     let mut max_len = 0;
 
     for (i, msg) in messages.iter().enumerate() {
-        if let Some(role) = msg.get("role").and_then(Value::as_str) {
-            if role == "system" {
-                if let Some(content) = msg.get("content").and_then(Value::as_str) {
-                    if content.len() > max_len {
-                        max_len = content.len();
-                        target_idx = Some(i);
-                    }
-                }
+        if msg.get("role").and_then(Value::as_str) == Some("system") {
+            let len = msg
+                .get("content")
+                .and_then(Value::as_str)
+                .map_or(0, |c| c.len());
+            if len > max_len {
+                max_len = len;
+                target_idx = Some(i);
             }
         }
     }
