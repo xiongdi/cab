@@ -30,3 +30,6 @@ src-tauri/gen/
 .sisyphus/
 .xdg/
 crates/cab-server/reports/
+
+# Generated package manifests
+dist/

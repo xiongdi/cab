@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json
+
+PackageIdentifier: xiongdi.cab
+PackageVersion: 0.5.1
+PackageName: CAB
+Publisher: xiongdi
+License: Auditable Commercial License v1.0
+ShortDescription: Coding Agents Bridge - Local LLM Gateway Router for Coding Agent CLIs
+Moniker: cab
+Tags:
+  - gateway
+  - llm
+  - coding-agents
+  - tauri
+Installers:
+  - Architecture: x64
+    InstallerType: wix
+    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.5.1/cab-desktop_0.5.1_x64_en-US.msi
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000 # Replace with actual MSI checksum on release
+    ProductCode: '{00000000-0000-0000-0000-000000000000}' # Replace with actual product code on release
+ManifestType: singleton
+ManifestVersion: 1.6.0

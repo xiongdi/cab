@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "cab-server"
 path = "src/main.rs"
 
+[[bin]]
+name = "cabd"
+path = "src/cabd.rs"
+
 [dependencies]
 cab-core = { path = "../cab-core" }
 cab-db = { path = "../cab-db" }

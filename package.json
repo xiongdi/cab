@@ -23,7 +23,9 @@
     "test:unit": "vp test",
     "tauri": "tauri",
     "tauri:dev": "npm run tauri -- dev",
-    "tauri:start": "npm run build && npm run tauri -- dev --no-dev-server"
+    "tauri:start": "npm run build && npm run tauri -- dev --no-dev-server",
+    "install:cli": "./scripts/install-cli.sh",
+    "generate-manifests": "node scripts/generate-manifests.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0"

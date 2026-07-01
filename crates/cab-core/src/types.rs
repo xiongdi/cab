@@ -99,7 +99,7 @@ pub struct CreateProvider {
     pub model_count: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdateProvider {
     pub name: Option<String>,
     pub endpoints: Option<Vec<ProviderEndpoint>>,
@@ -505,7 +505,7 @@ pub struct Agent {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UpdateAgent {
     pub mode: Option<String>,
     pub model_id: Option<Option<String>>,

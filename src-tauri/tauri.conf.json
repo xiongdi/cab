@@ -1,12 +1,12 @@
 {
-  "productName": "CAB",
+  "productName": "cab-desktop",
   "version": "0.5.1",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build"
+    "beforeBuildCommand": "node ../scripts/pre-build.js"
   },
   "app": {
     "withGlobalTauri": true,
@@ -28,6 +28,15 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": ["../resources/bin/*"],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/bin/cab": "../target/release/cab",
+          "/usr/bin/cabd": "../target/release/cabd"
+        }
+      }
+    },
     "windows": {
       "wix": {
         "language": {
