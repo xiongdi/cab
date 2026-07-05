@@ -89,10 +89,7 @@ async fn sync_models_dev_json(
             cache_path.display()
         );
     } else {
-        tracing::info!(
-            "Cached models.dev catalog to {}",
-            cache_path.display()
-        );
+        tracing::info!("Cached models.dev catalog to {}", cache_path.display());
     }
 
     tracing::info!("Downloaded models.dev data from {url}",);
@@ -186,10 +183,7 @@ pub async fn sync_artificial_analysis_catalog(
     if let Some(parent) = cache_path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    if let Err(e) = std::fs::write(
-        &cache_path,
-        serde_json::to_vec(&file).unwrap_or_default(),
-    ) {
+    if let Err(e) = std::fs::write(&cache_path, serde_json::to_vec(&file).unwrap_or_default()) {
         tracing::warn!(
             "Failed to write Artificial Analysis cache to {}: {e}",
             cache_path.display()
