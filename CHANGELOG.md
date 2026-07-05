@@ -5,6 +5,22 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-05
+
+### Added
+
+- **`cab` CLI + `cabd` daemon**. New cross-platform service controls for managing the CAB gateway as a background daemon. On macOS: LaunchAgent plist (`~/Library/LaunchAgents/com.cab.daemon.plist`) with `launchctl` integration. On Windows: Windows Service via `cabd start/stop/restart/service`. On Linux: systemd user service (`~/.config/systemd/user/cab-daemon.service`). The `cab` CLI wraps all daemon lifecycle commands.
+- **Homebrew & WinGet packaging manifests**. CAB is now installable via `brew tap xiongdi/cab && brew install cab` (macOS/Linux) and WinGet (Windows). See `homebrew/cab.rb` and `winget/` in the repo root for source.
+- **Docker deployment support**. New `Dockerfile` and `docker-compose.yml` for containerized headless gateway deployment.
+
+### Changed
+
+- **License updated to Auditable Commercial License (ACL) v1.0** — a commercial source-available license with audit rights for licensees. See `LICENSE` for full terms.
+
+### Fixed
+
+- **CI clippy + formatting warnings resolved**. All workspace targets now pass `cargo clippy -- -D warnings` and `cargo fmt --check` cleanly.
+
 ## [0.5.1] - 2026-06-29
 
 ### Added

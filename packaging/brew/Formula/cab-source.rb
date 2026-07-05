@@ -1,7 +1,7 @@
 class Cab < Formula
   desc "Coding Agents Bridge - Local LLM Gateway Router for Coding Agent CLIs"
   homepage "https://github.com/xiongdi/cab"
-  url "https://github.com/xiongdi/cab/archive/refs/tags/v0.5.1.tar.gz"
+  url "https://github.com/xiongdi/cab/archive/refs/tags/v0.6.0.tar.gz"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with source tarball checksum on release
   license "ACL-1.0"
 

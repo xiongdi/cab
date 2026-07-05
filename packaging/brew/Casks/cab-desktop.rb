@@ -1,5 +1,5 @@
 cask "cab-desktop" do
-  version "0.5.1"
+  version "0.6.0"
   sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with actual DMG checksum on release
 
   url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-desktop_#{version}_universal.dmg"

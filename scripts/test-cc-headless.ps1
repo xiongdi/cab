@@ -42,7 +42,7 @@ if (-not (Test-Path $claude)) {
 Write-Host "=== CC headless real test ==="
 Write-Host "Gateway: http://localhost:${GatewayPort} | Model: $Model"
 
-$null = Invoke-WebRequest -Uri "$Base/api/dashboard/stats" -Headers @{ Authorization = "Bearer $key" } -TimeoutSec 30
+$null = Invoke-RestMethod -Uri "$Base/api/dashboard/stats" -Headers @{ Authorization = "Bearer $key" } -TimeoutSec 30
 Write-Host "Gateway health: OK"
 
 try {
@@ -78,7 +78,7 @@ $psi.Arguments = "-p `"$Prompt`" --model `"$Model`" --max-turns 3"
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
 $psi.UseShellExecute = $false
-$psi.StandardInputEncoding = [Text.Encoding]::UTF8
+try { $psi.StandardInputEncoding = [Text.Encoding]::UTF8 } catch {}
 $psi.RedirectStandardInput = $true
 
 $p = [System.Diagnostics.Process]::Start($psi)

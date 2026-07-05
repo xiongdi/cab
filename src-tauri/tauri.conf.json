@@ -1,6 +1,6 @@
 {
   "productName": "cab-desktop",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",

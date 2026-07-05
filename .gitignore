@@ -30,6 +30,10 @@ src-tauri/gen/
 .sisyphus/
 .xdg/
 crates/cab-server/reports/
+scratch/
+
+# IDE / editor config (local)
+.cursor/
 
 # Generated package manifests
 dist/

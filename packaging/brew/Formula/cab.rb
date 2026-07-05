@@ -1,7 +1,7 @@
 class Cab < Formula
   desc "Coding Agents Bridge - Local LLM Gateway Router for Coding Agent CLIs"
   homepage "https://github.com/xiongdi/cab"
-  version "0.5.1"
+  version "0.6.0"
   license "ACL-1.0"
 
   if OS.mac?
