@@ -121,7 +121,7 @@ fn open_installer(file_path: &std::path::Path) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("cmd")
-            .args(&["/c", "start", "", &file_path.to_string_lossy()])
+            .args(["/c", "start", "", &file_path.to_string_lossy()])
             .spawn()?;
     }
     #[cfg(target_os = "macos")]

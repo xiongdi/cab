@@ -814,9 +814,10 @@ fn get_log_file_path() -> Result<PathBuf, String> {
 fn install_service() -> Result<(), String> {
     let executable_path = get_cabd_executable_path()?;
     let working_dir = get_working_dir()?;
-    let _home = std::env::var("HOME")
+    let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "Home directory not set".to_string())?;
+    let _ = home;
 
     #[cfg(target_os = "linux")]
     {
@@ -938,9 +939,10 @@ fn install_service() -> Result<(), String> {
 }
 
 fn uninstall_service() -> Result<(), String> {
-    let _home = std::env::var("HOME")
+    let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "Home not set".to_string())?;
+    let _ = home;
 
     #[cfg(target_os = "linux")]
     {

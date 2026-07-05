@@ -3,6 +3,7 @@ name = "cab-server"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
+default-run = "cab-server"
 
 [lib]
 name = "cab_server"
