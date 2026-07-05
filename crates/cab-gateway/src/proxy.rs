@@ -10,11 +10,14 @@ use reqwest::Client;
 ///
 /// For streaming requests, the upstream SSE stream is piped through directly.
 /// For non-streaming, the full response body is returned.
+///
+/// Auth uses `Authorization: Bearer <api_key>` per the HTTP authentication
+/// standard. Both OpenAI and Anthropic APIs accept this scheme.
 pub async fn proxy_request(
     client: &Client,
     upstream_url: &str,
     api_key: &str,
-    protocol: &str,
+    _protocol: &str,
     body: Bytes,
     headers: &HeaderMap,
     stream: bool,
@@ -30,25 +33,16 @@ pub async fn proxy_request(
 
     // Set authorization header
     if !api_key.is_empty() {
-        // Check if we need x-api-key (Anthropic style) or Bearer (OpenAI style)
-        if protocol == "anthropic" {
-            req = req.header("x-api-key", api_key);
-            // Forward anthropic-version if present, or set default
-            if let Some(v) = headers.get("anthropic-version") {
-                req = req.header("anthropic-version", v);
-            } else {
-                req = req.header("anthropic-version", "2023-06-01");
-            }
-        } else {
-            req = req.header("authorization", format!("Bearer {api_key}"));
+        req = req.header("authorization", format!("Bearer {api_key}"));
+
+        // Forward anthropic-version if the client sent it
+        if let Some(v) = headers.get("anthropic-version") {
+            req = req.header("anthropic-version", v);
         }
     } else {
         // Pass through existing auth headers from the client
         if let Some(auth) = headers.get("authorization") {
             req = req.header("authorization", auth);
-        }
-        if let Some(xkey) = headers.get("x-api-key") {
-            req = req.header("x-api-key", xkey);
         }
         if let Some(xkey) = headers.get("x-goog-api-key") {
             req = req.header("x-goog-api-key", xkey);
@@ -252,7 +246,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn proxy_request_sets_anthropic_auth_and_version() {
+    async fn proxy_request_uses_bearer_for_all_protocols() {
         let server = spawn_router(Router::new().route("/post", post(echo_post))).await;
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -261,6 +255,7 @@ mod tests {
         );
         headers.insert("anthropic-version", HeaderValue::from_static("2024-01-01"));
 
+        // anthropic protocol — Bearer auth, anthropic-version forwarded
         let response = proxy_request(
             &Client::new(),
             &format!("{}/post", server.base_url),
@@ -274,17 +269,17 @@ mod tests {
         .unwrap();
         let json = json_from_response(response).await;
 
-        assert_eq!(json["x_api_key"], "anthropic-key");
+        assert_eq!(json["authorization"], "Bearer anthropic-key");
+        assert_eq!(json["x_api_key"], serde_json::Value::Null);
         assert_eq!(json["anthropic_version"], "2024-01-01");
         assert_eq!(json["content_type"], "application/custom+json");
     }
 
     #[tokio::test]
-    async fn proxy_request_defaults_anthropic_version_and_passes_existing_auth_without_key() {
+    async fn proxy_request_passes_through_auth_when_no_key() {
         let server = spawn_router(Router::new().route("/post", post(echo_post))).await;
         let mut headers = HeaderMap::new();
         headers.insert("authorization", HeaderValue::from_static("Bearer existing"));
-        headers.insert("x-api-key", HeaderValue::from_static("x-existing"));
         headers.insert("x-goog-api-key", HeaderValue::from_static("goog-existing"));
 
         let response = proxy_request(
@@ -301,15 +296,14 @@ mod tests {
         let json = json_from_response(response).await;
 
         assert_eq!(json["authorization"], "Bearer existing");
-        assert_eq!(json["x_api_key"], "x-existing");
         assert_eq!(json["x_goog_api_key"], "goog-existing");
-        assert_eq!(json["anthropic_version"], serde_json::Value::Null);
 
+        // Without an API key, no default anthropic-version is set
         let response = proxy_request(
             &Client::new(),
             &format!("{}/post", server.base_url),
-            "anthropic-key",
-            "anthropic",
+            "key",
+            "openai-chat",
             Bytes::from_static(br#"{"message":"hi"}"#),
             &HeaderMap::new(),
             false,
@@ -317,7 +311,8 @@ mod tests {
         .await
         .unwrap();
         let json = json_from_response(response).await;
-        assert_eq!(json["anthropic_version"], "2023-06-01");
+        assert_eq!(json["authorization"], "Bearer key");
+        assert_eq!(json["anthropic_version"], serde_json::Value::Null);
     }
 
     #[tokio::test]

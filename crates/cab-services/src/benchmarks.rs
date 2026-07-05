@@ -2,8 +2,8 @@ use cab_core::CabError;
 use cab_core::benchmark_catalog::{
     BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
     artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
-    load_artificial_analysis_catalog, models_dev_catalog_url, refresh_aa_model_map_exact_matches,
-    resolve_artificial_analysis_api_key,
+    load_artificial_analysis_catalog, models_dev_catalog_path, models_dev_catalog_url,
+    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
@@ -75,6 +75,25 @@ async fn sync_models_dev_json(
             "Failed to parse models.dev response from {url}: {e}"
         ))
     })?;
+
+    // Persist to disk so catalog-status `synced_at` (derived from file mtime)
+    // reflects the actual last-sync time and so the file serves as an offline
+    // cache for subsequent startups when the network is unavailable.
+    let cache_path = models_dev_catalog_path();
+    if let Some(parent) = cache_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Err(e) = std::fs::write(&cache_path, serde_json::to_vec(&json).unwrap_or_default()) {
+        tracing::warn!(
+            "Failed to write models.dev catalog cache to {}: {e}",
+            cache_path.display()
+        );
+    } else {
+        tracing::info!(
+            "Cached models.dev catalog to {}",
+            cache_path.display()
+        );
+    }
 
     tracing::info!("Downloaded models.dev data from {url}",);
     Ok(json)
@@ -160,6 +179,27 @@ pub async fn sync_artificial_analysis_catalog(
         "Synced {} Artificial Analysis benchmark records",
         file.models.len(),
     );
+
+    // Persist to disk so catalog-status synced_at reflects actual sync time
+    // and so the data survives restarts without re-downloading.
+    let cache_path = artificial_analysis_models_path();
+    if let Some(parent) = cache_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Err(e) = std::fs::write(
+        &cache_path,
+        serde_json::to_vec(&file).unwrap_or_default(),
+    ) {
+        tracing::warn!(
+            "Failed to write Artificial Analysis cache to {}: {e}",
+            cache_path.display()
+        );
+    } else {
+        tracing::info!(
+            "Cached Artificial Analysis benchmarks to {}",
+            cache_path.display()
+        );
+    }
 
     if let Err(e) = ensure_aa_model_map_file() {
         tracing::warn!("Failed to seed AA model map: {e}");

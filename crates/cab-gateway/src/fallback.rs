@@ -273,7 +273,7 @@ pub async fn execute_with_fallback(
                         retry_after: _,
                     }) if status == 400 => {
                         tracing::warn!(
-                            "Provider {} endpoint {} returned 400 for model {}: {body}",
+                            "Provider {} endpoint {} returned {status} for model {}: {body}",
                             resolved.provider_name,
                             endpoint.url,
                             resolved.model.name

@@ -5,6 +5,16 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-07-05
+
+### Changed
+
+- **Unified upstream auth to `Authorization: Bearer`**. Removed the `x-api-key` header for Anthropic-protocol endpoints. Both official Anthropic and OpenAI APIs accept Bearer authentication, and third-party proxies (LongCat, etc.) universally support it. The gateway no longer discriminates auth headers by protocol.
+
+### Fixed
+
+- **Catalog sync `synced_at` timestamps stuck at first sync**. The models.dev and Artificial Analysis sync functions downloaded and processed catalog data entirely in memory without writing back to the disk cache. The `synced_at` field (derived from file mtime or embedded timestamp) never advanced beyond the initial write. Both sync paths now persist the downloaded data to `~/.cab/catalog/` after each successful sync, fixing the stuck timestamps and providing an offline cache for subsequent startups.
+
 ## [0.6.0] - 2026-07-05
 
 ### Added
