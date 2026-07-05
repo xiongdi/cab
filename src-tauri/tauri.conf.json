@@ -6,7 +6,7 @@
     "frontendDist": "../build",
     "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "node -e \"const fs = require('fs'); const path = require('path'); const url = require('url'); const script = fs.existsSync('./scripts/pre-build.js') ? './scripts/pre-build.js' : '../scripts/pre-build.js'; import(url.pathToFileURL(path.resolve(script)));\""
+    "beforeBuildCommand": "npm run tauri:pre-build"
   },
   "app": {
     "withGlobalTauri": true,

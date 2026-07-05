@@ -25,7 +25,8 @@
     "tauri:dev": "npm run tauri -- dev",
     "tauri:start": "npm run build && npm run tauri -- dev --no-dev-server",
     "install:cli": "./scripts/install-cli.sh",
-    "generate-manifests": "node scripts/generate-manifests.js"
+    "generate-manifests": "node scripts/generate-manifests.js",
+    "tauri:pre-build": "node scripts/pre-build.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0"
