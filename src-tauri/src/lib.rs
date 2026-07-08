@@ -1,7 +1,81 @@
+use std::path::PathBuf;
+use std::process::Command;
 use tauri::Manager;
 use tracing_subscriber::EnvFilter;
 
 struct PortState(std::sync::Mutex<u16>);
+
+/// Find the cab-cli binary bundled with the app, searching:
+/// 1. Next to the current executable (Windows, AppImage)
+/// 2. In the Tauri resource directory (macOS bundle)
+/// 3. Falls back to the bare name (let OS search $PATH — Linux DEB)
+fn find_cab_cli(app: &tauri::AppHandle) -> PathBuf {
+    let bin_name = if cfg!(target_os = "windows") {
+        "cab-cli.exe"
+    } else {
+        "cab-cli"
+    };
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join(bin_name);
+            if candidate.exists() {
+                return candidate;
+            }
+        }
+    }
+
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let candidate = resource_dir.join(bin_name);
+        if candidate.exists() {
+            return candidate;
+        }
+    }
+
+    PathBuf::from(bin_name)
+}
+
+/// Auto-install and start the cab-srv daemon service on first launch.
+/// Uses a marker file (~/.cab/.daemon_installed) to avoid running every time.
+fn auto_install_daemon(app: &tauri::AppHandle) {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_default();
+    let marker = PathBuf::from(&home).join(".cab").join(".daemon_installed");
+
+    if marker.exists() {
+        return;
+    }
+
+    let cab_cli = find_cab_cli(app);
+    tracing::info!("First launch: installing daemon service via {:?}", cab_cli);
+
+    match Command::new(&cab_cli)
+        .arg("service")
+        .arg("install")
+        .output()
+    {
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            if out.status.success() {
+                tracing::info!("Daemon service installed successfully");
+                if let Some(parent) = marker.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::write(&marker, "installed");
+
+                if let Err(e) = Command::new(&cab_cli).arg("start").output() {
+                    tracing::warn!("Failed to start daemon: {e}");
+                } else {
+                    tracing::info!("Daemon service started");
+                }
+            } else {
+                tracing::warn!("Daemon service install failed: {stderr}");
+            }
+        }
+        Err(e) => tracing::warn!("Failed to run cab-cli service install: {e}"),
+    }
+}
 
 #[tauri::command]
 fn get_gateway_port(state: tauri::State<'_, PortState>) -> u16 {
@@ -143,6 +217,11 @@ pub fn run() {
                 }
             }
 
+            // Auto-install daemon service on first launch (fire-and-forget)
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                auto_install_daemon(&app_handle);
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![get_gateway_port])

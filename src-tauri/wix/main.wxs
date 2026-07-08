@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <!-- Add install directory to system PATH so cab-cli is available in terminal -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="cabi_PathEnv" Guid="*">
+        <Environment
+          Id="cabi_PATH"
+          Name="PATH"
+          Value="[INSTALLDIR]"
+          Permanent="no"
+          Part="last"
+          Action="set"
+          System="yes" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

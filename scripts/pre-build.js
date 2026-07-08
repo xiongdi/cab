@@ -29,10 +29,16 @@ if (!existsSync(resourcesBinDir)) {
   mkdirSync(resourcesBinDir, { recursive: true });
 }
 
-// 4. Copy the compiled binaries to resources/bin
+// 4. Determine cargo output directory (handles cross-compilation targets)
+const cargoTarget = process.env.CAB_CARGO_TARGET || '';
+const targetDir = cargoTarget
+  ? join(ROOT, 'target', cargoTarget, 'release')
+  : join(ROOT, 'target', 'release');
+
+// 5. Copy the compiled binaries to resources/bin
 const ext = IS_WINDOWS ? '.exe' : '';
-const cabSrc = join(ROOT, 'target', 'release', `cab-cli${ext}`);
-const cabSrvSrc = join(ROOT, 'target', 'release', `cab-srv${ext}`);
+const cabSrc = join(targetDir, `cab-cli${ext}`);
+const cabSrvSrc = join(targetDir, `cab-srv${ext}`);
 const cabDst = join(resourcesBinDir, `cab-cli${ext}`);
 const cabSrvDst = join(resourcesBinDir, `cab-srv${ext}`);
 
