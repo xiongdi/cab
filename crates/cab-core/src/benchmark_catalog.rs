@@ -331,9 +331,12 @@ pub fn load_artificial_analysis_catalog() -> Option<BenchmarkCatalog> {
 
 impl BenchmarkCatalog {
     pub fn from_file(file: BenchmarkCatalogFile) -> Self {
-        let synced_at = Some(file.synced_at);
+        Self::from_records(file.models, Some(file.synced_at))
+    }
+
+    /// Build a BenchmarkCatalog from a list of records (e.g. loaded from SQLite).
+    pub fn from_records(records: Vec<BenchmarkModelRecord>, synced_at: Option<String>) -> Self {
         let mut by_key = HashMap::new();
-        let records = file.models;
         for model in &records {
             for key in index_keys_for_record(model) {
                 by_key.entry(key).or_insert_with(|| model.clone());

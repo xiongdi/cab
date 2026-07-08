@@ -477,7 +477,10 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
     if let Err(e) = cab_core::refresh_aa_model_map_exact_matches() {
         tracing::warn!("Failed to refresh AA model map: {e}");
     }
-    let benchmark_catalog = cab_core::load_artificial_analysis_catalog();
+    let benchmark_catalog = pool
+        .sqlite()
+        .and_then(|p| p.get().ok())
+        .and_then(|conn| cab_db::sqlite::load_aa_benchmark_catalog(&conn));
     let aa_map = cab_core::load_aa_model_map();
 
     let providers_data: std::collections::HashMap<String, ModelsDevProvider> =

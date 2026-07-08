@@ -34,3 +34,9 @@
 4. 智能体
 5. 路由
 6. 设置
+
+# 离线版的OpenRouter
+
+1. 去掉workspace的概念
+2. 全部是BYOK
+3. 总体上来说是一个离线版的简化版的openrouter

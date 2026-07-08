@@ -4,8 +4,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkModelRecord, load_aa_model_map, load_artificial_analysis_catalog,
-    load_models_dev_catalog_file,
+    BenchmarkModelRecord, load_aa_model_map, load_models_dev_catalog_file,
 };
 use cab_core::types::{CreateModel, ModelUserSettings, UpdateModel};
 use serde::{Deserialize, Serialize};
@@ -35,7 +34,11 @@ pub async fn list_model_catalog(
     let models_dev_map: std::collections::HashMap<String, serde_json::Value> =
         serde_json::from_value(catalog.models)
             .map_err(|e| CabError::Database(format!("Failed to parse models.dev models: {e}")))?;
-    let aa_catalog = load_artificial_analysis_catalog();
+    let aa_catalog = state
+        .pool
+        .sqlite()
+        .and_then(|p| p.get().ok())
+        .and_then(|conn| cab_db::sqlite::load_aa_benchmark_catalog(&conn));
     let aa_map = load_aa_model_map();
 
     let mut entries: Vec<ModelCatalogEntry> = db_models

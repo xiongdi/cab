@@ -10,7 +10,7 @@ use serde_json;
 
 use crate::endpoint::ModelEndpoint;
 
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 3;
 
 pub fn db_path() -> PathBuf {
     let home = std::env::var("HOME")
@@ -172,6 +172,14 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
 
          CREATE INDEX IF NOT EXISTS idx_catalog_models_provider ON catalog_models(provider_id);
          CREATE INDEX IF NOT EXISTS idx_model_endpoints_model ON model_endpoints(model_id);
+
+         -- v3: Artificial Analysis benchmark records
+         CREATE TABLE IF NOT EXISTS aa_benchmark_records (
+             slug TEXT PRIMARY KEY,
+             data TEXT NOT NULL,
+             synced_at TEXT NOT NULL
+         );
+         CREATE INDEX IF NOT EXISTS idx_aa_records_synced_at ON aa_benchmark_records(synced_at);
          ",
     )
     .map_err(|e| format!("Schema init failed: {e}"))?;
@@ -205,7 +213,12 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
         }
         Some(v) if v < SCHEMA_VERSION => {
             // Run migrations sequentially
-            migrate_v1_to_v2(conn)?;
+            if v < 2 {
+                migrate_v1_to_v2(conn)?;
+            }
+            if v < 3 {
+                migrate_v2_to_v3(conn)?;
+            }
         }
         _ => {}
     }
@@ -294,10 +307,178 @@ fn import_catalog_from_json_cache(conn: &Connection) -> Result<(), String> {
 
     Ok(())
 }
+fn migrate_v2_to_v3(conn: &Connection) -> Result<(), String> {
+    tracing::info!("Migrating schema from v2 to v3: importing AA benchmarks into SQLite");
+
+    // Try to import from existing JSON cache file first
+    if let Err(e) = import_aa_from_json_cache(conn) {
+        tracing::warn!("AA benchmark import from JSON cache (optional): {e}");
+    }
+
+    // If still empty, seed from embedded snapshot
+    seed_aa_benchmarks_if_empty(conn)?;
+
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
+        rusqlite::params![SCHEMA_VERSION],
+    )
+    .map_err(|e| format!("Failed to update schema version: {e}"))?;
+
+    tracing::info!("Schema migration v2 → v3 complete");
+    Ok(())
+}
+
+/// Embedded AA benchmark seed (minified JSON of a BenchmarkCatalogFile snapshot).
+/// Bundled at build time so users without an AA API key still get benchmark data.
+const EMBEDDED_AA_BENCHMARKS_SEED: &str = include_str!("../../../config/aa-benchmarks-seed.json");
+
+/// Import existing ~/.cab/catalog/artificial-analysis/models.json into the
+/// aa_benchmark_records table. No-op if table already has data or file missing.
+fn import_aa_from_json_cache(conn: &Connection) -> Result<(), String> {
+    let has_data: bool = conn
+        .query_row("SELECT COUNT(*) > 0 FROM aa_benchmark_records", [], |row| {
+            row.get(0)
+        })
+        .unwrap_or(false);
+    if has_data {
+        return Ok(());
+    }
+
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| ".".to_string());
+    let aa_path = PathBuf::from(home)
+        .join(".cab")
+        .join("catalog")
+        .join("artificial-analysis")
+        .join("models.json");
+
+    if !aa_path.exists() {
+        return Ok(());
+    }
+
+    let content =
+        std::fs::read_to_string(&aa_path).map_err(|e| format!("Read {aa_path:?}: {e}"))?;
+    let file: cab_core::benchmark_catalog::BenchmarkCatalogFile =
+        serde_json::from_str(&content).map_err(|e| format!("Parse AA models.json: {e}"))?;
+
+    let synced_at = file.synced_at.clone();
+    let count = file.models.len();
+    save_aa_benchmarks_inner(conn, &file.models, &synced_at)?;
+
+    tracing::info!("Imported {count} AA benchmark records from JSON cache");
+    Ok(())
+}
+
+/// Seed aa_benchmark_records from the embedded snapshot if the table is empty.
+fn seed_aa_benchmarks_if_empty(conn: &Connection) -> Result<(), String> {
+    let has_data: bool = conn
+        .query_row("SELECT COUNT(*) > 0 FROM aa_benchmark_records", [], |row| {
+            row.get(0)
+        })
+        .unwrap_or(false);
+    if has_data {
+        return Ok(());
+    }
+
+    let file: cab_core::benchmark_catalog::BenchmarkCatalogFile =
+        serde_json::from_str(EMBEDDED_AA_BENCHMARKS_SEED)
+            .map_err(|e| format!("Failed to parse embedded AA seed: {e}"))?;
+
+    let synced_at = file.synced_at.clone();
+    let count = file.models.len();
+    save_aa_benchmarks_inner(conn, &file.models, &synced_at)?;
+
+    tracing::info!("Seeded {count} AA benchmark records from embedded snapshot");
+    Ok(())
+}
 
 // ---------------------------------------------------------------------------
-// Catalog Providers CRUD
+// AA Benchmark Records CRUD
 // ---------------------------------------------------------------------------
+
+/// Save AA benchmark records to the database, replacing all existing records.
+fn save_aa_benchmarks_inner(
+    conn: &Connection,
+    records: &[cab_core::benchmark_catalog::BenchmarkModelRecord],
+    synced_at: &str,
+) -> Result<(), String> {
+    let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM aa_benchmark_records", [])
+        .map_err(|e| e.to_string())?;
+    for record in records {
+        let data = serde_json::to_string(record).map_err(|e| e.to_string())?;
+        tx.execute(
+            "INSERT INTO aa_benchmark_records (slug, data, synced_at) VALUES (?1, ?2, ?3)",
+            rusqlite::params![record.slug, data, synced_at],
+        )
+        .map_err(|e| format!("Insert AA record {}: {e}", record.slug))?;
+    }
+    tx.commit()
+        .map_err(|e| format!("Commit AA benchmarks: {e}"))?;
+    Ok(())
+}
+
+/// Public API: replace all AA benchmark records.
+pub fn save_aa_benchmarks(
+    conn: &Connection,
+    records: &[cab_core::benchmark_catalog::BenchmarkModelRecord],
+    synced_at: &str,
+) -> Result<(), String> {
+    save_aa_benchmarks_inner(conn, records, synced_at)
+}
+
+/// Load all AA benchmark records from the database.
+/// Returns (records, synced_at). synced_at is the value from the last record
+/// (all records share the same synced_at after a full sync).
+pub fn load_aa_benchmarks(
+    conn: &Connection,
+) -> Result<
+    (
+        Vec<cab_core::benchmark_catalog::BenchmarkModelRecord>,
+        Option<String>,
+    ),
+    String,
+> {
+    let mut stmt = conn
+        .prepare("SELECT slug, data, synced_at FROM aa_benchmark_records")
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([], |row| {
+            let _slug: String = row.get(0)?;
+            let data: String = row.get(1)?;
+            let synced_at: String = row.get(2)?;
+            Ok((data, synced_at))
+        })
+        .map_err(|e| e.to_string())?;
+    let mut records = Vec::new();
+    let mut synced_at = None;
+    for row in rows {
+        let (data, sa) = row.map_err(|e| e.to_string())?;
+        synced_at = Some(sa);
+        if let Ok(record) =
+            serde_json::from_str::<cab_core::benchmark_catalog::BenchmarkModelRecord>(&data)
+        {
+            records.push(record);
+        } else {
+            tracing::warn!("Skipping unparseable AA benchmark record");
+        }
+    }
+    Ok((records, synced_at))
+}
+
+/// Load AA benchmark records and build a BenchmarkCatalog.
+pub fn load_aa_benchmark_catalog(
+    conn: &Connection,
+) -> Option<cab_core::benchmark_catalog::BenchmarkCatalog> {
+    let (records, synced_at) = load_aa_benchmarks(conn).ok()?;
+    if records.is_empty() {
+        return None;
+    }
+    Some(cab_core::benchmark_catalog::BenchmarkCatalog::from_records(
+        records, synced_at,
+    ))
+}
 
 pub fn save_catalog_providers(
     conn: &Connection,

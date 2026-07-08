@@ -1,9 +1,9 @@
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
-    artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
-    load_artificial_analysis_catalog, models_dev_catalog_path, models_dev_catalog_url,
-    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
+    BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
+    artificial_analysis_models_url, ensure_aa_model_map_file, models_dev_catalog_path,
+    models_dev_catalog_url, refresh_aa_model_map_exact_matches,
+    resolve_artificial_analysis_api_key,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
@@ -107,15 +107,22 @@ pub async fn sync_artificial_analysis_catalog(
         resolve_artificial_analysis_api_key(settings.artificial_analysis_api_key.as_deref());
 
     let Some(api_key) = api_key else {
-        if load_artificial_analysis_catalog().is_some() {
-            tracing::info!(
-                "Using cached Artificial Analysis benchmarks from {}",
-                artificial_analysis_models_path().display()
-            );
-        } else {
-            tracing::warn!(
-                "Artificial Analysis API key missing; set settings.artificial_analysis_api_key or ARTIFICIAL_ANALYSIS_API_KEY to populate ~/.cab/catalog/artificial-analysis/models.json"
-            );
+        // Check if we already have AA data in SQLite (from seed or previous sync)
+        if let Some(sqlite_pool) = pool.sqlite()
+            && let Ok(conn) = sqlite_pool.get()
+        {
+            let has_data = conn
+                .query_row("SELECT COUNT(*) > 0 FROM aa_benchmark_records", [], |row| {
+                    row.get(0)
+                })
+                .unwrap_or(false);
+            if has_data {
+                tracing::info!("Using AA benchmark records from SQLite");
+            } else {
+                tracing::warn!(
+                    "Artificial Analysis API key missing; set settings.artificial_analysis_api_key or ARTIFICIAL_ANALYSIS_API_KEY to fetch fresh benchmarks. Using embedded snapshot."
+                );
+            }
         }
         return Ok(());
     };
@@ -166,33 +173,21 @@ pub async fn sync_artificial_analysis_catalog(
         })
         .collect::<Vec<_>>();
 
-    let file = BenchmarkCatalogFile {
-        source: "artificialanalysis.ai".to_string(),
-        synced_at: Utc::now().to_rfc3339(),
-        models,
-    };
-
     tracing::info!(
         "Synced {} Artificial Analysis benchmark records",
-        file.models.len(),
+        models.len(),
     );
 
-    // Persist to disk so catalog-status synced_at reflects actual sync time
-    // and so the data survives restarts without re-downloading.
-    let cache_path = artificial_analysis_models_path();
-    if let Some(parent) = cache_path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    if let Err(e) = std::fs::write(&cache_path, serde_json::to_vec(&file).unwrap_or_default()) {
-        tracing::warn!(
-            "Failed to write Artificial Analysis cache to {}: {e}",
-            cache_path.display()
-        );
-    } else {
-        tracing::info!(
-            "Cached Artificial Analysis benchmarks to {}",
-            cache_path.display()
-        );
+    // Persist to SQLite for durable storage across restarts
+    let synced_at = Utc::now().to_rfc3339();
+    if let Some(sqlite_pool) = pool.sqlite()
+        && let Ok(conn) = sqlite_pool.get()
+    {
+        if let Err(e) = cab_db::sqlite::save_aa_benchmarks(&conn, &models, &synced_at) {
+            tracing::warn!("Failed to save AA benchmarks to SQLite: {e}");
+        } else {
+            tracing::info!("Saved {} AA benchmark records to SQLite", models.len());
+        }
     }
 
     if let Err(e) = ensure_aa_model_map_file() {
