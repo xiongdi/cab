@@ -18,7 +18,7 @@ order: 1
 
 | 需求 ID                | 实现域                                        | 状态 |
 | ---------------------- | --------------------------------------------- | ---- |
-| REQ-CAB-001 统一网关   | `cab-gateway`, `cab-server`                   | 已有 |
+| REQ-CAB-001 统一网关   | `cab-gateway`, `cab-srv`                      | 已有 |
 | REQ-CAB-002 智能路由   | `cab-core/routing.rs`, `route_resolver.rs`    | 已有 |
 | REQ-CAB-003 提供商管理 | `cab-services/catalog.rs`                     | P1   |
 | REQ-CAB-004 订阅与 429 | `subscription_quota.rs`, `fallback.rs`        | 已有 |
@@ -31,7 +31,7 @@ order: 1
 
 ## 构建产物
 
-- Rust：`target/debug/cab-server` 或 release 二进制
+- Rust：`target/debug/cab-srv` 或 release 二进制
 - 前端：`build/`（SvelteKit adapter-static）
 - OpenAPI：`spec/src/content/docs/modules/openapi.yaml`
 - Tauri：平台安装包（`src-tauri`）

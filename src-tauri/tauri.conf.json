@@ -1,5 +1,5 @@
 {
-  "productName": "cab-desktop",
+  "productName": "cab-gui",
   "version": "0.6.0",
   "identifier": "com.cab.gateway",
   "build": {
@@ -32,8 +32,8 @@
     "linux": {
       "deb": {
         "files": {
-          "/usr/bin/cab": "../target/release/cab",
-          "/usr/bin/cabd": "../target/release/cabd"
+          "/usr/bin/cab-cli": "../target/release/cab-cli",
+          "/usr/bin/cab-srv": "../target/release/cab-srv"
         }
       }
     },

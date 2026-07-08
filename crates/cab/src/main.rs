@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 #[derive(Parser)]
-#[command(name = "cab", about = "Coding Agents Bridge CLI", version)]
+#[command(name = "cab-cli", about = "Coding Agents Bridge CLI", version)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -13,15 +13,15 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the cabd daemon service
+    /// Start the cab-srv daemon service
     Start,
-    /// Stop the cabd daemon service
+    /// Stop the cab-srv daemon service
     Stop,
-    /// Restart the cabd daemon service
+    /// Restart the cab-srv daemon service
     Restart,
-    /// Check the status of the cabd daemon and gateway
+    /// Check the status of the cab-srv daemon and gateway
     Status,
-    /// Show cabd daemon logs
+    /// Show cab-srv daemon logs
     Logs {
         /// Follow log output
         #[arg(short, long)]
@@ -95,9 +95,9 @@ enum ProviderCommands {
 
 #[derive(Subcommand)]
 enum ServiceCommands {
-    /// Install the cabd systemd user service
+    /// Install the cab-srv systemd user service
     Install,
-    /// Uninstall the cabd systemd user service
+    /// Uninstall the cab-srv systemd user service
     Uninstall,
 }
 
@@ -177,7 +177,7 @@ fn load_settings_from_db() -> Result<cab_core::types::Settings, String> {
     let path = cab_db::sqlite::db_path();
     if !path.exists() {
         return Err(
-            "CAB database does not exist. Please run 'cabd' or start the service to initialize."
+            "CAB database does not exist. Please run 'cab-srv' or start the service to initialize."
                 .to_string(),
         );
     }
@@ -210,21 +210,21 @@ fn api_client() -> Result<(reqwest::Client, String, u16), String> {
 fn start_daemon() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        println!("Starting cabd service...");
-        run_cmd("systemctl", &["--user", "start", "cabd"])
+        println!("Starting cab-srv service...");
+        run_cmd("systemctl", &["--user", "start", "cab-srv"])
     }
     #[cfg(target_os = "macos")]
     {
-        println!("Starting cabd service...");
+        println!("Starting cab-srv service...");
         let plist = get_launchd_plist_path()?;
         let plist_str = plist.to_string_lossy().to_string();
         run_cmd("launchctl", &["load", &plist_str])?;
-        run_cmd("launchctl", &["start", "com.cab.cabd"])
+        run_cmd("launchctl", &["start", "com.cab.cab-srv"])
     }
     #[cfg(target_os = "windows")]
     {
-        println!("Starting cabd background process...");
-        let executable_path = get_cabd_executable_path()?;
+        println!("Starting cab-srv background process...");
+        let executable_path = get_cab_srv_executable_path()?;
         let working_dir = get_working_dir()?;
 
         use std::os::windows::process::CommandExt;
@@ -233,9 +233,9 @@ fn start_daemon() -> Result<(), String> {
             .current_dir(&working_dir)
             .creation_flags(DETACHED_PROCESS)
             .spawn()
-            .map_err(|e| format!("Failed to spawn cabd background process: {e}"))?;
+            .map_err(|e| format!("Failed to spawn cab-srv background process: {e}"))?;
 
-        println!("cabd process started in the background.");
+        println!("cab-srv process started in the background.");
         Ok(())
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
@@ -247,21 +247,21 @@ fn start_daemon() -> Result<(), String> {
 fn stop_daemon() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
-        println!("Stopping cabd service...");
-        run_cmd("systemctl", &["--user", "stop", "cabd"])
+        println!("Stopping cab-srv service...");
+        run_cmd("systemctl", &["--user", "stop", "cab-srv"])
     }
     #[cfg(target_os = "macos")]
     {
-        println!("Stopping cabd service...");
+        println!("Stopping cab-srv service...");
         let plist = get_launchd_plist_path()?;
         let plist_str = plist.to_string_lossy().to_string();
-        let _ = run_cmd("launchctl", &["stop", "com.cab.cabd"]);
+        let _ = run_cmd("launchctl", &["stop", "com.cab.cab-srv"]);
         run_cmd("launchctl", &["unload", &plist_str])
     }
     #[cfg(target_os = "windows")]
     {
-        println!("Stopping cabd process...");
-        run_cmd("taskkill", &["/F", "/IM", "cabd.exe"])
+        println!("Stopping cab-srv process...");
+        run_cmd("taskkill", &["/F", "/IM", "cab-srv.exe"])
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
@@ -278,7 +278,7 @@ fn show_logs(follow: bool, lines: u32) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let lines_str = lines.to_string();
-        let mut args = vec!["--user", "-u", "cabd", "-n", &lines_str];
+        let mut args = vec!["--user", "-u", "cab-srv", "-n", &lines_str];
         if follow {
             args.push("-f");
         }
@@ -362,7 +362,7 @@ fn is_service_active() -> bool {
     #[cfg(target_os = "linux")]
     {
         let output = Command::new("systemctl")
-            .args(["--user", "is-active", "cabd"])
+            .args(["--user", "is-active", "cab-srv"])
             .output();
         match output {
             Ok(out) => {
@@ -378,7 +378,7 @@ fn is_service_active() -> bool {
         match output {
             Ok(out) => {
                 let list = String::from_utf8_lossy(&out.stdout);
-                list.contains("com.cab.cabd")
+                list.contains("com.cab.cab-srv")
             }
             Err(_) => false,
         }
@@ -386,12 +386,12 @@ fn is_service_active() -> bool {
     #[cfg(target_os = "windows")]
     {
         let output = Command::new("tasklist")
-            .args(["/FI", "IMAGENAME eq cabd.exe"])
+            .args(["/FI", "IMAGENAME eq cab-srv.exe"])
             .output();
         match output {
             Ok(out) => {
                 let list = String::from_utf8_lossy(&out.stdout);
-                list.contains("cabd.exe")
+                list.contains("cab-srv.exe")
             }
             Err(_) => false,
         }
@@ -426,7 +426,7 @@ async fn show_status() -> Result<(), String> {
     let api_alive = check_api_alive(port).await;
 
     println!(
-        "CAB Daemon (cabd.service): {}",
+        "CAB Daemon (cab-srv.service): {}",
         if service_active { "Active" } else { "Inactive" }
     );
     println!("HTTP Gateway Port: {}", port);
@@ -750,32 +750,22 @@ fn get_launchd_plist_path() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home)
         .join("Library")
         .join("LaunchAgents")
-        .join("com.cab.cabd.plist"))
+        .join("com.cab.cab-srv.plist"))
 }
 
-fn get_cabd_executable_path() -> Result<PathBuf, String> {
+fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
     let current_exe = std::env::current_exe()
         .map_err(|e| format!("Failed to determine current executable path: {e}"))?;
     let current_dir = current_exe.parent().unwrap();
 
-    let cabd_target_name = if cfg!(target_os = "windows") {
-        "cabd.exe"
+    let srv_target_name = if cfg!(target_os = "windows") {
+        "cab-srv.exe"
     } else {
-        "cabd"
+        "cab-srv"
     };
-    let cabd_target_path = current_dir.join(cabd_target_name);
-    if cabd_target_path.exists() {
-        return Ok(cabd_target_path);
-    }
-
-    let server_target_name = if cfg!(target_os = "windows") {
-        "cab-server.exe"
-    } else {
-        "cab-server"
-    };
-    let server_target_path = current_dir.join(server_target_name);
-    if server_target_path.exists() {
-        return Ok(server_target_path);
+    let srv_target_path = current_dir.join(srv_target_name);
+    if srv_target_path.exists() {
+        return Ok(srv_target_path);
     }
 
     // Default fallback
@@ -785,7 +775,7 @@ fn get_cabd_executable_path() -> Result<PathBuf, String> {
     let fallback_bin = PathBuf::from(home)
         .join(".local")
         .join("bin")
-        .join(cabd_target_name);
+        .join(srv_target_name);
     Ok(fallback_bin)
 }
 
@@ -808,11 +798,11 @@ fn get_log_file_path() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home)
         .join(".cab")
         .join("logs")
-        .join("cabd.stdout.log"))
+        .join("cab-srv.stdout.log"))
 }
 
 fn install_service() -> Result<(), String> {
-    let executable_path = get_cabd_executable_path()?;
+    let executable_path = get_cab_srv_executable_path()?;
     let working_dir = get_working_dir()?;
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -824,7 +814,7 @@ fn install_service() -> Result<(), String> {
         let service_dir = get_systemd_service_path()?;
         std::fs::create_dir_all(&service_dir)
             .map_err(|e| format!("Failed to create service dir: {e}"))?;
-        let service_file = service_dir.join("cabd.service");
+        let service_file = service_dir.join("cab-srv.service");
 
         let service_content = format!(
             "[Unit]\n\
@@ -847,8 +837,8 @@ fn install_service() -> Result<(), String> {
             .map_err(|e| format!("Failed to write service file: {e}"))?;
         println!("Wrote systemd service unit to {}", service_file.display());
         run_cmd("systemctl", &["--user", "daemon-reload"])?;
-        run_cmd("systemctl", &["--user", "enable", "cabd"])?;
-        println!("cabd service installed and enabled successfully.");
+        run_cmd("systemctl", &["--user", "enable", "cab-srv"])?;
+        println!("cab-srv service installed and enabled successfully.");
         println!("To start it: cab start");
     }
     #[cfg(target_os = "macos")]
@@ -860,8 +850,8 @@ fn install_service() -> Result<(), String> {
 
         let log_dir = PathBuf::from(&home).join(".cab").join("logs");
         std::fs::create_dir_all(&log_dir).map_err(|e| format!("Failed to create log dir: {e}"))?;
-        let stdout_log = log_dir.join("cabd.stdout.log");
-        let stderr_log = log_dir.join("cabd.stderr.log");
+        let stdout_log = log_dir.join("cab-srv.stdout.log");
+        let stderr_log = log_dir.join("cab-srv.stderr.log");
 
         let plist_content = format!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
@@ -869,7 +859,7 @@ fn install_service() -> Result<(), String> {
              <plist version=\"1.0\">\n\
              <dict>\n\
              \t<key>Label</key>\n\
-             \t<string>com.cab.cabd</string>\n\
+             \t<string>com.cab.cab-srv</string>\n\
              \t<key>ProgramArguments</key>\n\
              \t<array>\n\
              \t\t<string>{}</string>\n\
@@ -896,7 +886,7 @@ fn install_service() -> Result<(), String> {
         println!("Wrote launchd agent plist to {}", plist_path.display());
         let plist_str = plist_path.to_string_lossy().to_string();
         run_cmd("launchctl", &["load", &plist_str])?;
-        println!("cabd launchd agent installed and loaded successfully.");
+        println!("cab-srv launchd agent installed and loaded successfully.");
         println!("To start it: cab start");
     }
     #[cfg(target_os = "windows")]
@@ -921,15 +911,15 @@ fn install_service() -> Result<(), String> {
         let bat_content = format!(
             "@echo off\n\
              cd /d \"{}\"\n\
-             start /b \"cabd\" \"{}\" > NUL 2>&1\n",
+             start /b \"cab-srv\" \"{}\" > NUL 2>&1\n",
             working_dir,
             executable_path.display()
         );
         std::fs::write(&startup_bat, bat_content)
             .map_err(|e| format!("Failed to write startup batch script: {e}"))?;
         println!("Wrote startup script to {}", startup_bat.display());
-        println!("cabd shortcut added to startup folder successfully.");
-        println!("To start it now: cab start");
+        println!("cab-srv shortcut added to startup folder successfully.");
+        println!("To start it now: cab-cli start");
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     {
@@ -947,14 +937,14 @@ fn uninstall_service() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let service_dir = get_systemd_service_path()?;
-        let service_file = service_dir.join("cabd.service");
+        let service_file = service_dir.join("cab-srv.service");
         if !service_file.exists() {
             println!("Service is not installed.");
             return Ok(());
         }
-        println!("Disabling and stopping cabd service...");
-        let _ = run_cmd("systemctl", &["--user", "disable", "cabd"]);
-        let _ = run_cmd("systemctl", &["--user", "stop", "cabd"]);
+        println!("Disabling and stopping cab-srv service...");
+        let _ = run_cmd("systemctl", &["--user", "disable", "cab-srv"]);
+        let _ = run_cmd("systemctl", &["--user", "stop", "cab-srv"]);
         std::fs::remove_file(&service_file)
             .map_err(|e| format!("Failed to remove service file: {e}"))?;
         run_cmd("systemctl", &["--user", "daemon-reload"])?;
@@ -966,7 +956,7 @@ fn uninstall_service() -> Result<(), String> {
             println!("Service is not installed.");
             return Ok(());
         }
-        println!("Unloading and stopping cabd service...");
+        println!("Unloading and stopping cab-srv service...");
         let plist_str = plist_path.to_string_lossy().to_string();
         let _ = run_cmd("launchctl", &["unload", &plist_str]);
         std::fs::remove_file(&plist_path)
@@ -982,13 +972,13 @@ fn uninstall_service() -> Result<(), String> {
             .join("Start Menu")
             .join("Programs")
             .join("Startup");
-        let startup_bat = startup_dir.join("cabd_startup.bat");
+        let startup_bat = startup_dir.join("cab-srv_startup.bat");
         if !startup_bat.exists() {
             println!("Service shortcut is not installed.");
             return Ok(());
         }
-        println!("Stopping cabd process...");
-        let _ = run_cmd("taskkill", &["/F", "/IM", "cabd.exe"]);
+        println!("Stopping cab-srv process...");
+        let _ = run_cmd("taskkill", &["/F", "/IM", "cab-srv.exe"]);
         std::fs::remove_file(&startup_bat)
             .map_err(|e| format!("Failed to remove startup script: {e}"))?;
     }
@@ -996,6 +986,6 @@ fn uninstall_service() -> Result<(), String> {
     {
         return Err("Service uninstallation is not supported on this OS".to_string());
     }
-    println!("cabd service uninstalled successfully.");
+    println!("cab-srv service uninstalled successfully.");
     Ok(())
 }

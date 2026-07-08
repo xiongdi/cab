@@ -1,5 +1,5 @@
 # Real Claude Code headless test against the global CAB gateway (localhost:3125).
-# Does NOT start cab-server — dev:server must already be running (see AGENTS.md).
+# Does NOT start cab-srv — dev:server must already be running (see AGENTS.md).
 param(
     [string]$Prompt = "Reply with exactly: CAB ok",
     [string]$Model = "claude/cab/auto",

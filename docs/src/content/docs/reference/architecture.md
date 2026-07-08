@@ -11,7 +11,7 @@ graph TD
         Svelte[Svelte UI] <--> Tauri[Tauri Shell]
     end
 
-    subgraph Backend [cab-server]
+    subgraph Backend [cab-srv]
         API[cab-api] --> Services[cab-services]
         Gateway[cab-gateway] --> Services
         Services --> Core[cab-core]
@@ -32,7 +32,7 @@ graph TD
 | `cab-services` | Catalog sync, route resolution, agent config rewrites        |
 | `cab-gateway`  | Auth, protocol adapters, upstream forwarding                 |
 | `cab-api`      | Management REST API (`/api/*`)                               |
-| `cab-server`   | Headless daemon — gateway + API + static UI                  |
+| `cab-srv`      | Headless daemon — gateway + API + static UI                  |
 | `src/`         | Svelte dashboard                                             |
 
 ## Request flow

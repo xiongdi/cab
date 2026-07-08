@@ -17,8 +17,8 @@ Cargo workspace (`crates/*`, `src-tauri`) + Svelte/Tauri frontend (`src/`, `src-
 | `cab-services` | Catalog sync, route resolution, agent config switcher                                                          |
 | `cab-gateway`  | Gateway auth, protocol adapters (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), upstream forwarding |
 | `cab-api`      | Management REST API (`/api/*`)                                                                                 |
-| `cab-server`   | Headless daemon combining gateway + API + static UI                                                            |
-| `src/`         | Svelte dashboard (consumed by both Tauri and `cab-server`)                                                     |
+| `cab-srv`      | Headless daemon combining gateway + API + static UI                                                            |
+| `src/`         | Svelte dashboard (consumed by both Tauri and `cab-srv`)                                                        |
 | `src-tauri/`   | Tauri shell                                                                                                    |
 
 Runtime state lives at `~/.cab/`. Agent configs (e.g. `~/.claude/settings.json`) are rewritten when switching modes (Native / Auto / Manual).
@@ -29,7 +29,7 @@ Runtime state lives at `~/.cab/`. Agent configs (e.g. `~/.claude/settings.json`)
 
 - **Ports are globally unique on the host** — backend **3125**, frontend **5173**, both `strictPort`. Never change them; never run a second instance.
 - **Only allowed dev commands:** `npm run dev` (frontend, terminal B) + `npm run dev:server` (backend watch, terminal A). Two processes total.
-- **Forbidden:** `cargo run -p cab-server`, `npm run dev:server:once`, `npm run tauri:dev`, manually running `target/**/cab-server.exe`, stacking a second Vite/cargo-watch, or changing ports to dodge a conflict.
+- **Forbidden:** `cargo run -p cab-srv`, `npm run dev:server:once`, `npm run tauri:dev`, manually running `target/**/cab-srv.exe`, stacking a second Vite/cargo-watch, or changing ports to dodge a conflict.
 - **Port occupied → kill first.** PowerShell: `scripts/kill-dev-ports.ps1` (both) or `-Backend` (3125 only). Then verify with `netstat -ano | findstr "5173 3125"`.
 - `gateway_port` stays 3125. Agent CLIs must set `ANTHROPIC_BASE_URL=http://localhost:3125`.
 
@@ -44,13 +44,13 @@ cargo install cargo-watch          # for dev:server
 
 # Daily dev (two terminals)
 npm run dev                        # Svelte/Vite on :5173
-npm run dev:server                 # cargo watch → cab-server on :3125
+npm run dev:server                 # cargo watch → cab-srv on :3125
 
 # Tauri desktop (separate from the dev flow above — only when explicitly needed)
 npm run tauri:dev
 
 # Headless server only (NOT for daily dev — conflicts with dev:server)
-cargo run -p cab-server
+cargo run -p cab-srv
 ```
 
 ### Code quality
@@ -80,7 +80,7 @@ npm run coverage                   # frontend + backend coverage
 
 After **any** code or config change, before reporting back:
 
-1. Clean: `scripts/kill-dev-ports.ps1` + stop stray `claude,cab-server,cargo-watch`.
+1. Clean: `scripts/kill-dev-ports.ps1` + stop stray `claude,cab-srv,cargo-watch`.
 2. Start the unique dev pair: `npm run dev:server` (wait for catalog sync + 3125 LISTENING), then `npm run dev` (5173 LISTENING).
 3. Sync `gateway_key` from `~/.cab/settings.json` into `~/.claude/settings.json` `ANTHROPIC_AUTH_TOKEN` if keys changed.
 4. Run the full verification checklist in `AGENTS.md` §"最小验证清单" (providers, `/api/routing/explain`, `/v1/messages`, frontend 200, headless CC, settings intact).

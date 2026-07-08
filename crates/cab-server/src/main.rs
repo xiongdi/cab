@@ -1,4 +1,4 @@
-use cab_server::build_combined_router;
+use cab_srv::build_combined_router;
 use tracing_subscriber::EnvFilter;
 
 async fn log_request(

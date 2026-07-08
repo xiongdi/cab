@@ -7,7 +7,7 @@ order: 5
 
 ## 投产步骤
 
-1. **构建**：`cargo build --release -p cab-server` 或 `npm run tauri:build`
+1. **构建**：`cargo build --release -p cab-srv` 或 `npm run tauri:build`
 2. **前端**：`npm run build` 将 `build/` 置于 server 工作目录
 3. **配置**：首次启动生成 `~/.cab/settings.json`
 4. **同步**：Settings 页触发 catalog 同步
@@ -28,7 +28,7 @@ order: 5
 
 | 交付物     | 位置                             |
 | ---------- | -------------------------------- |
-| 可执行文件 | `cab-server` / Tauri 安装包      |
+| 可执行文件 | `cab-srv` / Tauri 安装包         |
 | 管理 UI    | `build/` 或内嵌                  |
 | 规格文档站 | `spec/` Astro 构建产物           |
 | 默认配置   | `config/*.json`、`cab.toml` 示例 |

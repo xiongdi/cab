@@ -12,7 +12,7 @@ CAB 采用 **自底向上 + 持续集成**：
 1. **单元层**：`cab-core`、`cab-db` 纯函数与存储逻辑独立测试
 2. **组件层**：`cab-services::route_resolver`、`cab-gateway::protocol` 与 mock RouteCatalog
 3. **服务层**：`cab-api` handler 与真实 `InMemoryStore`
-4. **系统层**：`cab-server` 全路由 + 前端 build 产物
+4. **系统层**：`cab-srv` 全路由 + 前端 build 产物
 
 ## 集成顺序（与依赖方向一致）
 
@@ -26,7 +26,7 @@ cab-services
 cab-api ──┐
 cab-gateway ──┤ 共享 InMemoryStore
   ↓
-cab-server / src-tauri
+cab-srv / src-tauri
   ↓
 SvelteKit 静态资源（build/）
 ```
@@ -43,7 +43,7 @@ SvelteKit 静态资源（build/）
 ```bash
 cargo test --workspace
 npm run build
-cargo run -p cab-server   # 合并 gateway + api + 静态前端
+cargo run -p cab-srv   # 合并 gateway + api + 静态前端
 ```
 
 ## 风险与缓解

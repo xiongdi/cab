@@ -11,7 +11,7 @@ graph TD
         Svelte[Svelte UI] <--> Tauri[Tauri Shell]
     end
 
-    subgraph Backend [cab-server]
+    subgraph Backend [cab-srv]
         API[cab-api] --> Services[cab-services]
         Gateway[cab-gateway] --> Services
         Services --> Core[cab-core]
@@ -32,7 +32,7 @@ graph TD
 | `cab-services` | 目录同步、路由解析、Agent 配置改写                    |
 | `cab-gateway`  | 认证、协议适配、上游转发                              |
 | `cab-api`      | 管理 REST API（`/api/*`）                             |
-| `cab-server`   | 无头守护进程——网关 + API + 静态 UI                    |
+| `cab-srv`      | 无头守护进程——网关 + API + 静态 UI                    |
 | `src/`         | Svelte 仪表盘                                         |
 
 ## 请求流程

@@ -8,8 +8,8 @@
   },
   "scripts": {
     "dev": "vp dev",
-    "dev:server": "cargo watch -c -w crates -w Cargo.toml -x \"run -p cab-server --bin cab-server\"",
-    "dev:server:once": "cargo run -p cab-server --bin cab-server",
+    "dev:server": "cargo watch -c -w crates -w Cargo.toml -x \"run -p cab-srv --bin cab-srv\"",
+    "dev:server:once": "cargo run -p cab-srv --bin cab-srv",
     "build": "vp build",
     "preview": "vp preview",
     "check": "vp check && svelte-check --tsconfig ./tsconfig.json",

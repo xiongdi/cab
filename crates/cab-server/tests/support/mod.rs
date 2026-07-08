@@ -7,7 +7,7 @@ pub mod uat_report;
 
 use axum::Router;
 use cab_db::InMemoryStore;
-use cab_server::build_combined_router;
+use cab_srv::build_combined_router;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;

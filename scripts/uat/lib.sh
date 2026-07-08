@@ -65,9 +65,9 @@ PY
 uat_build_release() {
   local root
   root="$(uat_root)"
-  echo "== UAT: building release cab-server =="
-  (cd "${root}" && cargo build --release -p cab-server)
-  export CAB_UAT_SERVER_BIN="${root}/target/release/cab-server"
+  echo "== UAT: building release cab-srv =="
+  (cd "${root}" && cargo build --release -p cab-srv)
+  export CAB_UAT_SERVER_BIN="${root}/target/release/cab-srv"
 }
 
 uat_stop_managed_server() {

@@ -2,7 +2,7 @@
 //!
 //! ```bash
 //! ./scripts/run-uat.sh
-//! # Starts release cab-server + runs real CA CLIs; report: reports/uat/latest.md
+//! # Starts release cab-srv + runs real CA CLIs; report: reports/uat/latest.md
 //! ```
 
 mod support;

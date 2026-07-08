@@ -5,7 +5,7 @@ mod support;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cab_db::InMemoryStore;
-use cab_server::build_combined_router;
+use cab_srv::build_combined_router;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;

@@ -15,9 +15,9 @@ cargo test -p cab-api --test agents_it --test api_it --quiet
 echo ""
 echo "== ST: System tests (combined router + TCP) =="
 echo "  ST-a: in-process wiring"
-cargo test -p cab-server --test system_v01 --quiet
+cargo test -p cab-srv --test system_v01 --quiet
 echo "  ST-b: real HTTP on ephemeral port"
-cargo test -p cab-server --test system_tcp --quiet
+cargo test -p cab-srv --test system_tcp --quiet
 
 echo ""
 echo "== Regression: full Rust workspace (UAT tests ignored, not run here) =="

@@ -7,7 +7,7 @@ order: 1
 
 ## 系统概述
 
-CAB 是本地 LLM 网关：管理面（Svelte + `/api`）与数据面（Gateway `/v1`）共存于同一 Axum 进程（`cab-server` 或 `src-tauri` 内嵌）。
+CAB 是本地 LLM 网关：管理面（Svelte + `/api`）与数据面（Gateway `/v1`）共存于同一 Axum 进程（`cab-srv` 或 `src-tauri` 内嵌）。
 
 ## 核心处理流程
 

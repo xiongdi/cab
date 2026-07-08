@@ -58,7 +58,7 @@ When a model's native protocol differs from what the agent sends (e.g. Anthropic
 Run without the desktop UI (for release testing or production):
 
 ```bash
-cargo run -p cab-server
+cargo run -p cab-srv
 ```
 
 The headless daemon serves the same gateway and management API. The built UI is also available as static files from the server.

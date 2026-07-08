@@ -1,21 +1,17 @@
 [package]
-name = "cab-server"
+name = "cab-srv"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
-default-run = "cab-server"
+default-run = "cab-srv"
 
 [lib]
-name = "cab_server"
+name = "cab_srv"
 path = "src/lib.rs"
 
 [[bin]]
-name = "cab-server"
+name = "cab-srv"
 path = "src/main.rs"
-
-[[bin]]
-name = "cabd"
-path = "src/cabd.rs"
 
 [dependencies]
 cab-core = { path = "../cab-core" }

@@ -32,7 +32,7 @@ cargo test --workspace
 
 ## 手工联调（推荐）
 
-1. `cargo run -p cab-server`
+1. `cargo run -p cab-srv`
 2. `curl http://127.0.0.1:3125/api/providers` → JSON 列表
 3. `curl -H "Authorization: Bearer {gateway_key}" http://127.0.0.1:3125/v1/models` → 模型列表
 

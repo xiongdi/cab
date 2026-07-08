@@ -507,7 +507,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "cab-server"
+name = "cab-services"
+version = "0.6.1"
+dependencies = [
+ "axum",
+ "cab-core",
+ "cab-db",
+ "chrono",
+ "http-body-util",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml 1.1.2+spec-1.1.0",
+ "tower",
+ "tracing",
+]
+
+[[package]]
+name = "cab-srv"
 version = "0.6.1"
 dependencies = [
  "axum",
@@ -526,25 +545,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "cab-services"
-version = "0.6.1"
-dependencies = [
- "axum",
- "cab-core",
- "cab-db",
- "chrono",
- "http-body-util",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "toml 1.1.2+spec-1.1.0",
- "tower",
- "tracing",
 ]
 
 [[package]]

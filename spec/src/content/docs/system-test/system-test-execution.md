@@ -12,7 +12,7 @@ order: 1
 ## 自动化 ST（v0.1）
 
 ```bash
-cargo test -p cab-server --test system_v01
+cargo test -p cab-srv --test system_v01
 ```
 
 覆盖：合并路由 `GET /v1/models`、`POST /v1internal:*` 不可达、`GET /api/agents` 仅 native/auto/manual。
@@ -21,7 +21,7 @@ cargo test -p cab-server --test system_v01
 
 ```bash
 npm run build
-cargo run -p cab-server
+cargo run -p cab-srv
 # 或 npm run tauri:dev
 ```
 

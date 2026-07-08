@@ -1,4 +1,4 @@
-//! Local UAT: real ~/.cab/ keys, real upstream LLM calls, packaged cab-server.
+//! Local UAT: real ~/.cab/ keys, real upstream LLM calls, packaged cab-srv.
 //!
 //! Enable with `CAB_RUN_UAT=1`. Start the release binary via `./scripts/run-uat.sh`.
 
@@ -56,12 +56,10 @@ fn read_gateway_key_from_sqlite() -> String {
     settings.gateway_key
 }
 
-/// Connect to the packaged release `cab-server` started by `./scripts/run-uat.sh`.
+/// Connect to the packaged release `cab-srv` started by `./scripts/run-uat.sh`.
 pub async fn connect_packaged_server() -> TestServer {
     let base_url = std::env::var("CAB_UAT_BASE_URL").unwrap_or_else(|_| {
-        panic!(
-            "CAB_UAT_BASE_URL must be set — run UAT via ./scripts/run-uat.sh (packaged cab-server)"
-        )
+        panic!("CAB_UAT_BASE_URL must be set — run UAT via ./scripts/run-uat.sh (packaged cab-srv)")
     });
     let gateway_key =
         std::env::var("CAB_UAT_GATEWAY_KEY").unwrap_or_else(|_| read_gateway_key_from_sqlite());

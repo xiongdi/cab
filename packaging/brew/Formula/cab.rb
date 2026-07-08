@@ -18,18 +18,18 @@ class Cab < Formula
   end
 
   def install
-    # Install the precompiled cab and cabd binaries directly
-    bin.install "cab"
-    bin.install "cabd"
+    # Install the precompiled cab-cli and cab-srv binaries directly
+    bin.install "cab-cli"
+    bin.install "cab-srv"
   end
 
   def post_install
-    ohai "To install and start the cabd daemon service, run:"
-    ohai "  cab service install"
-    ohai "  cab start"
+    ohai "To install and start the cab-srv daemon service, run:"
+    ohai "  cab-cli service install"
+    ohai "  cab-cli start"
   end
 
   test do
-    assert_match "cab version", shell_output("#{bin}/cab --version")
+    assert_match "cab-cli version", shell_output("#{bin}/cab-cli --version")
   end
 end

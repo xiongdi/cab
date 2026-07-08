@@ -20,7 +20,7 @@ function run(cmd, args) {
 run('npm', ['run', 'build']);
 
 // 2. Build the Rust release binaries
-run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-server']);
+run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-srv']);
 
 // 3. Create the unified resources bin directory
 const resourcesBinDir = join(ROOT, 'resources', 'bin');
@@ -30,15 +30,15 @@ if (!existsSync(resourcesBinDir)) {
 
 // 4. Copy the compiled binaries to resources/bin
 const ext = IS_WINDOWS ? '.exe' : '';
-const cabSrc = join(ROOT, 'target', 'release', `cab${ext}`);
-const cabdSrc = join(ROOT, 'target', 'release', `cabd${ext}`);
-const cabDst = join(resourcesBinDir, `cab${ext}`);
-const cabdDst = join(resourcesBinDir, `cabd${ext}`);
+const cabSrc = join(ROOT, 'target', 'release', `cab-cli${ext}`);
+const cabSrvSrc = join(ROOT, 'target', 'release', `cab-srv${ext}`);
+const cabDst = join(resourcesBinDir, `cab-cli${ext}`);
+const cabSrvDst = join(resourcesBinDir, `cab-srv${ext}`);
 
 console.log(`Copying ${cabSrc} to ${cabDst}`);
 copyFileSync(cabSrc, cabDst);
 
-console.log(`Copying ${cabdSrc} to ${cabdDst}`);
-copyFileSync(cabdSrc, cabdDst);
+console.log(`Copying ${cabSrvSrc} to ${cabSrvDst}`);
+copyFileSync(cabSrvSrc, cabSrvDst);
 
 console.log('Pre-build steps completed successfully.');

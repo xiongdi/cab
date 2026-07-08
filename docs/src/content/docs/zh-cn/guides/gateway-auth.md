@@ -58,7 +58,7 @@ Authorization: Bearer <gateway_key>
 无需桌面 UI 时（用于发布测试或生产环境）：
 
 ```bash
-cargo run -p cab-server
+cargo run -p cab-srv
 ```
 
 无头守护进程提供相同的网关和管理 API，同时提供内置 UI 的静态文件服务。

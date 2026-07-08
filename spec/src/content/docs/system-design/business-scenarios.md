@@ -49,7 +49,7 @@ order: 3
 
 ## 场景 SC-05：重启恢复配置
 
-**触发**：用户修改 Agent 为 `auto` 并创建 Route 后重启 cab-server。
+**触发**：用户修改 Agent 为 `auto` 并创建 Route 后重启 cab-srv。
 
 **路径**：
 

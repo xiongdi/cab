@@ -14,11 +14,11 @@ Coding Agent ──HTTP──► CAB（网关 + 管理 UI）──HTTPS──►
                               └── Artificial Analysis 基准
 ```
 
-| 容器               | 技术               | 说明                                     |
-| ------------------ | ------------------ | ---------------------------------------- |
-| cab-server / Tauri | Axum               | HTTP gateway_port（默认 3125）           |
-| 管理前端           | SvelteKit `build/` | 由 `ServeDir` 托管                       |
-| 持久化             | `~/.cab/`          | settings.json、state.json、logs/\*.jsonl |
+| 容器            | 技术               | 说明                                     |
+| --------------- | ------------------ | ---------------------------------------- |
+| cab-srv / Tauri | Axum               | HTTP gateway_port（默认 3125）           |
+| 管理前端        | SvelteKit `build/` | 由 `ServeDir` 托管                       |
+| 持久化          | `~/.cab/`          | settings.json、state.json、logs/\*.jsonl |
 
 ## Rust Workspace 子系统
 
@@ -29,7 +29,7 @@ Coding Agent ──HTTP──► CAB（网关 + 管理 UI）──HTTPS──►
 | `cab-services` | 应用服务编排（目录同步、路由、Agent）  | 库 API，无 HTTP                  |
 | `cab-api`      | 管理 REST API（薄 adapter）            | `/api/*` Axum 路由               |
 | `cab-gateway`  | LLM 代理、鉴权、协议 adapter           | `/v1/*`                          |
-| `cab-server`   | 进程入口、静态资源                     | `main()`                         |
+| `cab-srv`      | 进程入口、静态资源                     | `main()`                         |
 | `src-tauri`    | 桌面壳，复用上述路由                   | Tauri 命令 + 内嵌 Axum           |
 
 ## 前端子系统（`src/`）
@@ -58,4 +58,4 @@ gateway.merge(api).layer(auth_middleware).fallback_service(serve_dir)
 
 数据流：**Gateway/API → cab-services → cab-db / cab-core**
 
-`cab-server` 与 Tauri 均以此模式组装，保证集成测试可针对单一进程验证。
+`cab-srv` 与 Tauri 均以此模式组装，保证集成测试可针对单一进程验证。

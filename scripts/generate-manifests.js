@@ -31,7 +31,7 @@ function main() {
     'release',
     'bundle',
     'dmg',
-    `cab-desktop_${version}_universal.dmg`
+    `cab-gui_${version}_universal.dmg`
   );
   const msiPath = join(
     ROOT,
@@ -40,7 +40,7 @@ function main() {
     'release',
     'bundle',
     'msi',
-    `cab-desktop_${version}_x64_en-US.msi`
+    `cab-gui_${version}_x64_en-US.msi`
   );
 
   // Precompiled binary tarball paths and source tarball path
@@ -92,23 +92,20 @@ function main() {
   console.log(`Generated: ${join(outDir, 'cab-bin.rb')} (Custom Tap binary style)`);
 
   // 2. Homebrew Cask
-  let cask = readFileSync(join(ROOT, 'packaging', 'brew', 'Casks', 'cab-desktop.rb'), 'utf8');
+  let cask = readFileSync(join(ROOT, 'packaging', 'brew', 'Casks', 'cab-gui.rb'), 'utf8');
   cask = cask.replace(/"0.5.1"/g, `"${version}"`);
   cask = cask.replace(
     /"0000000000000000000000000000000000000000000000000000000000000000"/,
     `"${hashDmg}"`
   );
-  writeFileSync(join(outDir, 'cab-desktop.rb'), cask);
-  console.log(`Generated: ${join(outDir, 'cab-desktop.rb')}`);
+  writeFileSync(join(outDir, 'cab-gui.rb'), cask);
+  console.log(`Generated: ${join(outDir, 'cab-gui.rb')}`);
 
   // 3. Winget Manifest
   let winget = readFileSync(join(ROOT, 'packaging', 'winget', 'xiongdi.cab.yaml'), 'utf8');
   winget = winget.replace(/PackageVersion: 0\.5\.1/g, `PackageVersion: ${version}`);
   winget = winget.replace(/v0\.5\.1/g, `v${version}`);
-  winget = winget.replace(
-    /cab-desktop_0\.5\.1_x64_en-US\.msi/g,
-    `cab-desktop_${version}_x64_en-US.msi`
-  );
+  winget = winget.replace(/cab-gui_0.5.1_x64_en-US.msi/g, `cab-gui_${version}_x64_en-US.msi`);
   winget = winget.replace(
     /InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000/,
     `InstallerSha256: ${hashMsi}`

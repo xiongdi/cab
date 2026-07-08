@@ -24,7 +24,7 @@ graph TD
         Svelte[Svelte Frontend] <--> Tauri[Tauri Core]
     end
 
-    subgraph Backend [cab-server / Daemon]
+    subgraph Backend [cab-srv / Daemon]
         API[cab-api: Management API]
         Gateway[cab-gateway: HTTP Gateway]
         Services[cab-services: Application Layer]
@@ -48,7 +48,7 @@ graph TD
 | `cab-services` | Catalog sync, route resolution, agent config     |
 | `cab-gateway`  | Auth, protocol adapters, upstream forwarding     |
 | `cab-api`      | Management REST API (`/api/*`)                   |
-| `cab-server`   | Headless daemon (gateway + API + static UI)      |
+| `cab-srv`      | Headless daemon (gateway + API + static UI)      |
 | `src`          | Svelte dashboard                                 |
 
 > **v0.2.0** adds persistent agent/route config, Gateway auth, JSONL logs, and routing explain API. See [CHANGELOG](CHANGELOG.md).
@@ -95,7 +95,7 @@ npm run tauri:dev
 For release testing or running a pre-built binary without the desktop UI (not daily dev):
 
 ```bash
-cargo run -p cab-server
+cargo run -p cab-srv
 ```
 
 ---

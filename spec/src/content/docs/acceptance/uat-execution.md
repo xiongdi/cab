@@ -19,7 +19,7 @@ order: 1
 
 ## 前置条件（手工 UAT）
 
-- CAB 已安装：`cargo run -p cab-server` 或 Tauri 安装包
+- CAB 已安装：`cargo run -p cab-srv` 或 Tauri 安装包
 - 用户已配置至少一个有效 LLM 提供商 Key
 - Agent（如 Claude Code / Codex）可指向 `http://127.0.0.1:{gateway_port}`
 

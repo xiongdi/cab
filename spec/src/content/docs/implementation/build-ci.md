@@ -11,10 +11,10 @@ order: 3
 
 ```bash
 # 开发运行
-cargo run -p cab-server
+cargo run -p cab-srv
 
 # 发布构建
-cargo build --release -p cab-server
+cargo build --release -p cab-srv
 ```
 
 依赖：OpenSSL、系统库（Linux 上 webkit2gtk 等，见 CI apt 列表）。
@@ -37,7 +37,7 @@ npm run tauri:build
 
 ## Workspace 成员（`Cargo.toml`）
 
-`cab-core`, `cab-db`, `cab-api`, `cab-gateway`, `cab-server`, `src-tauri`
+`cab-core`, `cab-db`, `cab-api`, `cab-gateway`, `cab-srv`, `src-tauri`
 
 ## CI（`.github/workflows/ci.yml`）
 
@@ -52,7 +52,7 @@ npm run tauri:build
 
 ## 启动时行为
 
-`cab-server` 启动后：
+`cab-srv` 启动后：
 
 1. `init_store()` 加载 settings
 2. 后台 `sync_models_dev_catalog`

@@ -781,7 +781,7 @@ pub async fn auto_seed_known_models(
     // All models must be dynamically fetched from official API endpoints.
 }
 
-/// Startup helper used by cab-server and Tauri.
+/// Startup helper used by cab-srv and Tauri.
 pub async fn sync_on_startup(pool: &InMemoryStore) -> Result<usize, CabError> {
     sync_models_dev_catalog(pool).await
 }

@@ -125,6 +125,6 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cab-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          name: cab-gui-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.path }}
           if-no-files-found: warn

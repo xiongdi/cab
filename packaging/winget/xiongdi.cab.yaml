@@ -15,7 +15,7 @@ Tags:
 Installers:
   - Architecture: x64
     InstallerType: wix
-    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.6.0/cab-desktop_0.6.0_x64_en-US.msi
+    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.6.0/cab-gui_0.6.0_x64_en-US.msi
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000 # Replace with actual MSI checksum on release
     ProductCode: '{00000000-0000-0000-0000-000000000000}' # Replace with actual product code on release
 ManifestType: singleton

@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`cab` CLI + `cabd` daemon**. New cross-platform service controls for managing the CAB gateway as a background daemon. On macOS: LaunchAgent plist (`~/Library/LaunchAgents/com.cab.daemon.plist`) with `launchctl` integration. On Windows: Windows Service via `cabd start/stop/restart/service`. On Linux: systemd user service (`~/.config/systemd/user/cab-daemon.service`). The `cab` CLI wraps all daemon lifecycle commands.
+- **`cab-cli` CLI + `cab-srv` daemon**. New cross-platform service controls for managing the CAB gateway as a background daemon. On macOS: LaunchAgent plist (`~/Library/LaunchAgents/com.cab.cab-srv.plist`) with `launchctl` integration. On Windows: Windows Service via `cab-srv start/stop/restart/service`. On Linux: systemd user service (`~/.config/systemd/user/cab-srv.service`). The `cab-cli` CLI wraps all daemon lifecycle commands.
 - **Homebrew & WinGet packaging manifests**. CAB is now installable via `brew tap xiongdi/cab && brew install cab` (macOS/Linux) and WinGet (Windows). See `homebrew/cab.rb` and `winget/` in the repo root for source.
 - **Docker deployment support**. New `Dockerfile` and `docker-compose.yml` for containerized headless gateway deployment.
 
@@ -215,7 +215,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Local UAT now starts the **release** `cab-server` binary and invokes **real coding-agent CLIs** (UAT-10/11/12).
+- Local UAT now starts the **release** `cab-srv` binary and invokes **real coding-agent CLIs** (UAT-10/11/12).
 - UAT Markdown reports under `reports/uat/` with per-case pass/fail summary.
 - `scripts/uat/` helpers: packaged server lifecycle, `run-real-ca.sh` per-agent probes.
 - UAT-11 covers all four auto strategies (`auto`, `balanced`, `intelligent`, `price`) × seven agents.
@@ -270,7 +270,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Vite+ toolchain migration (`vite-plus`, unified `vp` scripts).
 - Layered test gate in CI: UT → IT → ST via `scripts/run-tests.sh`; UAT isolated to `scripts/run-uat.sh`.
-- `cab-server` library surface and expanded integration / system test coverage.
+- `cab-srv` library surface and expanded integration / system test coverage.
 
 ### Changed
 
