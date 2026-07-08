@@ -82,9 +82,10 @@ ${CHANGELOG_SECTION}
 
 ### macOS
 
-| File | Notes |
-| ---- | ----- |
-| \`CAB_${VERSION}_universal.dmg\` | Universal (Intel + Apple Silicon) |
+| Chip | File | Notes |
+| ---- | ---- | ----- |
+| Intel | \`CAB_${VERSION}_x64.dmg\` | Intel Mac (x86_64) |
+| Apple Silicon | \`CAB_${VERSION}_arm64.dmg\` | Apple Silicon Mac (M1–M4) |
 
 ### Linux
 

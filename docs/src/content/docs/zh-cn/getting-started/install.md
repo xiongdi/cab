@@ -7,11 +7,11 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 
 ## 系统要求
 
-| 平台        | 最低版本                    | 架构                  | 说明                                                                             |
-| ----------- | --------------------------- | --------------------- | -------------------------------------------------------------------------------- |
-| **Windows** | Windows 10 1809+（推荐 11） | x64、ARM64            | 需要 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/) |
-| **macOS**   | 10.13 High Sierra+          | Intel + Apple Silicon | 通用 `.dmg` 安装包                                                               |
-| **Linux**   | WebKitGTK 4.1               | x64、ARM64            | 已在 Ubuntu 22.04+、Debian 12+、Fedora 36+ 验证                                  |
+| 平台        | 最低版本                    | 架构                                    | 说明                                                                             |
+| ----------- | --------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| **Windows** | Windows 10 1809+（推荐 11） | x64、ARM64                              | 需要 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/) |
+| **macOS**   | 10.13 High Sierra+          | Intel（x86_64）、Apple Silicon（arm64） | 按架构分别提供 `.dmg`                                                            |
+| **Linux**   | WebKitGTK 4.1               | x64、ARM64                              | 已在 Ubuntu 22.04+、Debian 12+、Fedora 36+ 验证                                  |
 
 **无头服务**（`cab-srv`）可在相同操作系统上运行，无需 WebView。从源码构建请用 `cargo run -p cab-srv`（用于发布测试），或使用 GitHub Releases 的预编译二进制。日常开发请遵循 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) 中的双终端工作流。
 
@@ -29,9 +29,10 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 
 ### macOS
 
-| 文件                        | 说明             |
-| --------------------------- | ---------------- |
-| `CAB_VERSION_universal.dmg` | 拖入「应用程序」 |
+| 芯片          | 文件                    | 说明             |
+| ------------- | ----------------------- | ---------------- |
+| Intel         | `CAB_VERSION_x64.dmg`   | 拖入「应用程序」 |
+| Apple Silicon | `CAB_VERSION_arm64.dmg` | 拖入「应用程序」 |
 
 ### Linux
 

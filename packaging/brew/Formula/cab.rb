@@ -4,10 +4,7 @@ class Cab < Formula
   version "0.6.0"
   license "ACL-1.0"
 
-  if OS.mac?
-    url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-v#{version}-macos-universal.tar.gz"
-    sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with macOS universal binary checksum on release
-  elsif OS.linux?
+  on_linux do
     if Hardware::CPU.intel?
       url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-v#{version}-linux-x64.tar.gz"
       sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with Linux x64 binary checksum on release

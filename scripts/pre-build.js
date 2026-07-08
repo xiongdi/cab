@@ -20,7 +20,8 @@ function run(cmd, args) {
 run('npm', ['run', 'build']);
 
 // 2. Build the Rust release binaries
-run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-srv']);
+const targetFlag = process.env.CAB_CARGO_TARGET ? ['--target', process.env.CAB_CARGO_TARGET] : [];
+run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-srv', ...targetFlag]);
 
 // 3. Create the unified resources bin directory
 const resourcesBinDir = join(ROOT, 'resources', 'bin');

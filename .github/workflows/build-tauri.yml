@@ -45,29 +45,40 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
-            target: 'universal-apple-darwin'
-            arch: 'universal'
-            path: 'target/universal-apple-darwin/release/bundle/**'
+            args: '--target x86_64-apple-darwin'
+            target: 'x86_64-apple-darwin'
+            arch: 'x64'
+            cargo_target: 'x86_64-apple-darwin'
+            path: 'target/x86_64-apple-darwin/release/bundle/**'
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            target: 'aarch64-apple-darwin'
+            arch: 'arm64'
+            cargo_target: 'aarch64-apple-darwin'
+            path: 'target/aarch64-apple-darwin/release/bundle/**'
           - platform: 'windows-latest'
             args: ''
             target: ''
             arch: 'x64'
+            cargo_target: ''
             path: 'target/release/bundle/**'
           - platform: 'windows-latest'
             args: '--target aarch64-pc-windows-msvc'
             target: 'aarch64-pc-windows-msvc'
             arch: 'arm64'
+            cargo_target: ''
             path: 'target/aarch64-pc-windows-msvc/release/bundle/**'
           - platform: 'ubuntu-latest'
             args: ''
             target: ''
             arch: 'x64'
+            cargo_target: ''
             path: 'target/release/bundle/**'
           - platform: 'ubuntu-24.04-arm'
             args: ''
             target: ''
             arch: 'arm64'
+            cargo_target: ''
             path: 'target/release/bundle/**'
 
     runs-on: ${{ matrix.platform }}
@@ -98,9 +109,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - name: Install macOS targets
+      - name: Install macOS target
         if: matrix.platform == 'macos-latest'
-        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+        run: rustup target add ${{ matrix.cargo_target }}
 
       - name: Install Windows ARM64 target
         if: matrix.target == 'aarch64-pc-windows-msvc'
@@ -115,6 +126,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CAB_CARGO_TARGET: ${{ matrix.cargo_target }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'CAB ${{ github.ref_name }}'

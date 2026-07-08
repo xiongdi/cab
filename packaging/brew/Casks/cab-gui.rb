@@ -1,8 +1,15 @@
 cask "cab-gui" do
   version "0.6.0"
-  sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with actual DMG checksum on release
 
-  url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-gui_#{version}_universal.dmg"
+  on_intel do
+    sha256 "0000000000000000000000000000000000000000000000000000000000000000" # Replace with Intel DMG checksum
+    url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-gui_#{version}_x64.dmg"
+  end
+  on_arm do
+    sha256 "1111111111111111111111111111111111111111111111111111111111111111" # Replace with Apple Silicon DMG checksum
+    url "https://github.com/xiongdi/cab/releases/download/v#{version}/cab-gui_#{version}_arm64.dmg"
+  end
+
   name "CAB"
   desc "Coding Agents Bridge - Local LLM Gateway Router for Coding Agent CLIs"
   homepage "https://github.com/xiongdi/cab"

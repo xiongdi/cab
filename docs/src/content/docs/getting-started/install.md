@@ -7,11 +7,11 @@ Download pre-built desktop installers from [GitHub Releases](https://github.com/
 
 ## System requirements
 
-| Platform    | Minimum version                   | Architectures         | Notes                                                                                 |
-| ----------- | --------------------------------- | --------------------- | ------------------------------------------------------------------------------------- |
-| **Windows** | Windows 10 1809+ (11 recommended) | x64, ARM64            | Requires [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
-| **macOS**   | 10.13 High Sierra+                | Intel + Apple Silicon | Universal `.dmg` package                                                              |
-| **Linux**   | WebKitGTK 4.1                     | x64, ARM64            | Ubuntu 22.04+, Debian 12+, Fedora 36+ tested                                          |
+| Platform    | Minimum version                   | Architectures                         | Notes                                                                                 |
+| ----------- | --------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Windows** | Windows 10 1809+ (11 recommended) | x64, ARM64                            | Requires [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) |
+| **macOS**   | 10.13 High Sierra+                | Intel (x86_64), Apple Silicon (arm64) | Separate `.dmg` per architecture                                                      |
+| **Linux**   | WebKitGTK 4.1                     | x64, ARM64                            | Ubuntu 22.04+, Debian 12+, Fedora 36+ tested                                          |
 
 **Headless server** (`cab-srv`) runs on the same OS families without WebView. Build from source with `cargo run -p cab-srv` for release testing, or use a pre-built binary from GitHub Releases. For daily development, follow the two-terminal workflow in [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) instead.
 
@@ -29,9 +29,10 @@ Replace `VERSION` with the release number without the `v` prefix (e.g. `0.2.3`).
 
 ### macOS
 
-| File                        | Notes                      |
-| --------------------------- | -------------------------- |
-| `CAB_VERSION_universal.dmg` | Drag CAB into Applications |
+| Chip          | File                    | Notes                      |
+| ------------- | ----------------------- | -------------------------- |
+| Intel         | `CAB_VERSION_x64.dmg`   | Drag CAB into Applications |
+| Apple Silicon | `CAB_VERSION_arm64.dmg` | Drag CAB into Applications |
 
 ### Linux
 
