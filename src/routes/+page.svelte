@@ -6,10 +6,48 @@
   import Card from '$lib/components/Card.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { gatewayHealth } from '$lib/gateway-health.svelte';
 
   let stats = $state<DashboardStats | null>(null);
   let loading = $state(true);
   let error = $state('');
+  
+  // Row Expansion State
+  let expandedRowId = $state<string | null>(null);
+
+  // Performance computations from recent logs
+  let averageLatency = $derived.by(() => {
+    if (!stats || !stats.recent_requests || stats.recent_requests.length === 0) return 0;
+    const sum = stats.recent_requests.reduce((acc, r) => acc + r.latency_ms, 0);
+    return Math.round(sum / stats.recent_requests.length);
+  });
+
+  let successRate = $derived.by(() => {
+    if (!stats || !stats.recent_requests || stats.recent_requests.length === 0) return 100;
+    const successCount = stats.recent_requests.filter(
+      (r) => r.status_code >= 200 && r.status_code < 400
+    ).length;
+    return Math.round((successCount / stats.recent_requests.length) * 100);
+  });
+
+  let cacheHitRate = $derived.by(() => {
+    if (!stats || !stats.recent_requests || stats.recent_requests.length === 0) return 0;
+    const hitCount = stats.recent_requests.filter(
+      (r) => (r.cache_read_tokens ?? 0) > 0
+    ).length;
+    return Math.round((hitCount / stats.recent_requests.length) * 100);
+  });
+
+  // Dynamic Agent requests distribution from recent requests
+  let requestsByAgent = $derived.by(() => {
+    if (!stats || !stats.recent_requests) return {};
+    const dist: Record<string, number> = {};
+    for (const r of stats.recent_requests) {
+      const agent = r.agent || 'unknown';
+      dist[agent] = (dist[agent] || 0) + 1;
+    }
+    return dist;
+  });
 
   const recentColumns = $derived.by((): Column[] => {
     void i18n.currentLang;
@@ -26,36 +64,57 @@
           }
         },
       },
-      { key: 'agent', label: i18n.t('logs.agent'), sortable: true },
-      { key: 'provider', label: i18n.t('logs.provider'), sortable: true },
-      { key: 'model', label: i18n.t('logs.model'), sortable: true },
+      {
+        key: 'agent',
+        label: i18n.t('logs.agent'),
+        sortable: true,
+        render: (v: string) => {
+          const lower = (v || '').toLowerCase();
+          let cls = 'badge-agent-generic';
+          if (lower.includes('claude')) cls = 'badge-agent-claude';
+          else if (lower.includes('code')) cls = 'badge-agent-code';
+          else if (lower.includes('pi')) cls = 'badge-agent-pi';
+          return `<span class="badge-agent ${cls}">${v || 'unknown'}</span>`;
+        },
+      },
+      {
+        key: 'model',
+        label: i18n.t('logs.model'),
+        sortable: true,
+        render: (v: string, row: any) => {
+          return `<div class="model-flow-cell"><span class="model-provider-badge">${row.provider}</span><span class="flow-arrow">➔</span><span class="model-name-badge">${v}</span></div>`;
+        },
+      },
       {
         key: 'total_tokens',
         label: i18n.t('dashboard.tokens'),
         sortable: true,
         align: 'right' as const,
-        render: (v: number) => v?.toLocaleString() ?? '0',
+        render: (v: number) => `<span class="mono-text">${v?.toLocaleString() ?? '0'}</span>`,
       },
       {
         key: 'latency_ms',
         label: i18n.t('logs.latency'),
         sortable: true,
         align: 'right' as const,
-        render: (v: number) => `${v}ms`,
+        render: (v: number) => `<span class="mono-text">${v}ms</span>`,
       },
       {
         key: 'status_code',
         label: i18n.t('logs.status_code'),
         align: 'center' as const,
         render: (v: number) => {
-          const cls = v < 300 ? 'badge-success' : v < 500 ? 'badge-warning' : 'badge-error';
-          return `<span class="badge ${cls}">${v}</span>`;
+          const cls = v < 300 ? 'status-glow-success' : v < 500 ? 'status-glow-warning' : 'status-glow-error';
+          return `<span class="status-dot-badge ${cls}"><span class="status-dot-core"></span>${v}</span>`;
         },
       },
     ];
   });
 
   onMount(async () => {
+    // Start polling gateway health
+    gatewayHealth.start();
+    
     try {
       stats = await api.dashboard.getStats();
     } catch (e) {
@@ -79,11 +138,24 @@
     if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
     return n.toString();
   }
+
+  function handleRowClick(row: any) {
+    if (expandedRowId === row.id) {
+      expandedRowId = null;
+    } else {
+      expandedRowId = row.id;
+    }
+  }
+
+  function isRowExpanded(row: any) {
+    return expandedRowId === row.id;
+  }
 </script>
 
 <PageHeader title={i18n.t('dashboard.title')} description={i18n.t('dashboard.subtitle')} />
 
 {#if loading}
+  <div class="gateway-center-card skeleton-loading" style="height: 160px; margin-bottom: 24px;"></div>
   <div class="metrics-grid">
     {#each Array(4) as _}
       <div class="skeleton" style="height: 96px; border-radius: var(--radius-lg);"></div>
@@ -91,49 +163,111 @@
   </div>
   <div class="skeleton" style="height: 300px; border-radius: var(--radius-lg); margin-top: 24px;"></div>
 {:else if stats}
+  <!-- Gateway Control Center -->
+  <div class="gateway-center-card">
+    <div class="control-header">
+      <div class="gateway-title-wrapper">
+        <div class="pulse-ring">
+          <span class="pulse-dot {gatewayHealth.status}"></span>
+        </div>
+        <div class="gateway-meta">
+          <h3>网关控制舱</h3>
+          <span class="gateway-subtitle">
+            {#if gatewayHealth.status === 'running'}
+              统一网关已就绪，正在本地代理请求端口 3125
+            {:else}
+              本地网关未启动，请重启后端 watch 进程
+            {/if}
+          </span>
+        </div>
+      </div>
+      <div class="port-badge-wrapper">
+        <span class="port-badge">PORT: 3125</span>
+      </div>
+    </div>
+    
+    <div class="gateway-performance-grid">
+      <div class="perf-card">
+        <div class="perf-icon-bg perf-icon-bg--green">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+          </svg>
+        </div>
+        <div class="perf-card-body">
+          <span class="perf-card-value font-mono">{successRate}%</span>
+          <span class="perf-card-label">近百次成功率</span>
+        </div>
+      </div>
+      
+      <div class="perf-card">
+        <div class="perf-icon-bg perf-icon-bg--blue">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div class="perf-card-body">
+          <span class="perf-card-value font-mono">{averageLatency}ms</span>
+          <span class="perf-card-label">近百次平均延迟</span>
+        </div>
+      </div>
+      
+      <div class="perf-card">
+        <div class="perf-icon-bg perf-icon-bg--purple">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          </svg>
+        </div>
+        <div class="perf-card-body">
+          <span class="perf-card-value font-mono">{cacheHitRate}%</span>
+          <span class="perf-card-label">前缀缓存命中率</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Metrics Row -->
   <div class="metrics-grid">
-    <div class="metric-card">
+    <div class="metric-card metric-card--requests">
       <div class="metric-icon metric-icon--blue">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
         </svg>
       </div>
       <div class="metric-body">
-        <span class="metric-value">{formatNumber(stats.total_requests)}</span>
+        <span class="metric-value font-mono">{formatNumber(stats.total_requests)}</span>
         <span class="metric-label">{i18n.t('dashboard.total_requests')}</span>
       </div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card metric-card--tokens">
       <div class="metric-icon metric-icon--purple">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
         </svg>
       </div>
       <div class="metric-body">
-        <span class="metric-value">{formatNumber(stats.total_tokens)}</span>
+        <span class="metric-value font-mono">{formatNumber(stats.total_tokens)}</span>
         <span class="metric-label">{i18n.t('dashboard.total_tokens')}</span>
       </div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card metric-card--providers">
       <div class="metric-icon metric-icon--green">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
         </svg>
       </div>
       <div class="metric-body">
-        <span class="metric-value">{stats.active_providers}</span>
+        <span class="metric-value font-mono">{stats.active_providers}</span>
         <span class="metric-label">{i18n.t('dashboard.active_providers')}</span>
       </div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card metric-card--models">
       <div class="metric-icon metric-icon--amber">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       </div>
       <div class="metric-body">
-        <span class="metric-value">{stats.active_models}</span>
+        <span class="metric-value font-mono">{stats.active_models}</span>
         <span class="metric-label">{i18n.t('dashboard.active_models')}</span>
       </div>
     </div>
@@ -143,7 +277,7 @@
   <div class="breakdown-grid">
     <Card padding="0">
       <div class="section-card-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-text); flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: #60a5fa; flex-shrink: 0;">
           <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
         </svg>
         <h3>{i18n.t('dashboard.req_by_provider')}</h3>
@@ -154,14 +288,14 @@
         {:else}
           {#each Object.entries(stats.requests_by_provider).sort((a, b) => b[1] - a[1]) as [name, count]}
             <div class="breakdown-row">
-              <span class="breakdown-label">{name}</span>
+              <span class="breakdown-label" title={name}>{name}</span>
               <div class="breakdown-track">
                 <div
                   class="breakdown-fill breakdown-fill--blue"
                   style:width="{Math.max(2, (count / Math.max(...Object.values(stats.requests_by_provider))) * 100)}%"
                 ></div>
               </div>
-              <span class="breakdown-value">{formatNumber(count)}</span>
+              <span class="breakdown-value font-mono">{formatNumber(count)}</span>
             </div>
           {/each}
         {/if}
@@ -181,14 +315,41 @@
         {:else}
           {#each Object.entries(stats.requests_by_model).sort((a, b) => b[1] - a[1]) as [name, count]}
             <div class="breakdown-row">
-              <span class="breakdown-label">{name}</span>
+              <span class="breakdown-label" title={name}>{name}</span>
               <div class="breakdown-track">
                 <div
                   class="breakdown-fill breakdown-fill--purple"
                   style:width="{Math.max(2, (count / Math.max(...Object.values(stats.requests_by_model))) * 100)}%"
                 ></div>
               </div>
-              <span class="breakdown-value">{formatNumber(count)}</span>
+              <span class="breakdown-value font-mono">{formatNumber(count)}</span>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    </Card>
+
+    <Card padding="0">
+      <div class="section-card-header">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: #34d399; flex-shrink: 0;">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z" />
+        </svg>
+        <h3>{i18n.t('dashboard.req_by_agent')}</h3>
+      </div>
+      <div class="section-card-body">
+        {#if Object.keys(requestsByAgent).length === 0}
+          <div class="breakdown-empty">{i18n.t('dashboard.no_data_yet')}</div>
+        {:else}
+          {#each Object.entries(requestsByAgent).sort((a, b) => b[1] - a[1]) as [name, count]}
+            <div class="breakdown-row">
+              <span class="breakdown-label" title={name}>{name}</span>
+              <div class="breakdown-track">
+                <div
+                  class="breakdown-fill breakdown-fill--green"
+                  style:width="{Math.max(2, (count / Math.max(...Object.values(requestsByAgent))) * 100)}%"
+                ></div>
+              </div>
+              <span class="breakdown-value font-mono">{formatNumber(count)}</span>
             </div>
           {/each}
         {/if}
@@ -212,7 +373,100 @@
       emptyMessage={i18n.t('dashboard.empty_recent')}
       searchPlaceholder={i18n.t('common.search')}
       showSearch={false}
-    />
+      onRowClick={handleRowClick}
+      isRowExpanded={isRowExpanded}
+    >
+      {#snippet expandedRow(row)}
+        <div class="expanded-detail-panel">
+          <div class="detail-grid">
+            <!-- Token Breakdown -->
+            <div class="detail-section">
+              <h4 class="detail-section-title">Token 消耗分布</h4>
+              <div class="token-breakdown-container">
+                <div class="token-progress-bar">
+                  {#if (row.cache_read_tokens ?? 0) > 0}
+                    <div 
+                      class="token-bar token-bar--cache" 
+                      style:width="{(row.cache_read_tokens / row.total_tokens) * 100}%"
+                      title="前缀缓存命中: {row.cache_read_tokens} tokens"
+                    ></div>
+                  {/if}
+                  <div 
+                    class="token-bar token-bar--input" 
+                    style:width="{((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100}%"
+                    title="输入 Token: {row.input_tokens - (row.cache_read_tokens ?? 0)} tokens"
+                  ></div>
+                  <div 
+                    class="token-bar token-bar--output" 
+                    style:width="{(row.output_tokens / row.total_tokens) * 100}%"
+                    title="输出 Token: {row.output_tokens} tokens"
+                  ></div>
+                </div>
+                
+                <div class="token-legend">
+                  {#if (row.cache_read_tokens ?? 0) > 0}
+                    <span class="legend-item"><span class="legend-dot legend-dot--cache"></span>缓存命中: {row.cache_read_tokens} ({Math.round((row.cache_read_tokens/row.total_tokens)*100)}%)</span>
+                  {/if}
+                  <span class="legend-item"><span class="legend-dot legend-dot--input"></span>输入 Token: {row.input_tokens - (row.cache_read_tokens ?? 0)} ({Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0))/row.total_tokens)*100)}%)</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--output"></span>输出 Token: {row.output_tokens} ({Math.round((row.output_tokens/row.total_tokens)*100)}%)</span>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Diagnostics -->
+            {#if row.status_code >= 400 || row.error_message}
+              <div class="detail-section detail-section--full">
+                <h4 class="detail-section-title error-text">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;">
+                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  网关诊断错误输出
+                </h4>
+                <div class="error-terminal">
+                  <div class="terminal-header">
+                    <span class="terminal-dot red"></span>
+                    <span class="terminal-dot yellow"></span>
+                    <span class="terminal-dot green"></span>
+                    <span class="terminal-title">status_{row.status_code}.log</span>
+                  </div>
+                  <pre class="terminal-body">{row.error_message || `HTTP ${row.status_code}: Request failed without detailed error message.`}</pre>
+                </div>
+              </div>
+            {:else}
+              <div class="detail-section">
+                <h4 class="detail-section-title">性能诊断</h4>
+                <div class="performance-metrics-list">
+                  <div class="perf-metric">
+                    <span class="perf-label">缓存状态</span>
+                    <span class="perf-value">
+                      {#if (row.cache_read_tokens ?? 0) > 0}
+                        <span class="badge-cache badge-cache--hit">前缀缓存已命中 ({Math.round((row.cache_read_tokens / row.input_tokens) * 100)}%)</span>
+                      {:else}
+                        <span class="badge-cache badge-cache--miss">前缀缓存未命中</span>
+                      {/if}
+                    </span>
+                  </div>
+                  <div class="perf-metric">
+                    <span class="perf-label">处理效率</span>
+                    <span class="perf-value">
+                      {#if row.output_tokens > 0 && row.latency_ms > 0}
+                        <span class="mono-text">{Math.round((row.output_tokens / (row.latency_ms / 1000)) * 10) / 10} tokens/s</span>
+                      {:else}
+                        -
+                      {/if}
+                    </span>
+                  </div>
+                  <div class="perf-metric">
+                    <span class="perf-label">请求 ID</span>
+                    <span class="perf-value mono-text text-small">{row.id}</span>
+                  </div>
+                </div>
+              </div>
+            {/if}
+          </div>
+        </div>
+      {/snippet}
+    </DataTable>
   </section>
 {/if}
 
@@ -226,6 +480,171 @@
 {/if}
 
 <style>
+  /* ── Fonts ────────────────────────────────────────────── */
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+
+  /* ── Gateway Control Center ───────────────────────────── */
+  .gateway-center-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    padding: 24px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .gateway-center-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .control-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+    margin-bottom: 20px;
+  }
+
+  .gateway-title-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pulse-ring {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+  }
+
+  .pulse-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+    display: inline-block;
+  }
+
+  .pulse-dot.running {
+    background-color: var(--success);
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
+    animation: pulse-success 2s infinite;
+  }
+
+  .pulse-dot.checking {
+    background-color: var(--warning);
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4);
+    animation: pulse-warning 2s infinite;
+  }
+
+  .pulse-dot.stopped, .pulse-dot.error {
+    background-color: var(--error);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    animation: pulse-error 2s infinite;
+  }
+
+  @keyframes pulse-success {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+  }
+
+  @keyframes pulse-warning {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(245, 158, 11, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+  }
+
+  @keyframes pulse-error {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  }
+
+  .gateway-meta h3 {
+    font-size: 15px;
+    font-weight: 650;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  .gateway-subtitle {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  .port-badge-wrapper {
+    flex-shrink: 0;
+  }
+
+  .port-badge {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  .gateway-performance-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
+  .perf-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--glass-bg-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+  }
+
+  .perf-icon-bg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-md);
+  }
+
+  .perf-icon-bg--green { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
+  .perf-icon-bg--blue { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
+  .perf-icon-bg--purple { background: rgba(139, 92, 246, 0.1); color: #c084fc; }
+
+  .perf-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .perf-card-value {
+    font-size: 16px;
+    font-weight: 650;
+    color: var(--text-primary);
+  }
+
+  .perf-card-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
   /* ── Metrics Grid ─────────────────────────────────────── */
   .metrics-grid {
     display: grid;
@@ -239,7 +658,7 @@
     align-items: center;
     gap: 14px;
     padding: 20px;
-    background: var(--glass-bg);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.005) 100%);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
@@ -252,19 +671,21 @@
   .metric-card::before {
     content: '';
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+    top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
   }
 
   .metric-card:hover {
     background: var(--bg-card-hover);
     border-color: var(--border-hover);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
   }
+
+  .metric-card--requests:hover { box-shadow: 0 6px 20px rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.25); }
+  .metric-card--tokens:hover { box-shadow: 0 6px 20px rgba(139, 92, 246, 0.08); border-color: rgba(139, 92, 246, 0.25); }
+  .metric-card--providers:hover { box-shadow: 0 6px 20px rgba(34, 197, 94, 0.08); border-color: rgba(34, 197, 94, 0.25); }
+  .metric-card--models:hover { box-shadow: 0 6px 20px rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25); }
 
   .metric-icon {
     display: flex;
@@ -272,29 +693,14 @@
     justify-content: center;
     width: 38px;
     height: 38px;
-    border-radius: 10px;
+    border-radius: var(--radius-md);
     flex-shrink: 0;
   }
 
-  .metric-icon--blue {
-    background: rgba(59, 130, 246, 0.12);
-    color: #60a5fa;
-  }
-
-  .metric-icon--purple {
-    background: rgba(139, 92, 246, 0.12);
-    color: #a78bfa;
-  }
-
-  .metric-icon--green {
-    background: rgba(34, 197, 94, 0.12);
-    color: #4ade80;
-  }
-
-  .metric-icon--amber {
-    background: rgba(245, 158, 11, 0.12);
-    color: #fbbf24;
-  }
+  .metric-icon--blue { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
+  .metric-icon--purple { background: rgba(139, 92, 246, 0.1); color: #a78bfa; }
+  .metric-icon--green { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
+  .metric-icon--amber { background: rgba(245, 158, 11, 0.1); color: #fbbf24; }
 
   .metric-body {
     display: flex;
@@ -312,17 +718,22 @@
   }
 
   .metric-label {
-    font-size: 12px;
-    color: var(--text-muted);
+    font-size: 11.5px;
+    color: var(--text-secondary);
     white-space: nowrap;
   }
 
   /* ── Breakdown Grid ───────────────────────────────────── */
   .breakdown-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     gap: 12px;
     margin-bottom: 28px;
+  }
+
+  .breakdown-grid :global(.card) {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0.005) 100%) !important;
+    border: 1px solid var(--border) !important;
   }
 
   .section-card-header {
@@ -341,10 +752,10 @@
   }
 
   .section-card-body {
-    padding: 14px 18px 16px;
+    padding: 16px 18px 18px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
 
   .breakdown-row {
@@ -354,9 +765,9 @@
   }
 
   .breakdown-label {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-secondary);
-    width: 110px;
+    width: 100px;
     flex-shrink: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -367,29 +778,45 @@
   .breakdown-track {
     flex: 1;
     height: 6px;
-    background: rgba(255, 255, 255, 0.04);
-    border-radius: 3px;
+    background: var(--border-dashed-subtle);
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    position: relative;
     overflow: hidden;
   }
 
   .breakdown-fill {
     height: 100%;
-    border-radius: 3px;
-    transition: width 0.4s ease;
+    border-radius: 4px;
+    transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
     min-width: 2px;
+    position: relative;
   }
 
-  .breakdown-fill--blue {
-    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  .breakdown-fill::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(
+      90deg, 
+      rgba(255, 255, 255, 0) 0%, 
+      rgba(255, 255, 255, 0.12) 50%, 
+      rgba(255, 255, 255, 0) 100%
+    );
+    animation: shimmer-bar 3s infinite linear;
   }
 
-  .breakdown-fill--purple {
-    background: linear-gradient(90deg, #8b5cf6, #c084fc);
+  @keyframes shimmer-bar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
   }
+
+  .breakdown-fill--blue { background: linear-gradient(90deg, #2563eb, #60a5fa); box-shadow: 0 0 10px rgba(59, 130, 246, 0.15); }
+  .breakdown-fill--purple { background: linear-gradient(90deg, #7c3aed, #c084fc); box-shadow: 0 0 10px rgba(139, 92, 246, 0.15); }
+  .breakdown-fill--green { background: linear-gradient(90deg, #059669, #34d399); box-shadow: 0 0 10px rgba(52, 211, 153, 0.15); }
 
   .breakdown-value {
-    font-size: 12px;
-    font-family: var(--font-mono);
+    font-size: 11.5px;
     color: var(--text-muted);
     min-width: 36px;
     text-align: right;
@@ -400,7 +827,7 @@
     padding: 24px;
     text-align: center;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: 12px;
   }
 
   /* ── Recent Requests ──────────────────────────────────── */
@@ -409,7 +836,7 @@
   }
 
   .recent-header {
-    margin-bottom: 12px;
+    margin-bottom: 16px;
   }
 
   .recent-header-left {
@@ -425,7 +852,316 @@
     margin: 0;
   }
 
-  /* ── Error ────────────────────────────────────────────── */
+  /* ── Expanded Detail Panel (Row Expansion) ────────────── */
+  .expanded-detail-panel {
+    background: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    animation: slide-down 0.2s ease-out;
+  }
+
+  @keyframes slide-down {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+
+  .detail-section--full {
+    grid-column: 1 / -1;
+  }
+
+  .detail-section-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .detail-section-title.error-text {
+    color: #f87171;
+  }
+
+  /* Token progress bar stack */
+  .token-breakdown-container {
+    background: var(--glass-bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+  }
+
+  .token-progress-bar {
+    height: 10px;
+    background: var(--glass-bg-hover);
+    border-radius: var(--radius-full);
+    display: flex;
+    overflow: hidden;
+    margin-bottom: 14px;
+    border: 1px solid var(--border-subtle);
+  }
+
+  .token-bar {
+    height: 100%;
+    transition: width 0.4s ease;
+  }
+
+  .token-bar--cache { background: linear-gradient(90deg, #10b981, #34d399); }
+  .token-bar--input { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+  .token-bar--output { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+
+  .token-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .legend-item {
+    font-size: 11px;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .legend-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    display: inline-block;
+  }
+
+  .legend-dot--cache { background-color: #34d399; }
+  .legend-dot--input { background-color: #3b82f6; }
+  .legend-dot--output { background-color: #a78bfa; }
+
+  /* Performance list */
+  .performance-metrics-list {
+    background: var(--glass-bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    height: calc(100% - 28px);
+    justify-content: center;
+  }
+
+  .perf-metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 8px;
+  }
+
+  .perf-metric:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .perf-label {
+    color: var(--text-secondary);
+  }
+
+  .perf-value {
+    color: var(--text-primary);
+  }
+
+  /* Diagnostic console */
+  .error-terminal {
+    background: #06060c;
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  .terminal-header {
+    background: var(--glass-bg-subtle);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .terminal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+  }
+
+  .terminal-dot.red { background-color: #ef4444; }
+  .terminal-dot.yellow { background-color: #f59e0b; }
+  .terminal-dot.green { background-color: #10b981; }
+
+  .terminal-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-left: 6px;
+  }
+
+  .terminal-body {
+    margin: 0;
+    padding: 12px 16px;
+    color: #f87171;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  /* ── Badge Globals for DataTable Render ───────────────── */
+  :global(.badge-agent) {
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    display: inline-block;
+  }
+
+  :global(.badge-agent-claude) {
+    background: rgba(217, 119, 6, 0.1);
+    color: #f59e0b;
+    border: 1px solid rgba(217, 119, 6, 0.15);
+  }
+
+  :global(.badge-agent-code) {
+    background: rgba(139, 92, 246, 0.1);
+    color: #a78bfa;
+    border: 1px solid rgba(139, 92, 246, 0.15);
+  }
+
+  :global(.badge-agent-pi) {
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.15);
+  }
+
+  :global(.badge-agent-generic) {
+    background: var(--bg-badge);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  :global(.model-flow-cell) {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  :global(.model-provider-badge) {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-badge);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border-subtle);
+  }
+
+  :global(.flow-arrow) {
+    color: var(--text-muted);
+    font-size: 10px;
+  }
+
+  :global(.model-name-badge) {
+    font-size: 11.5px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  :global(.mono-text) {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  :global(.text-small) {
+    font-size: 11px;
+  }
+
+  :global(.status-dot-badge) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+  }
+
+  :global(.status-dot-core) {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+  }
+
+  :global(.status-glow-success) {
+    background: rgba(16, 185, 129, 0.08);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.12);
+  }
+
+  :global(.status-glow-success .status-dot-core) {
+    background-color: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  :global(.status-glow-warning) {
+    background: rgba(245, 158, 11, 0.08);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.12);
+  }
+
+  :global(.status-glow-warning .status-dot-core) {
+    background-color: #f59e0b;
+    box-shadow: 0 0 6px #f59e0b;
+  }
+
+  :global(.status-glow-error) {
+    background: rgba(239, 68, 68, 0.08);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.12);
+  }
+
+  :global(.status-glow-error .status-dot-core) {
+    background-color: #ef4444;
+    box-shadow: 0 0 6px #ef4444;
+  }
+
+  :global(.badge-cache) {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    font-weight: 500;
+  }
+
+  :global(.badge-cache--hit) {
+    background: rgba(16, 185, 129, 0.08);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.15);
+  }
+
+  :global(.badge-cache--miss) {
+    background: var(--bg-badge);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* ── Error Banner ─────────────────────────────────────── */
   .error-banner {
     display: flex;
     align-items: center;
@@ -440,15 +1176,30 @@
   }
 
   /* ── Responsive ───────────────────────────────────────── */
-  @media (max-width: 1100px) {
-    .metrics-grid {
+  @media (max-width: 1200px) {
+    .breakdown-grid {
       grid-template-columns: repeat(2, 1fr);
     }
   }
 
-  @media (max-width: 640px) {
-    .metrics-grid,
+  @media (max-width: 900px) {
+    .gateway-performance-grid {
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+    .metrics-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
     .breakdown-grid {
+      grid-template-columns: 1fr;
+    }
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .metrics-grid {
       grid-template-columns: 1fr;
     }
   }

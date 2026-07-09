@@ -110,7 +110,7 @@
   );
 </script>
 
-<PageHeader title="Usage" description="Token consumption and cost tracking" />
+<PageHeader title={i18n.t('usage.title') || 'Usage'} description={i18n.t('usage.subtitle') || 'Token consumption and cost tracking'} />
 
 <div class="usage-page">
   <div class="range-selector">
@@ -122,83 +122,103 @@
   </div>
 
   {#if loading}
-    <div class="loading">Loading usage data...</div>
+    <div class="loading">
+      <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+      &nbsp;Loading usage data...
+    </div>
   {:else if summary}
+    <!-- Glow stat cards -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Total Requests</div>
-        <div class="stat-value">{fmt(summary.total_requests)}</div>
+        <div class="stat-value mono">{fmt(summary.total_requests)}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Input Tokens</div>
-        <div class="stat-value">{fmt(summary.total_input_tokens)}</div>
+        <div class="stat-value mono">{fmt(summary.total_input_tokens)}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Output Tokens</div>
-        <div class="stat-value">{fmt(summary.total_output_tokens)}</div>
+        <div class="stat-value mono">{fmt(summary.total_output_tokens)}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Total Cost</div>
-        <div class="stat-value">{fmtCost(summary.total_cost_usd)}</div>
+        <div class="stat-value mono text-white">{fmtCost(summary.total_cost_usd)}</div>
       </div>
     </div>
 
+    <!-- Visual Progress breakdowns -->
     <div class="breakdown-grid">
       <div class="breakdown-section">
         <h3>By Provider</h3>
-        <table class="breakdown-table">
-          <thead>
-            <tr><th>Provider</th><th>Requests</th><th>Tokens</th><th>Cost</th></tr>
-          </thead>
-          <tbody>
-            {#each providerRows as row}
-              <tr>
-                <td>{row.id}</td>
-                <td>{fmt(row.requests)}</td>
-                <td>{fmt(row.input_tokens + row.output_tokens)}</td>
-                <td>{fmtCost(row.cost_usd)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+        <div class="breakdown-list">
+          {#each providerRows as row}
+            {@const pct = summary.total_cost_usd > 0 ? (row.cost_usd / summary.total_cost_usd) * 100 : 0}
+            <div class="progress-item">
+              <div class="progress-meta">
+                <span class="progress-name">{row.id}</span>
+                <span class="progress-val mono">{fmtCost(row.cost_usd)}</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style="width: {Math.max(2, Math.round(pct))}%"></div>
+              </div>
+              <div class="progress-subinfo">
+                <span>{fmt(row.requests)} reqs</span>
+                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
+              </div>
+            </div>
+          {:else}
+            <div class="empty-list">No provider data</div>
+          {/each}
+        </div>
       </div>
 
       <div class="breakdown-section">
         <h3>By Model</h3>
-        <table class="breakdown-table">
-          <thead>
-            <tr><th>Model</th><th>Requests</th><th>Tokens</th><th>Cost</th></tr>
-          </thead>
-          <tbody>
-            {#each modelRows as row}
-              <tr>
-                <td>{row.id}</td>
-                <td>{fmt(row.requests)}</td>
-                <td>{fmt(row.input_tokens + row.output_tokens)}</td>
-                <td>{fmtCost(row.cost_usd)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+        <div class="breakdown-list">
+          {#each modelRows as row}
+            {@const pct = summary.total_cost_usd > 0 ? (row.cost_usd / summary.total_cost_usd) * 100 : 0}
+            <div class="progress-item">
+              <div class="progress-meta">
+                <span class="progress-name truncate" title={row.id}>{row.id}</span>
+                <span class="progress-val mono">{fmtCost(row.cost_usd)}</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill highlight" style="width: {Math.max(2, Math.round(pct))}%"></div>
+              </div>
+              <div class="progress-subinfo">
+                <span>{fmt(row.requests)} reqs</span>
+                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
+              </div>
+            </div>
+          {:else}
+            <div class="empty-list">No model data</div>
+          {/each}
+        </div>
       </div>
 
       <div class="breakdown-section">
         <h3>By Agent</h3>
-        <table class="breakdown-table">
-          <thead>
-            <tr><th>Agent</th><th>Requests</th><th>Tokens</th><th>Cost</th></tr>
-          </thead>
-          <tbody>
-            {#each agentRows as row}
-              <tr>
-                <td>{row.id}</td>
-                <td>{fmt(row.requests)}</td>
-                <td>{fmt(row.input_tokens + row.output_tokens)}</td>
-                <td>{fmtCost(row.cost_usd)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
+        <div class="breakdown-list">
+          {#each agentRows as row}
+            {@const pct = summary.total_requests > 0 ? (row.requests / summary.total_requests) * 100 : 0}
+            <div class="progress-item">
+              <div class="progress-meta">
+                <span class="progress-name">{row.id}</span>
+                <span class="progress-val mono">{fmt(row.requests)} reqs</span>
+              </div>
+              <div class="progress-bar-track">
+                <div class="progress-bar-fill" style="width: {Math.max(2, Math.round(pct))}%"></div>
+              </div>
+              <div class="progress-subinfo">
+                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
+                <span>{fmtCost(row.cost_usd)} cost</span>
+              </div>
+            </div>
+          {:else}
+            <div class="empty-list">No agent data</div>
+          {/each}
+        </div>
       </div>
     </div>
 
@@ -216,32 +236,40 @@
     display: flex;
     flex-direction: column;
     gap: 24px;
+    margin-top: 4px;
   }
 
   .range-selector {
     display: flex;
-    gap: 8px;
+    gap: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    align-self: flex-start;
   }
 
   .range-btn {
-    padding: 6px 16px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-secondary);
-    color: var(--text-secondary);
+    padding: 6px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 13px;
-    transition: all 0.15s;
+    font-size: 11.5px;
+    font-weight: 550;
+    transition: all var(--transition-fast);
   }
 
-  .range-btn:hover {
-    border-color: var(--accent);
+  .range-btn:hover:not(.active) {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.02);
   }
 
   .range-btn.active {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
+    background: #ffffff;
+    color: #030303;
+    font-weight: 600;
   }
 
   .stats-grid {
@@ -253,57 +281,122 @@
   .stat-card {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     padding: 20px;
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-normal);
+  }
+
+  .stat-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-glow);
   }
 
   .stat-label {
-    font-size: 12px;
-    color: var(--text-secondary);
+    font-size: 11px;
+    color: var(--text-muted);
     margin-bottom: 8px;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.05em;
+    font-weight: 600;
   }
 
   .stat-value {
     font-size: 24px;
-    font-weight: 600;
-    color: var(--text);
+    font-weight: 650;
+    color: var(--text-primary);
   }
 
+  .text-white {
+    color: #ffffff;
+  }
+
+  /* ── Breakdown Visual Lists ─────────────────────────── */
   .breakdown-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 16px;
+    gap: 20px;
+  }
+
+  .breakdown-section {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
   }
 
   .breakdown-section h3 {
-    font-size: 14px;
-    margin-bottom: 12px;
-    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+    color: var(--text-primary);
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 12px;
   }
 
-  .breakdown-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
+  .breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
   }
 
-  .breakdown-table th {
-    text-align: left;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
+  .progress-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .progress-name {
+    font-size: 12.5px;
+    font-weight: 550;
+    color: var(--text-primary);
+  }
+
+  .progress-val {
+    font-size: 12px;
+    font-weight: 600;
     color: var(--text-secondary);
-    font-weight: 500;
   }
 
-  .breakdown-table td {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
+  .progress-bar-track {
+    height: 4px;
+    background: var(--border-dashed-subtle);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    width: 100%;
   }
 
-  .breakdown-table td:last-child {
-    text-align: right;
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--text-muted);
+    border-radius: var(--radius-full);
+    transition: width var(--transition-slow);
+  }
+
+  .progress-bar-fill.highlight {
+    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+  }
+
+  .progress-subinfo {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .empty-list {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 24px;
   }
 
   .loading,
@@ -311,10 +404,27 @@
     text-align: center;
     padding: 48px;
     color: var(--text-secondary);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .records-section {
+    margin-top: 12px;
   }
 
   .records-section h3 {
-    font-size: 14px;
-    margin-bottom: 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+  }
+
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

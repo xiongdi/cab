@@ -41,6 +41,7 @@ pub async fn upsert_catalog_provider(
     env: Option<&[String]>,
     npm: Option<&str>,
     model_count: usize,
+    logo: Option<&str>,
     catalog_models: &[String],
 ) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
@@ -59,6 +60,9 @@ pub async fn upsert_catalog_provider(
         existing.env = env.map(|v| v.to_vec());
         existing.npm = npm.map(|s| s.to_string());
         existing.model_count = model_count;
+        if logo.is_some() {
+            existing.logo = logo.map(|s| s.to_string());
+        }
         existing.catalog_models = catalog_models.to_vec();
         existing.updated_at = now;
     } else {
@@ -92,6 +96,7 @@ pub async fn upsert_catalog_provider(
             env: env.map(|v| v.to_vec()),
             npm: npm.map(|s| s.to_string()),
             model_count,
+            logo: logo.map(|s| s.to_string()),
             catalog_models: catalog_models.to_vec(),
         };
         inner.providers.insert(id.to_string(), provider);
@@ -182,6 +187,9 @@ pub async fn apply_provider_config(
         } else if let Some(api_key) = &user.api_key {
             provider.api_key = api_key.clone();
         }
+        if let Some(logo) = &user.logo {
+            provider.logo = Some(logo.clone());
+        }
     }
 
     provider.updated_at = chrono::Utc::now().to_rfc3339();
@@ -248,6 +256,7 @@ pub async fn create(store: &InMemoryStore, input: &CreateProvider) -> Result<Pro
         env: input.env.clone(),
         npm: input.npm.clone(),
         model_count: input.model_count.unwrap_or(0),
+        logo: input.logo.clone(),
         catalog_models: Vec::new(),
     };
     inner.providers.insert(id, provider.clone());
@@ -296,6 +305,9 @@ pub async fn update(
         }
         if let Some(model_count) = input.model_count {
             p.model_count = model_count;
+        }
+        if let Some(logo) = &input.logo {
+            p.logo = logo.clone();
         }
         p.updated_at = chrono::Utc::now().to_rfc3339();
         let updated = p.clone();

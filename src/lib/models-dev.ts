@@ -1,18 +1,15 @@
-/** models.dev static assets (see https://models.dev) */
-export const MODELS_DEV_ORIGIN = 'https://models.dev';
-
 export type CatalogLogoKind = 'provider' | 'lab';
 
-/** Gateway/provider logo: `/logos/{provider}.svg` */
+/** Provider logo from static/logos/ — served by Vite dev or built frontend */
 export function providerLogoUrl(providerId: string): string {
   const slug = providerId.trim().toLowerCase();
-  return `${MODELS_DEV_ORIGIN}/logos/${encodeURIComponent(slug)}.svg`;
+  return `/logos/${encodeURIComponent(slug)}.svg`;
 }
 
-/** Model vendor/lab logo: `/logos/labs/{lab}.svg` */
+/** Lab logo from static/logos/labs/ */
 export function labLogoUrl(labId: string): string {
   const slug = labId.trim().toLowerCase();
-  return `${MODELS_DEV_ORIGIN}/logos/labs/${encodeURIComponent(slug)}.svg`;
+  return `/logos/labs/${encodeURIComponent(slug)}.svg`;
 }
 
 export function catalogLogoUrl(id: string, kind: CatalogLogoKind = 'provider'): string {

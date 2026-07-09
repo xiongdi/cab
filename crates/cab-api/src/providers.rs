@@ -128,6 +128,7 @@ pub async fn update_provider(
         env: None,
         npm: None,
         model_count: None,
+        logo: input.logo,
     };
 
     let provider = cab_db::provider::update(&state.pool, &id, &sanitized)
@@ -140,6 +141,7 @@ pub async fn update_provider(
         &provider.api_key,
         &provider.api_keys,
         &provider.endpoints,
+        provider.logo.clone(),
     );
     cab_db::settings::set_provider_override(&state.pool, &id, user_settings)
         .await

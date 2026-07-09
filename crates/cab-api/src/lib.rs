@@ -196,6 +196,7 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         // Settings
         .route("/api/settings", get(settings::get_settings))
         .route("/api/settings", put(settings::update_settings))
+        .route("/api/logos/{*path}", get(settings::get_logo_svg))
         .route(
             "/api/settings/catalog-status",
             get(settings::get_catalog_status),

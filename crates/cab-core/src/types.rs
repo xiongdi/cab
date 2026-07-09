@@ -77,6 +77,8 @@ pub struct Provider {
     pub npm: Option<String>,
     pub model_count: usize,
     #[serde(default)]
+    pub logo: Option<String>,
+    #[serde(default)]
     pub catalog_models: Vec<String>,
 }
 
@@ -97,6 +99,8 @@ pub struct CreateProvider {
     pub env: Option<Vec<String>>,
     pub npm: Option<String>,
     pub model_count: Option<usize>,
+    #[serde(default)]
+    pub logo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -116,6 +120,8 @@ pub struct UpdateProvider {
     pub env: Option<Vec<String>>,
     pub npm: Option<String>,
     pub model_count: Option<usize>,
+    #[serde(default)]
+    pub logo: Option<Option<String>>,
 }
 
 // ──────────────────────────── Model ────────────────────────────
@@ -424,6 +430,8 @@ pub struct ProviderUserSettings {
     pub api_keys: Option<Vec<ApiKeyConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoints: Option<Vec<ProviderEndpoint>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub logo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

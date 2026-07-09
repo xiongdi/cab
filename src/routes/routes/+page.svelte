@@ -366,25 +366,32 @@
   {#if previewResult}
     <div class="preview-result">
       {#if previewResult.resolved}
-        <div class="preview-block">
-          <strong>{i18n.t('routes.preview_resolved')}</strong>
-          <span>
-            {previewResult.resolved.model_id} · {providerMap.get(previewResult.resolved.provider_id)?.name ?? previewResult.resolved.provider_id}
+        <div class="preview-resolved-outlet">
+          <div class="outlet-header">
+            <span class="pulse-dot active"></span>
+            <strong>{i18n.t('routes.preview_resolved')}</strong>
+          </div>
+          <div class="outlet-body mono">
+            <span class="resolved-model">{previewResult.resolved.model_id}</span>
+            <span class="resolved-divider">➜</span>
+            <span class="resolved-provider">{providerMap.get(previewResult.resolved.provider_id)?.name ?? previewResult.resolved.provider_id}</span>
             {#if previewResult.resolved.strategy}
-              · {previewResult.resolved.strategy}
+              <span class="resolved-strategy-tag">{previewResult.resolved.strategy}</span>
             {/if}
-          </span>
+          </div>
         </div>
       {/if}
-      <div class="preview-block">
+
+      <div class="preview-steps-container">
         <strong>{i18n.t('routes.preview_steps')}</strong>
-        <ul>
+        <div class="decision-pipeline">
           {#each previewResult.decision_steps as step}
-            <li class:matched={step.matched} class:missed={!step.matched}>
-              <code>{step.step}</code> — {step.detail}
-            </li>
+            <div class="decision-step" class:matched={step.matched}>
+              <code class="step-code mono">{step.step}</code>
+              <span class="step-detail">{step.detail}</span>
+            </div>
           {/each}
-        </ul>
+        </div>
       </div>
       {#if previewResult.ranked_candidates.length > 0}
         {@const previewRankById = new Map(
@@ -804,7 +811,7 @@
   }
 
   .preview-desc {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-secondary);
     margin: 0 0 16px;
   }
@@ -820,19 +827,27 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-secondary);
   }
 
   .preview-form select,
   .preview-form input,
   .preview-form textarea {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     padding: 8px 10px;
     font: inherit;
+    outline: none;
+    transition: border-color var(--transition-fast);
+  }
+
+  .preview-form select:focus,
+  .preview-form input:focus,
+  .preview-form textarea:focus {
+    border-color: var(--border-focus);
   }
 
   .preview-prompt {
@@ -842,12 +857,20 @@
   .preview-btn {
     grid-column: 1 / -1;
     justify-self: start;
-    padding: 8px 14px;
+    padding: 8px 16px;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(99, 102, 241, 0.35);
-    background: rgba(99, 102, 241, 0.12);
-    color: #c7d2fe;
+    border: 1px solid var(--border);
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    font-weight: 600;
     cursor: pointer;
+    font-size: 12px;
+    transition: all var(--transition-fast);
+  }
+
+  .preview-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    box-shadow: var(--shadow-sm);
   }
 
   .preview-btn:disabled {
@@ -856,25 +879,147 @@
   }
 
   .preview-result {
-    margin-top: 18px;
+    margin-top: 20px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 20px;
   }
 
-  .preview-block ul {
-    margin: 8px 0 0;
+  /* ── Resolved Export Outlet ──────────────────────────── */
+  .preview-resolved-outlet {
+    background: rgba(16, 185, 129, 0.03);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.05);
+  }
+
+  .outlet-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .outlet-header strong {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #34d399;
+  }
+
+  .outlet-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+
+  .resolved-model {
+    color: var(--text-primary);
+  }
+
+  .resolved-divider {
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  .resolved-provider {
+    color: #a7f3d0;
+  }
+
+  .resolved-strategy-tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* ── Decision Pipeline Topo ─────────────────────────── */
+  .preview-steps-container > strong {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .decision-pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
     padding-left: 18px;
+  }
+
+  .decision-pipeline::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 8px;
+    bottom: 8px;
+    width: 1px;
+    background: var(--connector-line);
+  }
+
+  .decision-step {
+    position: relative;
     font-size: 12px;
     color: var(--text-secondary);
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-subtle);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
 
-  .preview-block li.matched code {
-    color: #86efac;
+  .decision-step::before {
+    content: '';
+    position: absolute;
+    left: -16px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    border: 2px solid var(--bg-primary);
   }
 
-  .preview-block li.missed code {
-    color: #fca5a5;
+  .decision-step.matched {
+    border-color: rgba(16, 185, 129, 0.2);
+    background: rgba(16, 185, 129, 0.03);
+    color: var(--text-primary);
+  }
+
+  .decision-step.matched::before {
+    background: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .step-code {
+    color: var(--text-muted);
+    background: var(--bg-badge);
+    padding: 2px 6px;
+    border-radius: var(--radius-xs);
+    font-size: 11px;
+  }
+
+  .decision-step.matched .step-code {
+    color: #a7f3d0;
+  }
+
+  :global(html[data-theme="light"]) .decision-step.matched .step-code {
+    color: #047857;
+    background: rgba(16, 185, 129, 0.08);
   }
 
   .provider-badge {
@@ -882,13 +1027,9 @@
     font-size: 10px;
     font-weight: 600;
     padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(99, 102, 241, 0.1);
-    border: 1px solid rgba(99, 102, 241, 0.2);
-    color: #818cf8;
-    max-width: 90px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    border-radius: var(--radius-xs);
+    background: var(--bg-badge);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
   }
 </style>

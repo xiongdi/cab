@@ -489,13 +489,13 @@ export const translations = {
   en: {
     nav: {
       dashboard: 'Dashboard',
-      providers: 'Gateways',
+      providers: 'Providers',
       models: 'Models',
       routes: 'Routes',
       logs: 'Logs',
       usage: 'Usage',
       settings: 'Settings',
-      agents: 'Coding Agents',
+      agents: 'Agents',
     },
     common: {
       active: 'Active',

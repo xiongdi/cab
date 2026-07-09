@@ -152,6 +152,7 @@ pub fn provider_user_settings_from_provider(
     api_key: &str,
     api_keys: &[crate::types::ApiKeyConfig],
     endpoints: &[ProviderEndpoint],
+    logo: Option<String>,
 ) -> ProviderUserSettings {
     ProviderUserSettings {
         enabled: Some(enabled),
@@ -170,6 +171,7 @@ pub fn provider_user_settings_from_provider(
         } else {
             Some(endpoints.to_vec())
         },
+        logo,
     }
 }
 

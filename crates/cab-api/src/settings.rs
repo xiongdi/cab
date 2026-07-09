@@ -140,3 +140,50 @@ mod tests {
         assert_eq!(json["sources"].as_array().unwrap().len(), 3);
     }
 }
+
+pub async fn get_logo_svg(
+    _state: State<ApiState>,
+    axum::extract::Path(path): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, CabError> {
+    use axum::http::header;
+
+    // Logos live at ~/.cab/logos/{provider_id}.svg
+    let logos_dir = cab_core::catalog_root_dir()
+        .parent()
+        .map(|p| p.join("logos"))
+        .unwrap_or_else(|| std::path::PathBuf::from("logos"));
+
+    // path is e.g. "anthropic.svg" or "labs/google.svg"
+    let logo_path = logos_dir.join(&path);
+
+    // 1. Serve from disk if available
+    if logo_path.exists() {
+        if let Ok(bytes) = std::fs::read(&logo_path) {
+            return Ok(([(header::CONTENT_TYPE, "image/svg+xml")], String::from_utf8_lossy(&bytes).into_owned()));
+        }
+    }
+
+    // 2. Fallback: proxy from models.dev and cache to disk
+    let logo_url = format!("https://models.dev/logos/{path}");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .unwrap_or_default();
+
+    if let Ok(resp) = client.get(&logo_url).send().await {
+        if resp.status().is_success() {
+            if let Ok(text) = resp.text().await {
+                if text.trim().starts_with("<svg") {
+                    // Cache to disk for future requests
+                    if let Some(parent) = logo_path.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::write(&logo_path, &text);
+                    return Ok(([(header::CONTENT_TYPE, "image/svg+xml")], text));
+                }
+            }
+        }
+    }
+
+    Err(CabError::NotFound(format!("Logo for {path} not found")))
+}

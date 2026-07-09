@@ -360,94 +360,63 @@
 
   <section class="provider-table-wrap">
     <div class="provider-table">
-      <div class="provider-grid header-row">
-        <div class="cell cell-logo">{i18n.t('providers.col_logo')}</div>
-        <div
-          class="cell cell-name sortable"
-          class:active-sort={sortKey === 'name'}
-          onclick={() => setSort('name')}
-        >
-          {i18n.t('providers.col_name')}
-        </div>
-        <div
-          class="cell cell-id sortable"
-          class:active-sort={sortKey === 'id'}
-          onclick={() => setSort('id')}
-        >
-          {i18n.t('providers.col_id')}
-        </div>
-        <div
-          class="cell cell-models sortable"
-          class:active-sort={sortKey === 'model_count'}
-          onclick={() => setSort('model_count')}
-        >
-          {i18n.t('providers.col_models')}
-        </div>
-        <div class="cell cell-endpoints">{i18n.t('providers.col_endpoints')}</div>
-        <div class="cell cell-keys">{i18n.t('providers.col_keys')}</div>
-        <div
-          class="cell cell-status sortable"
-          class:active-sort={sortKey === 'enabled'}
-          onclick={() => setSort('enabled')}
-        >
-          {i18n.t('providers.col_status')}
-        </div>
-        <div class="cell cell-chevron" aria-hidden="true"></div>
-      </div>
-
       {#each rows as provider (provider.id)}
         <div class="provider-block" class:expanded={expandedProviderId === provider.id}>
           <button
             type="button"
-            class="provider-grid data-row"
+            class="provider-card-button"
             onclick={() => toggleExpanded(provider.id)}
             aria-expanded={expandedProviderId === provider.id}
           >
-            <div class="cell cell-logo">
-              <CatalogLogo id={provider.id} kind="provider" size={24} alt={provider.name} />
+            <!-- Card Header -->
+            <div class="provider-card-header">
+              <div class="provider-card-logo">
+                <CatalogLogo id={provider.id} kind="provider" size={26} alt={provider.name} />
+              </div>
+              <div class="provider-card-title-group">
+                <strong class="provider-card-name">{provider.name}</strong>
+                <span class="provider-card-id mono">{provider.id}</span>
+              </div>
+              <div class="provider-card-chevron">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  style="transform: rotate({expandedProviderId === provider.id
+                    ? 180
+                    : 0}deg); transition: transform 0.2s;"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
             </div>
-            <div class="cell cell-name">
-              <strong class="provider-name">{provider.name}</strong>
-            </div>
-            <div class="cell cell-id">
-              <span class="mono muted">{provider.id}</span>
-            </div>
-            <div class="cell cell-models">
-              <span class="count-badge">{provider.model_count ?? 0}</span>
-            </div>
-            <div class="cell cell-endpoints">
+            
+            <!-- Card Badges Row -->
+            <div class="provider-card-badges">
+              <span class="badge-indicator">
+                <span class="badge-label">Models</span>
+                <span class="badge-val">{provider.model_count ?? 0}</span>
+              </span>
+              <span class="badge-indicator">
+                <span class="badge-label">Keys</span>
+                <span class="badge-val">{keyCount(provider.id)}</span>
+              </span>
+              
               {#if endpointProtocols(provider.id).length > 0}
-                <div class="protocol-badges">
+                <div class="badge-protocols">
                   {#each endpointProtocols(provider.id) as protocol}
-                    <span class="badge badge-secondary mono">{protocol}</span>
+                    <span class="badge-proto mono">{protocol}</span>
                   {/each}
                 </div>
-              {:else}
-                <span class="muted">—</span>
               {/if}
-            </div>
-            <div class="cell cell-keys">
-              <span class="count-badge">{keyCount(provider.id)}</span>
-            </div>
-            <div class="cell cell-status">
-              <span class="status-badge" class:enabled={enabledDrafts[provider.id]}>
+              
+              <span class="badge-status" class:enabled={enabledDrafts[provider.id]}>
+                <span class="status-dot"></span>
                 {enabledDrafts[provider.id] ? i18n.t('common.enabled') : i18n.t('common.disabled')}
               </span>
-            </div>
-            <div class="cell cell-chevron">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                style="transform: rotate({expandedProviderId === provider.id
-                  ? 180
-                  : 0}deg); transition: transform 0.2s;"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
             </div>
           </button>
 
@@ -702,7 +671,7 @@
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     align-items: stretch;
   }
 
@@ -749,12 +718,12 @@
     background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 500;
     padding: 7px 6px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all var(--transition-fast, 0.15s ease);
+    transition: all var(--transition-fast);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -766,184 +735,260 @@
   }
 
   .segment-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--accent);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     font-weight: 600;
   }
 
+  /* ── Card Grid Layout ────────────────────────────────── */
   .provider-table-wrap {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    background: var(--bg-secondary);
+    background: transparent;
+    border: none;
   }
 
   .provider-table {
-    width: 100%;
-  }
-
-  .provider-grid {
     display: grid;
-    grid-template-columns: 52px minmax(160px, 1.4fr) 120px 72px minmax(140px, 1fr) 64px 88px 28px;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .header-row {
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .header-row .sortable {
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .header-row .sortable:hover,
-  .header-row .active-sort {
-    color: var(--accent);
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
   }
 
   .provider-block {
-    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-sm);
   }
 
-  .provider-block:last-child {
-    border-bottom: 0;
+  .provider-block:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
   }
 
-  .data-row {
-    padding: 10px 12px;
-    border: 0;
+  /* Expanded Card stretches full row width */
+  .provider-block.expanded {
+    grid-column: 1 / -1;
+    background: var(--bg-card-expanded);
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Card Button (Header) */
+  .provider-card-button {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 20px;
     background: transparent;
-    color: inherit;
+    border: none;
+    width: 100%;
     text-align: left;
     cursor: pointer;
-    transition: background 0.15s ease;
+    color: inherit;
+    font-family: inherit;
   }
 
-  .data-row:hover,
-  .provider-block.expanded .data-row {
-    background: var(--bg-primary);
-  }
-
-  .cell {
-    min-width: 0;
-    font-size: 13px;
-  }
-
-  .cell-logo {
+  .provider-card-header {
     display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .provider-card-logo {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
     justify-content: center;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--border);
   }
 
-  .cell-name {
-    overflow: hidden;
+  .provider-card-title-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
   }
 
-  .provider-name {
-    display: block;
+  .provider-card-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--text-primary);
-    font-size: 14px;
   }
 
-  .cell-models,
-  .cell-keys,
-  .cell-status,
-  .cell-chevron {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  .provider-card-id {
+    font-size: 10.5px;
+    color: var(--text-muted);
   }
 
-  .cell-endpoints {
+  .provider-card-chevron {
+    flex-shrink: 0;
+    color: var(--text-muted);
     display: flex;
     align-items: center;
   }
 
-  .protocol-badges {
+  /* Badges Row */
+  .provider-card-badges {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.03);
+    padding-top: 12px;
+    width: 100%;
+  }
+
+  .badge-indicator {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+    font-size: 11px;
+    height: 20px;
+  }
+
+  .badge-label {
+    padding: 0 6px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.01);
+    font-weight: 500;
+  }
+
+  .badge-val {
+    padding: 0 6px;
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-family: var(--font-mono);
+  }
+
+  .badge-protocols {
+    display: flex;
     gap: 4px;
   }
 
-  .count-badge,
-  .status-badge {
+  .badge-proto {
+    font-size: 10.5px;
+    padding: 0 6px;
+    height: 20px;
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    font-weight: 600;
+    border-radius: var(--radius-xs);
+    background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border);
-    background: var(--bg-primary);
     color: var(--text-secondary);
   }
 
-  .status-badge.enabled {
-    color: var(--success);
-    border-color: rgba(34, 197, 94, 0.35);
-    background: rgba(34, 197, 94, 0.08);
-  }
-
-  .badge-secondary {
-    background: var(--bg-primary);
+  .badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 0 8px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border);
-    color: var(--text-primary);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
+    color: var(--text-muted);
   }
 
+  .badge-status.enabled {
+    background: rgba(16, 185, 129, 0.06);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.12);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--text-muted);
+  }
+
+  .badge-status.enabled .status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 6px #10b981;
+  }
+
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 0 8px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .status-badge.enabled {
+    background: rgba(16, 185, 129, 0.06);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.12);
+  }
+
+  /* ── Detail Panel ────────────────────────────────────── */
   .detail-panel {
-    padding: 0 12px 16px 12px;
-    background: var(--bg-tertiary, var(--bg-primary));
-    border-top: 1px solid var(--border);
+    padding: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(0, 0, 0, 0.15);
   }
 
   .detail-meta {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
+    gap: 16px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.03);
   }
 
   .detail-field {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    min-width: 0;
+    gap: 4px;
   }
 
   .detail-label {
     font-size: 11px;
     font-weight: 600;
-    text-transform: uppercase;
     color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
 
-  .detail-value,
-  .detail-link {
-    font-size: 12px;
-    word-break: break-all;
+  .detail-value {
+    font-size: 12.5px;
+    color: var(--text-primary);
   }
 
   .detail-link {
-    color: var(--accent);
-    text-decoration: none;
+    font-size: 12.5px;
+    color: var(--accent-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .detail-link:hover {
@@ -957,48 +1002,49 @@
   }
 
   .detail-section {
-    padding-top: 14px;
+    margin-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+    padding-top: 20px;
+  }
+
+  .detail-section:first-of-type {
+    border-top: none;
+    padding-top: 0;
+    margin-top: 0;
   }
 
   .detail-section-head {
     display: flex;
-    align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
+    align-items: baseline;
+    margin-bottom: 12px;
   }
 
   .detail-section-head h4 {
-    margin: 0;
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .detail-empty {
-    padding: 12px;
-    text-align: center;
-    color: var(--text-muted);
     font-size: 13px;
-    border: 1px dashed var(--border);
-    border-radius: var(--radius-md);
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
   }
 
-  .model-name-list {
+  .model-list-wrapper {
+    max-height: 240px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: rgba(0, 0, 0, 0.1);
+    scrollbar-width: thin;
+  }
+
+  .model-list {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    max-height: 160px;
-    overflow: auto;
-    padding: 10px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-secondary);
+    padding: 12px;
   }
 
   .model-name-chip {
-    font-size: 11px;
+    font-size: 11.5px;
     padding: 3px 8px;
     border-radius: var(--radius-sm);
     background: var(--bg-primary);
@@ -1060,7 +1106,7 @@
 
   .billing-tip {
     margin: 0 0 10px;
-    font-size: 12px;
+    font-size: 11.5px;
     line-height: 1.5;
     color: var(--text-muted);
   }
@@ -1121,17 +1167,10 @@
     padding: 32px;
     color: var(--text-muted);
     text-align: center;
+    grid-column: 1 / -1;
   }
 
   @media (max-width: 1100px) {
-    .provider-table-wrap {
-      overflow-x: auto;
-    }
-
-    .provider-grid {
-      min-width: 920px;
-    }
-
     .detail-meta {
       grid-template-columns: 1fr;
     }

@@ -499,6 +499,7 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
         &defaults,
         benchmark_catalog.as_ref(),
         &aa_map,
+        &client,
     )
     .await?;
     cab_db::provider::apply_all_provider_configs(pool)
@@ -523,6 +524,7 @@ pub async fn sync_models_dev_models(
     defaults: &cab_core::ProviderDefaultsCatalog,
     benchmark_catalog: Option<&cab_core::BenchmarkCatalog>,
     aa_map: &cab_core::AaModelMapFile,
+    client: &reqwest::Client,
 ) -> Result<usize, CabError> {
     let existing_models = cab_db::model::list(pool)
         .await
@@ -551,6 +553,30 @@ pub async fn sync_models_dev_models(
         catalog_models.sort();
         catalog_models.dedup();
 
+        // Download logo from models.dev and save as a static file on disk
+        let logo_url = cab_core::models_dev_provider_logo_url(provider_id);
+        let logos_dir = cab_core::catalog_root_dir()
+            .parent()
+            .unwrap_or(std::path::Path::new("."))
+            .join("logos");
+        let logo_path = logos_dir.join(format!("{provider_id}.svg"));
+        // Only download if file doesn't already exist (avoids re-downloading every sync)
+        if !logo_path.exists() {
+            if let Ok(resp) = client.get(&logo_url).send().await {
+                if resp.status().is_success() {
+                    if let Ok(text) = resp.text().await {
+                        if text.trim().starts_with("<svg") {
+                            if let Err(e) = std::fs::create_dir_all(&logos_dir) {
+                                tracing::warn!("Failed to create logos dir: {e}");
+                            } else if let Err(e) = std::fs::write(&logo_path, &text) {
+                                tracing::warn!("Failed to write logo for {provider_id}: {e}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         cab_db::provider::upsert_catalog_provider(
             pool,
             provider_id,
@@ -566,6 +592,7 @@ pub async fn sync_models_dev_models(
             provider.env.as_deref(),
             provider.npm.as_deref(),
             provider.models.len(),
+            None,
             &catalog_models,
         )
         .await

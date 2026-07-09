@@ -365,121 +365,77 @@
 
   <section class="model-table-wrap">
     <div class="model-table">
-      <div class="model-grid header-row">
-        <div class="cell cell-logo"></div>
-        <div
-          class="cell cell-name sortable"
-          class:active-sort={sortKey === 'name'}
-          onclick={() => setSort('name')}
-        >
-          {i18n.t('models.col_name')}
-        </div>
-        <div
-          class="cell cell-id sortable"
-          class:active-sort={sortKey === 'id'}
-          onclick={() => setSort('id')}
-        >
-          {i18n.t('models.col_id')}
-        </div>
-        <div
-          class="cell cell-family sortable"
-          class:active-sort={sortKey === 'family'}
-          onclick={() => setSort('family')}
-        >
-          {i18n.t('models.col_family')}
-        </div>
-        <div
-          class="cell cell-context sortable"
-          class:active-sort={sortKey === 'context'}
-          onclick={() => setSort('context')}
-        >
-          {i18n.t('models.col_context')}
-        </div>
-        <div class="cell cell-output">{i18n.t('models.col_output')}</div>
-        <div
-          class="cell cell-knowledge sortable"
-          class:active-sort={sortKey === 'knowledge'}
-          onclick={() => setSort('knowledge')}
-        >
-          {i18n.t('models.col_knowledge')}
-        </div>
-        <div
-          class="cell cell-release sortable"
-          class:active-sort={sortKey === 'release_date'}
-          onclick={() => setSort('release_date')}
-        >
-          {i18n.t('models.col_release')}
-        </div>
-        <div class="cell cell-capabilities">{i18n.t('models.col_capabilities')}</div>
-        <div
-          class="cell cell-enabled sortable"
-          class:active-sort={sortKey === 'enabled'}
-          onclick={() => setSort('enabled')}
-        >
-          {i18n.t('models.col_enabled')}
-        </div>
-        <div class="cell cell-chevron" aria-hidden="true"></div>
-      </div>
-
       {#each rows as entry (entry.catalog_id)}
         <div class="model-block" class:expanded={expandedCatalogId === entry.catalog_id}>
           <button
             type="button"
-            class="model-grid data-row"
+            class="model-card-button"
             onclick={() => toggleExpanded(entry.catalog_id)}
             aria-expanded={expandedCatalogId === entry.catalog_id}
           >
-            <div class="cell cell-logo">
-              {#if modelLabId(entry.catalog_id)}
-                <CatalogLogo
-                  id={modelLabId(entry.catalog_id)!}
-                  kind="lab"
-                  size={22}
-                  alt={displayName(entry)}
-                />
-              {/if}
+            <!-- Card Left: Logo & Names -->
+            <div class="model-card-left">
+              <div class="model-card-logo">
+                {#if modelLabId(entry.catalog_id)}
+                  <CatalogLogo
+                    id={modelLabId(entry.catalog_id)!}
+                    kind="lab"
+                    size={22}
+                    alt={displayName(entry)}
+                  />
+                {/if}
+              </div>
+              <div class="model-card-names">
+                <strong class="model-card-title">{displayName(entry)}</strong>
+                <div class="model-card-meta-row">
+                  <span class="model-card-id mono">{entry.catalog_id}</span>
+                  <span class="model-card-family">{String(md(entry).family ?? '—')}</span>
+                </div>
+              </div>
             </div>
-            <div class="cell cell-name">
-              <strong>{displayName(entry)}</strong>
+            
+            <!-- Card Middle: Token constraints -->
+            <div class="model-card-middle">
+              <span class="constraint-badge" title="Context Limit">
+                <span class="badge-icon">CTX</span>
+                <span class="badge-val mono">{formatTokens(limitField(entry, 'context'))}</span>
+              </span>
+              <span class="constraint-badge" title="Max Output">
+                <span class="badge-icon">OUT</span>
+                <span class="badge-val mono">{formatTokens(limitField(entry, 'output'))}</span>
+              </span>
             </div>
-            <div class="cell cell-id">
-              <span class="mono muted">{entry.catalog_id}</span>
-            </div>
-            <div class="cell cell-family">{String(md(entry).family ?? '—')}</div>
-            <div class="cell cell-context mono">{formatTokens(limitField(entry, 'context'))}</div>
-            <div class="cell cell-output mono">{formatTokens(limitField(entry, 'output'))}</div>
-            <div class="cell cell-knowledge">{String(md(entry).knowledge ?? '—')}</div>
-            <div class="cell cell-release">{String(md(entry).release_date ?? '—')}</div>
-            <div class="cell cell-capabilities">
+
+            <!-- Card Right: Capabilities & Action Toggles -->
+            <div class="model-card-right">
               {#if capabilityFlags(entry).length > 0}
                 <div class="cap-badges">
                   {#each capabilityFlags(entry).slice(0, 3) as flag}
-                    <span class="badge badge-secondary">{flag}</span>
+                    <span class="badge-cap">{flag}</span>
                   {/each}
                 </div>
-              {:else}
-                <span class="muted">—</span>
               {/if}
-            </div>
-            <div class="cell cell-enabled">
-              <span class="status-badge" class:enabled={entry.enabled}>
+              
+              <span class="badge-status" class:enabled={entry.enabled}>
+                <span class="status-dot"></span>
                 {entry.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled')}
               </span>
-            </div>
-            <div class="cell cell-chevron">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                style="transform: rotate({expandedCatalogId === entry.catalog_id
-                  ? 180
-                  : 0}deg); transition: transform 0.2s;"
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
+              
+              <div class="model-card-chevron">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  style="transform: rotate({expandedCatalogId === entry.catalog_id
+                    ? 180
+                    : 0}deg); transition: transform 0.2s;"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </div>
             </div>
           </button>
 
@@ -811,7 +767,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto;
     gap: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
     align-items: stretch;
   }
 
@@ -863,12 +819,12 @@
     background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 500;
     padding: 7px 6px;
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all var(--transition-fast);
   }
 
   .segment-btn:hover:not(.active) {
@@ -877,141 +833,235 @@
   }
 
   .segment-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    font-weight: 600;
-  }
-
-  .model-table-wrap {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    background: var(--bg-secondary);
-  }
-
-  .model-grid {
-    display: grid;
-    grid-template-columns:
-      40px minmax(140px, 1.2fr) minmax(140px, 1fr)
-      90px 72px 72px 88px 92px minmax(120px, 0.9fr) 72px 28px;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-  }
-
-  .header-row {
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border);
-    padding: 10px 12px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .header-row .sortable {
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .header-row .sortable:hover,
-  .header-row .active-sort {
+    background: rgba(255, 255, 255, 0.05);
     color: var(--accent);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    font-weight: 600;
+  }
+
+  .model-table {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .model-block {
-    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all var(--transition-normal);
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-sm);
   }
 
-  .model-block:last-child {
-    border-bottom: 0;
+  .model-block:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
   }
 
-  .data-row {
-    padding: 10px 12px;
-    border: 0;
+  .model-block.expanded {
+    background: var(--bg-card-expanded);
+    border-color: var(--border-hover);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Card Button */
+  .model-card-button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 16px 20px;
     background: transparent;
-    color: inherit;
+    border: none;
+    width: 100%;
     text-align: left;
     cursor: pointer;
-    transition: background 0.15s ease;
-    width: 100%;
+    color: inherit;
+    font-family: inherit;
   }
 
-  .data-row:hover,
-  .model-block.expanded .data-row {
-    background: var(--bg-primary);
-  }
-
-  .cell {
-    min-width: 0;
-    font-size: 13px;
-  }
-
-  .cell-logo {
+  /* Left Side: Logo & Names */
+  .model-card-left {
     display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1.5;
+  }
+
+  .model-card-logo {
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
     justify-content: center;
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid var(--border);
   }
 
-  .cell-name strong {
-    display: block;
+  .model-card-names {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .model-card-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .cell-id .mono {
-    display: block;
+  .model-card-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .model-card-id {
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .model-card-family {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.02);
+    padding: 1px 6px;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--border);
+  }
+
+  /* Middle: Token Constraints */
+  .model-card-middle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .constraint-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     font-size: 11px;
+    height: 20px;
+  }
+
+  .badge-icon {
+    padding: 0 5px;
+    color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.01);
+    font-weight: 600;
+  }
+
+  .badge-val {
+    padding: 0 6px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* Right Side: Badges & Toggles */
+  .model-card-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    flex: 1;
   }
 
   .cap-badges {
     display: flex;
-    flex-wrap: wrap;
     gap: 4px;
   }
 
-  .badge-secondary {
-    background: var(--bg-primary);
+  .badge-cap {
+    font-size: 10.5px;
+    padding: 0 6px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: var(--radius-xs);
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border);
-    color: var(--text-primary);
-    font-size: 10px;
-    padding: 2px 6px;
-    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    text-transform: capitalize;
+  }
+
+  .badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    padding: 0 8px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  .badge-status.enabled {
+    background: rgba(16, 185, 129, 0.06);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.12);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: var(--text-muted);
+  }
+
+  .badge-status.enabled .status-dot {
+    background-color: #10b981;
+    box-shadow: 0 0 6px #10b981;
   }
 
   .status-badge {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
+    gap: 6px;
     font-size: 11px;
-    font-weight: 600;
+    padding: 0 8px;
+    height: 20px;
+    border-radius: var(--radius-full);
+    font-weight: 500;
+    background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border);
-    background: var(--bg-primary);
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
 
   .status-badge.enabled {
-    color: var(--success);
-    border-color: rgba(34, 197, 94, 0.35);
-    background: rgba(34, 197, 94, 0.08);
+    background: rgba(16, 185, 129, 0.06);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.12);
   }
 
+  .model-card-chevron {
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+  }
+
+  /* ── Detail Panel ────────────────────────────────────── */
   .detail-panel {
-    padding: 0 12px 16px;
-    background: var(--bg-tertiary, var(--bg-primary));
-    border-top: 1px solid var(--border);
-  }
-
-  .detail-section {
-    padding-top: 14px;
+    padding: 14px 20px 20px;
   }
 
   .detail-section + .detail-section {

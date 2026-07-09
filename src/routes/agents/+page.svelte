@@ -155,6 +155,14 @@
     }
   }
 
+  async function handleCopyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(i18n.t('settings.key_copied') || 'Copied!');
+    } catch {
+      toast.error('Copy failed');
+    }
+  }
 </script>
 
 <PageHeader title={i18n.t('agents.title')} description={i18n.t('agents.subtitle')} />
@@ -299,18 +307,42 @@
           <div class="guide-item">
             <h4>1. Claude Code</h4>
             <p class="guide-desc">{i18n.t('agents.guide_claude_code')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export ANTHROPIC_BASE_URL="http://localhost:3125"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export ANTHROPIC_BASE_URL="http://localhost:3125"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
           <div class="guide-item">
             <h4>2. Codex</h4>
             <p class="guide-desc">{i18n.t('agents.guide_codex')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export CODEX_API_BASE="http://localhost:3125/v1"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export CODEX_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
           <div class="guide-item">
             <h4>3. OpenCode</h4>
             <p class="guide-desc">{i18n.t('agents.guide_opencode')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export OPENAI_BASE_URL="http://localhost:3125/v1"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENAI_BASE_URL="http://localhost:3125/v1"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
           <div class="guide-item">
             <h4>4. Hermes Agent</h4>
             <p class="guide-desc">{i18n.t('agents.guide_hermes')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export HERMES_API_BASE="http://localhost:3125/v1"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export HERMES_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
           <div class="guide-item">
             <h4>5. Kilo Code</h4>
@@ -319,6 +351,12 @@
           <div class="guide-item">
             <h4>6. OpenClaw</h4>
             <p class="guide-desc">{i18n.t('agents.guide_openclaw')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export OPENCLAW_API_BASE="http://localhost:3125/v1"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENCLAW_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
           <div class="guide-item">
             <h4>7. Pi</h4>
@@ -327,6 +365,12 @@
           <div class="guide-item">
             <h4>8. Reasonix</h4>
             <p class="guide-desc">{i18n.t('agents.guide_reasonix')}</p>
+            <div class="terminal-block">
+              <span class="mono text-xs">export REASONIX_API_BASE="http://localhost:3125/v1"</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export REASONIX_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -408,7 +452,7 @@
 
   .mode-segment {
     display: flex;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 3px;
@@ -431,14 +475,15 @@
 
   .segment-btn:hover:not(.active) {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--glass-bg-subtle);
   }
 
   .segment-btn.active {
-    background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
-    border: 1px solid rgba(59, 130, 246, 0.2);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
     font-weight: 600;
+    box-shadow: var(--shadow-xs);
   }
 
   .agent-inputs {
@@ -460,7 +505,7 @@
   }
 
   .manual-hint {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
     line-height: 1.6;
     margin: 0;
@@ -481,7 +526,7 @@
     align-items: center;
     gap: 10px;
     margin: 0 0 4px 0;
-    font-size: 15px;
+    font-size: 14.5px;
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -499,17 +544,62 @@
     }
   }
 
+  .guide-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
   .guide-item h4 {
-    margin: 0 0 8px 0;
+    margin: 0;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-secondary);
   }
 
   .guide-desc {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-muted);
     line-height: 1.6;
     margin: 0;
+  }
+
+  /* ── Terminal Block ──────────────────────────────────── */
+  .terminal-block {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #030303;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 6px 10px;
+    margin-top: 4px;
+  }
+
+  .terminal-block span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-secondary);
+  }
+
+  .terminal-copy-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-xs);
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+  }
+
+  .terminal-copy-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
   }
 </style>

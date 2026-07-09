@@ -5,10 +5,14 @@
   import Toast from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { gatewayHealth } from '$lib/gateway-health.svelte';
+  import { themeManager } from '$lib/theme.svelte';
 
   let { children } = $props();
 
-  onMount(() => gatewayHealth.start(10_000));
+  onMount(() => {
+    themeManager.apply();
+    gatewayHealth.start(10_000);
+  });
   onDestroy(() => gatewayHealth.stop());
 
   $effect(() => {

@@ -7,6 +7,7 @@
   import { toast } from '$lib/components/Toast.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { gatewayHealth } from '$lib/gateway-health.svelte';
+  import { themeManager } from '$lib/theme.svelte';
   import pkg from '../../../package.json';
 
   const appVersion = pkg.version;
@@ -221,681 +222,782 @@
 <PageHeader title={i18n.t('settings.title')} description={i18n.t('settings.subtitle')} />
 
 {#if loading}
-  <div class="settings-grid">
-    <div class="skeleton" style="height: 200px; border-radius: var(--radius-lg);"></div>
-    <div class="skeleton" style="height: 200px; border-radius: var(--radius-lg);"></div>
+  <div class="settings-layout skeleton-loading">
+    <div class="skeleton" style="height: 400px; border-radius: var(--radius-lg);"></div>
+    <div class="skeleton" style="height: 500px; border-radius: var(--radius-lg);"></div>
   </div>
 {:else}
-  <div class="settings-grid">
-    <!-- Gateway Status -->
-    <Card>
-      <h3 class="card-section-title">{i18n.t('settings.gateway_status')}</h3>
-      <div class="status-display">
-        <div class="status-row">
-          <span class="status-label">{i18n.t('common.status')}</span>
-          <span class="status-value">
-            <span class="dot {statusDotClass[gatewayHealth.status]}"></span>
-            <span style:color={statusColors[gatewayHealth.status]} style="text-transform:capitalize">
-              {i18n.t(`settings.${gatewayHealth.status}`)}
+  <div class="settings-layout">
+    <!-- LEFT SIDEBAR: Gateway Profile & Catalog status (常驻侧栏卡片) -->
+    <aside class="settings-sidebar">
+      <!-- Profile Widget -->
+      <div class="sidebar-widget profile-widget">
+        <div class="widget-avatar-shell">
+          <div class="widget-avatar">CAB</div>
+        </div>
+        <div class="widget-meta">
+          <h4>Coding Agents Bridge</h4>
+          <span class="widget-version">Version {appVersion}</span>
+        </div>
+        
+        <div class="widget-status-list">
+          <div class="widget-status-item">
+            <span class="widget-status-label">{i18n.t('common.status')}</span>
+            <span class="widget-status-value">
+              <span class="pulse-dot {statusDotClass[gatewayHealth.status]}"></span>
+              <span style:color={statusColors[gatewayHealth.status]} style="text-transform: capitalize; font-weight: 600;">
+                {i18n.t(`settings.${gatewayHealth.status}`)}
+              </span>
             </span>
-          </span>
+          </div>
+          <div class="widget-status-item">
+            <span class="widget-status-label">网关基址</span>
+            <span class="widget-status-value mono text-xs select-all">http://localhost:{settings?.gateway_port ?? formPort}</span>
+          </div>
+          <div class="widget-status-item">
+            <span class="widget-status-label">后端核心</span>
+            <span class="widget-status-value">Rust Axum</span>
+          </div>
         </div>
-        <div class="status-row">
-          <span class="status-label">{i18n.t('settings.port')}</span>
-          <span class="status-value mono"
-            >http://localhost:{settings?.gateway_port ?? formPort}</span
+        
+        <div class="widget-actions">
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm btn-full"
+            onclick={handleCheckUpdate}
+            disabled={updateChecking || updateInstalling}
           >
-        </div>
-        <div class="status-row">
-          <span class="status-label">{i18n.t('settings.api_base')}</span>
-          <span class="status-value mono"
-            >http://localhost:{settings?.gateway_port ?? formPort}/api</span
-          >
+            {#if updateChecking}
+              <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+              &nbsp;{i18n.t('settings.checking_update')}
+            {:else}
+              {i18n.t('settings.check_update')}
+            {/if}
+          </button>
         </div>
       </div>
-    </Card>
 
-    <!-- Configuration -->
-    <Card>
-      <h3 class="card-section-title">{i18n.t('settings.title')}</h3>
-      <form
-        onsubmit={(e) => {
-          e.preventDefault();
-          handleSave();
-        }}
-      >
-        <div class="form-group">
-          <label class="label" for="s-port">{i18n.t('settings.port')}</label>
-          <input
-            class="input mono"
-            id="s-port"
-            type="number"
-            bind:value={formPort}
-            min="1024"
-            max="65535"
-          />
-        </div>
-        <div class="form-group">
-          <label class="label" for="s-retention">{i18n.t('settings.retention')}</label>
-          <input
-            class="input mono"
-            id="s-retention"
-            type="number"
-            bind:value={formRetention}
-            min="1"
-            max="365"
-          />
-        </div>
-        <div class="form-group">
-          <label class="label" for="s-key">{i18n.t('settings.gateway_key')}</label>
-          <div class="key-input-container">
-            <input
-              class="input mono"
-              id="s-key"
-              type={showKey ? 'text' : 'password'}
-              bind:value={formKey}
-              placeholder="cab-token-..."
-            />
-            <button
-              type="button"
-              class="btn btn-secondary btn-icon"
-              onclick={() => (showKey = !showKey)}
-              title={showKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
-            >
-              {#if showKey}
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path
-                    d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
-                  /><path
-                    d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"
-                  /><line x1="2" y1="2" x2="22" y2="22" /></svg
-                >
-              {:else}
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                  /></svg
-                >
-              {/if}
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick={handleCopy}
-              title={i18n.t('settings.copy_key')}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                ><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path
-                  d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
-                /></svg
-              >
-              {i18n.t('settings.copy_key')}
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick={handleRefreshKey}
-              title={i18n.t('settings.refresh_key')}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                ><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path
-                  d="M16 3h5v5"
-                /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path
-                  d="M8 21H3v-5"
-                /></svg
-              >
-              {i18n.t('settings.refresh_key')}
-            </button>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick={handleSync}
-              title={i18n.t('settings.sync_key')}
-              disabled={saving}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                ><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
-                  d="M3 3v5h5"
-                /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path
-                  d="M16 16h5v5"
-                /></svg
-              >
-              {i18n.t('settings.sync_key')}
-            </button>
-          </div>
-          <p class="help-text">{i18n.t('settings.gateway_key_tip')}</p>
-        </div>
-        <div class="form-group">
-          <label class="label" for="s-aa-key">{i18n.t('settings.artificial_analysis_key')}</label>
-          <div class="key-input-container">
-            <input
-              class="input mono"
-              id="s-aa-key"
-              type={showArtificialAnalysisKey ? 'text' : 'password'}
-              bind:value={formArtificialAnalysisKey}
-              placeholder="AA API Key"
-            />
-            <button
-              type="button"
-              class="btn btn-secondary btn-icon"
-              onclick={() => (showArtificialAnalysisKey = !showArtificialAnalysisKey)}
-              title={showArtificialAnalysisKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
-            >
-              {#if showArtificialAnalysisKey}
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path
-                    d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"
-                  /><path
-                    d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"
-                  /><line x1="2" y1="2" x2="22" y2="22" /></svg
-                >
-              {:else}
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle
-                    cx="12"
-                    cy="12"
-                    r="3"
-                  /></svg
-                >
-              {/if}
-            </button>
-          </div>
-          <p class="help-text">{i18n.t('settings.artificial_analysis_key_tip')}</p>
-        </div>
-        <div class="form-group">
-          <div class="toggle-row">
-            <label class="toggle">
-              <input type="checkbox" bind:checked={formCacheAffinity} />
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="label" style="margin:0">{i18n.t('settings.cache_affinity')}</span>
-          </div>
-          <p class="help-text">{i18n.t('settings.cache_affinity_tip')}</p>
-        </div>
-        <div class="form-group">
-          <div class="toggle-row">
-            <label class="toggle">
-              <input type="checkbox" bind:checked={formCacheShaping} />
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="label" style="margin:0">{i18n.t('settings.cache_shaping')}</span>
-          </div>
-          <p class="help-text">{i18n.t('settings.cache_shaping_tip')}</p>
-        </div>
-        <div style="margin-top:20px">
-          <button type="submit" class="btn btn-primary" disabled={saving}>
+      <!-- Sync Status Widget -->
+      <div class="sidebar-widget sync-widget">
+        <div class="widget-header">
+          <h5>数据目录源</h5>
+          <button
+            type="button"
+            class="btn-sync-icon"
+            onclick={handleCatalogSync}
+            disabled={catalogSyncing || saving}
+            title={i18n.t('settings.catalog_update_btn')}
+          >
             <svg
-              width="14"
-              height="14"
+              class:spin={catalogSyncing}
+              width="13"
+              height="13"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
             >
-              <path d="M5 13l4 4L19 7" />
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+              <path d="M16 16h5v5" />
             </svg>
-            {saving ? i18n.t('common.loading') : i18n.t('common.save')}
           </button>
         </div>
-      </form>
-    </Card>
-  </div>
-
-  <div class="catalog-section">
-    <Card>
-      <div class="catalog-header">
-        <div>
-          <h3 class="card-section-title">{i18n.t('settings.catalog_title')}</h3>
-          <p class="help-text">{i18n.t('settings.catalog_subtitle')}</p>
-        </div>
-        <button
-          type="button"
-          class="btn btn-primary"
-          onclick={handleCatalogSync}
-          disabled={catalogSyncing || saving}
-        >
-          <svg
-            class:spin={catalogSyncing}
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-            <path d="M3 3v5h5" />
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-            <path d="M16 16h5v5" />
-          </svg>
-          {catalogSyncing
-            ? i18n.t('settings.catalog_updating')
-            : i18n.t('settings.catalog_update_btn')}
-        </button>
-      </div>
-
-      <div class="catalog-table">
-        <div class="catalog-row catalog-head">
-          <span>{i18n.t('settings.catalog_source')}</span>
-          <span>{i18n.t('settings.catalog_records')}</span>
-          <span>{i18n.t('settings.catalog_last_sync')}</span>
-        </div>
-        {#each catalogSources as source}
-          <div class="catalog-row">
-            <div class="catalog-source">
-              <strong>{source.name}</strong>
-              <a
-                href={source.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="link-styled mono">{source.url}</a
-              >
+        
+        <div class="catalog-mini-list">
+          {#each catalogSources as source}
+            <div class="catalog-mini-item">
+              <div class="catalog-mini-meta">
+                <span class="source-name">{source.name}</span>
+                <span class="source-records">{catalogRecordSummary(source)}</span>
+              </div>
+              <span class="source-time">{formatSyncedAt(source.synced_at)}</span>
             </div>
-            <span class="catalog-records">{catalogRecordSummary(source)}</span>
-            <span class="catalog-synced">{formatSyncedAt(source.synced_at)}</span>
-          </div>
-        {:else}
-          <div class="catalog-row">
-            <span class="muted">{i18n.t('settings.catalog_not_cached')}</span>
-          </div>
-        {/each}
-      </div>
-    </Card>
-  </div>
-
-  <!-- Info -->
-  <div class="info-section">
-    <Card>
-      <div class="about-header">
-        <h3 class="card-section-title" style="margin-bottom: 0;">{i18n.t('settings.about')}</h3>
-        <button
-          type="button"
-          class="btn btn-secondary btn-sm"
-          onclick={handleCheckUpdate}
-          disabled={updateChecking || updateInstalling}
-        >
-          {#if updateChecking}
-            <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-            &nbsp;{i18n.t('settings.checking_update')}
           {:else}
-            {i18n.t('settings.check_update')}
-          {/if}
-        </button>
-      </div>
-
-      <div class="about-grid" style="margin-top: 16px;">
-        <div class="about-row">
-          <span class="about-label">{i18n.t('settings.version')}</span>
-          <span class="about-value mono">
-            {appVersion}
-            {#if updateInfo && !updateInfo.available && updateChecked}
-              <span class="update-badge success">{i18n.t('settings.update_not_available')}</span>
-            {/if}
-          </span>
-        </div>
-        <div class="about-row">
-          <span class="about-label">{i18n.t('settings.runtime')}</span>
-          <span class="about-value mono">Tauri 2 + SvelteKit</span>
-        </div>
-        <div class="about-row">
-          <span class="about-label">{i18n.t('settings.backend')}</span>
-          <span class="about-value mono">Rust (Axum)</span>
-        </div>
-        <div class="about-row">
-          <span class="about-label">{i18n.t('settings.license')}</span>
-          <span class="about-value">MIT</span>
-        </div>
-      </div>
-
-      {#if updateInfo && updateInfo.available}
-        <div class="update-banner">
-          <div class="update-header">
-            <div class="update-title">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="update-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              <span>{i18n.t('settings.update_available').replace('{version}', updateInfo.latest_version)}</span>
+            <div class="catalog-mini-empty">
+              {i18n.t('settings.catalog_not_cached')}
             </div>
-            {#if updateInfo.published_at}
-              <span class="update-date">{new Date(updateInfo.published_at).toLocaleDateString()}</span>
-            {/if}
+          {/each}
+        </div>
+      </div>
+    </aside>
+
+    <!-- RIGHT CONTENT: Settings Panels (OpenRouter 风格设置舱) -->
+    <main class="settings-main">
+      <!-- 1. Authentication & Service (认证与网关端口服务) -->
+      <section class="settings-panel">
+        <div class="panel-header">
+          <h3>认证与服务端口 (Authentication & Services)</h3>
+          <p>配置 CAB 网关在本地监听的 TCP 端口、日志保留期、以及智能体连接所需的统一授权密钥。</p>
+        </div>
+        
+        <form onsubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <div class="panel-body">
+            <!-- Port option row -->
+            <div class="option-row">
+              <div class="option-info">
+                <label for="s-port" class="option-title">本地代理端口 (Gateway Port)</label>
+                <span class="option-desc">统一网关在本地监听的 TCP 端口，默认使用 3125（修改后需要重启 watch 进程）。</span>
+              </div>
+              <div class="option-control">
+                <input
+                  class="input mono port-input"
+                  id="s-port"
+                  type="number"
+                  bind:value={formPort}
+                  min="1024"
+                  max="65535"
+                />
+              </div>
+            </div>
+
+            <!-- Log retention option row -->
+            <div class="option-row">
+              <div class="option-info">
+                <label for="s-retention" class="option-title">日志保留天数 (Logs Retention)</label>
+                <span class="option-desc">网关请求记录日志的本地保留天数，过期请求将被自动轮转清理。</span>
+              </div>
+              <div class="option-control">
+                <input
+                  class="input mono retention-input"
+                  id="s-retention"
+                  type="number"
+                  bind:value={formRetention}
+                  min="1"
+                  max="365"
+                />
+              </div>
+            </div>
+
+            <!-- Gateway key option row -->
+            <div class="option-row option-row--vertical">
+              <div class="option-info">
+                <label for="s-key" class="option-title">网关统一密钥 (Gateway API Key)</label>
+                <span class="option-desc">
+                  CAB 统一鉴权密钥，若本地智能体（如 Claude Code）的 API Key 为空，将自动注入此密钥以绕过登录校验。
+                </span>
+              </div>
+              <div class="option-control-group">
+                <div class="key-field-wrapper">
+                  <input
+                    class="input mono key-field"
+                    id="s-key"
+                    type={showKey ? 'text' : 'password'}
+                    bind:value={formKey}
+                    placeholder="cab-token-..."
+                  />
+                  <!-- Minimalist Icon Buttons -->
+                  <div class="key-action-buttons">
+                    <button
+                      type="button"
+                      class="icon-action-btn"
+                      onclick={() => (showKey = !showKey)}
+                      title={showKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
+                    >
+                      {#if showKey}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" y1="2" x2="22" y2="22" /></svg>
+                      {:else}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                      {/if}
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-action-btn"
+                      onclick={handleCopy}
+                      title={i18n.t('settings.copy_key')}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-action-btn"
+                      onclick={handleRefreshKey}
+                      title={i18n.t('settings.refresh_key')}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M16 3h5v5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 21H3v-5" /></svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="icon-action-btn"
+                      onclick={handleSync}
+                      title={i18n.t('settings.sync_key')}
+                      disabled={saving}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Artificial Analysis API Key -->
+            <div class="option-row option-row--vertical">
+              <div class="option-info">
+                <label for="s-aa-key" class="option-title">Artificial Analysis API Key</label>
+                <span class="option-desc">
+                  用于同步 Artificial Analysis 模型基准评测数据（若留空，将自动使用环境变量 `ARTIFICIAL_ANALYSIS_API_KEY`）。
+                </span>
+              </div>
+              <div class="option-control-group">
+                <div class="key-field-wrapper">
+                  <input
+                    class="input mono key-field"
+                    id="s-aa-key"
+                    type={showArtificialAnalysisKey ? 'text' : 'password'}
+                    bind:value={formArtificialAnalysisKey}
+                    placeholder="AA API Key"
+                  />
+                  <div class="key-action-buttons">
+                    <button
+                      type="button"
+                      class="icon-action-btn"
+                      onclick={() => (showArtificialAnalysisKey = !showArtificialAnalysisKey)}
+                      title={showArtificialAnalysisKey ? i18n.t('settings.hide') : i18n.t('settings.show')}
+                    >
+                      {#if showArtificialAnalysisKey}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.52 13.52 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" y1="2" x2="22" y2="22" /></svg>
+                      {:else}
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                      {/if}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           
-          {#if updateInfo.release_notes}
-            <div class="update-notes">
-              <span class="update-notes-title">{i18n.t('settings.release_notes')}</span>
-              <pre class="update-notes-content">{updateInfo.release_notes}</pre>
-            </div>
-          {/if}
-          
-          <div class="update-actions">
-            <button
-              type="button"
-              class="btn btn-primary btn-sm"
-              onclick={handleInstallUpdate}
-              disabled={updateInstalling}
-            >
-              {#if updateInstalling}
-                <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                &nbsp;{i18n.t('settings.updating')}
-              {:else}
-                {i18n.t('settings.update_btn')}
-              {/if}
+          <!-- OpenRouter-style panel footer with high-contrast Save button -->
+          <div class="panel-footer">
+            <span class="footer-tip">💡 更改监听端口后，需要重启网关后端程序方可生效。</span>
+            <button type="submit" class="btn btn-primary" disabled={saving}>
+              {saving ? i18n.t('common.loading') : i18n.t('common.save')}
             </button>
-            {#if updateInfo.download_url}
-              <a
-                href={updateInfo.download_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                class="btn btn-secondary btn-sm"
-                style="text-decoration: none;"
-              >
-                手动下载
-              </a>
+          </div>
+        </form>
+      </section>
+
+      <!-- 2. Performance & Cache Shaping (性能与缓存优化) -->
+      <section class="settings-panel">
+        <div class="panel-header">
+          <h3>性能与缓存优化 (Performance & Optimization)</h3>
+          <p>启用网关优化选项，改善缓存前缀的命中效率，显著降低在大语言模型请求中的输入成本。</p>
+        </div>
+        
+        <form onsubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <div class="panel-body">
+            <!-- Cache Affinity Row -->
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-title">{i18n.t('settings.cache_affinity')}</span>
+                <span class="option-desc">{i18n.t('settings.cache_affinity_tip')}</span>
+              </div>
+              <div class="option-control">
+                <label class="toggle">
+                  <input type="checkbox" bind:checked={formCacheAffinity} />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Cache Shaping Row -->
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-title">{i18n.t('settings.cache_shaping')}</span>
+                <span class="option-desc">{i18n.t('settings.cache_shaping_tip')}</span>
+              </div>
+              <div class="option-control">
+                <label class="toggle">
+                  <input type="checkbox" bind:checked={formCacheShaping} />
+                  <span class="toggle-slider"></span>
+                </label>
+              </div>
+            </div>
+
+            <!-- Appearance Theme Row -->
+            <div class="option-row">
+              <div class="option-info">
+                <span class="option-title">界面外观主题 (Appearance Theme)</span>
+                <span class="option-desc">切换网关面板视觉色彩系统，可选择亮色模式、暗色模式或跟随操作系统的明暗外观设定。</span>
+              </div>
+              <div class="option-control">
+                <div class="theme-segment">
+                  <button
+                    type="button"
+                    class="theme-segment-btn"
+                    class:active={themeManager.current === 'light'}
+                    onclick={() => themeManager.set('light')}
+                  >
+                    亮色
+                  </button>
+                  <button
+                    type="button"
+                    class="theme-segment-btn"
+                    class:active={themeManager.current === 'dark'}
+                    onclick={() => themeManager.set('dark')}
+                  >
+                    暗色
+                  </button>
+                  <button
+                    type="button"
+                    class="theme-segment-btn"
+                    class:active={themeManager.current === 'system'}
+                    onclick={() => themeManager.set('system')}
+                  >
+                    系统
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="panel-footer">
+            <span class="footer-tip">会话粘性优化在多轮对话中效果显著，能有效缩减 Prompt 输入时间。</span>
+            <button type="submit" class="btn btn-primary" disabled={saving}>
+              {saving ? i18n.t('common.loading') : i18n.t('common.save')}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 3. System Updates banner (发现新版本横幅) -->
+      {#if updateInfo && updateInfo.available}
+        <section class="settings-panel panel-update">
+          <div class="panel-header">
+            <h3 class="update-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="update-icon"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+              <span>{i18n.t('settings.update_available').replace('{version}', updateInfo.latest_version)}</span>
+            </h3>
+            {#if updateInfo.published_at}
+              <span class="update-date">发布于 {new Date(updateInfo.published_at).toLocaleDateString()}</span>
             {/if}
           </div>
-        </div>
+          
+          <div class="panel-body">
+            {#if updateInfo.release_notes}
+              <div class="update-notes">
+                <span class="update-notes-title">{i18n.t('settings.release_notes')}</span>
+                <pre class="update-notes-content">{updateInfo.release_notes}</pre>
+              </div>
+            {/if}
+          </div>
+          
+          <div class="panel-footer" style="background: rgba(59, 130, 246, 0.03);">
+            <span class="footer-tip text-blue">自动更新包已就绪，可一键完成本地覆盖安装。</span>
+            <div class="update-actions">
+              <button
+                type="button"
+                class="btn btn-primary btn-sm"
+                onclick={handleInstallUpdate}
+                disabled={updateInstalling}
+              >
+                {#if updateInstalling}
+                  <svg class="spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                  &nbsp;{i18n.t('settings.updating')}
+                {:else}
+                  {i18n.t('settings.update_btn')}
+                {/if}
+              </button>
+              {#if updateInfo.download_url}
+                <a
+                  href={updateInfo.download_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="btn btn-secondary btn-sm"
+                >
+                  手动下载
+                </a>
+              {/if}
+            </div>
+          </div>
+        </section>
       {/if}
-    </Card>
+    </main>
   </div>
 {/if}
 
 <style>
-  .settings-grid {
+  /* ── Layout ───────────────────────────────────────────── */
+  .settings-layout {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    align-items: start;
+    margin-top: 4px;
+  }
+
+  /* ── Sidebar ──────────────────────────────────────────── */
+  .settings-sidebar {
+    display: flex;
+    flex-direction: column;
     gap: 16px;
-    margin-bottom: 20px;
   }
 
-  .card-section-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 16px;
-    background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .status-display {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .status-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .status-row:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .status-label {
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .status-value {
-    font-size: 13px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .form-group {
-    margin-bottom: 16px;
-  }
-
-  .form-group:last-of-type {
-    margin-bottom: 0;
-  }
-
-  .key-input-container {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .key-input-container .input {
-    flex: 1;
-  }
-
-  .help-text {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 6px;
-    line-height: 1.4;
-  }
-
-  .about-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .about-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .about-row:last-child {
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  .about-label {
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .about-value {
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-  .catalog-section {
-    margin-bottom: 20px;
-  }
-
-  .catalog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-
-  .catalog-table {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
+  .sidebar-widget {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0.005) 100%);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    position: relative;
     overflow: hidden;
   }
 
-  .catalog-row {
-    display: grid;
-    grid-template-columns: 1.4fr 1fr 1fr;
-    gap: 12px;
-    padding: 12px 14px;
-    border-bottom: 1px solid var(--border);
+  .profile-widget {
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    text-align: center;
   }
 
-  .catalog-row:last-child {
+  .widget-avatar-shell {
+    padding: 4px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-full);
+    margin-bottom: 12px;
+  }
+
+  .widget-avatar {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    border-radius: var(--radius-full);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 750;
+    color: white;
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+  }
+
+  .widget-meta h4 {
+    font-size: 13.5px;
+    font-weight: 650;
+    color: var(--text-primary);
+    margin: 0 0 2px 0;
+  }
+
+  .widget-version {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .widget-status-list {
+    width: 100%;
+    margin-top: 20px;
+    border-top: 1px dashed var(--border);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .widget-status-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .widget-status-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .widget-status-value {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    display: inline-block;
+  }
+
+  .pulse-dot.running { background-color: var(--success); }
+  .pulse-dot.checking { background-color: var(--warning); }
+  .pulse-dot.stopped, .pulse-dot.error { background-color: var(--error); }
+
+  .widget-actions {
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  .btn-full {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Catalog status widget */
+  .sync-widget .widget-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .sync-widget h5 {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .btn-sync-icon {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: var(--radius-xs);
+    transition: all var(--transition-fast);
+  }
+
+  .btn-sync-icon:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .catalog-mini-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .catalog-mini-item {
+    background: rgba(255,255,255,0.005);
+    border-left: 2px solid rgba(59, 130, 246, 0.3);
+    padding: 6px 0 6px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .catalog-mini-meta {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .source-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .source-records {
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .source-time {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  .catalog-mini-empty {
+    padding: 12px 0;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 11px;
+  }
+
+  /* ── Right Panels (OpenRouter Style) ─────────────────── */
+  .settings-main {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .settings-panel {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .panel-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .panel-header h3 {
+    font-size: 14.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 4px 0;
+  }
+
+  .panel-header p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .panel-body {
+    padding: 8px 24px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Option Item Rows */
+  .option-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    padding: 20px 0;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.03);
+  }
+
+  .option-row:last-child {
     border-bottom: none;
   }
 
-  .catalog-head {
-    background: var(--bg-tertiary);
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-secondary);
-  }
-
-  .catalog-source {
-    display: flex;
+  .option-row--vertical {
     flex-direction: column;
-    gap: 4px;
-  }
-
-  .catalog-source a {
-    font-size: 11px;
-  }
-
-  .catalog-records,
-  .catalog-synced {
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
-
-  :global(.spin) {
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .about-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .update-badge {
-    display: inline-flex;
-    align-items: center;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 8px;
-    font-weight: 600;
-  }
-
-  .update-badge.success {
-    background: rgba(16, 185, 129, 0.15);
-    color: #10b981;
-    border: 1px solid rgba(16, 185, 129, 0.25);
-  }
-
-  .update-banner {
-    margin-top: 16px;
-    padding: 16px;
-    background: rgba(59, 130, 246, 0.08);
-    border: 1px solid rgba(59, 130, 246, 0.2);
-    border-radius: var(--radius-md);
-    display: flex;
-    flex-direction: column;
+    align-items: stretch;
     gap: 12px;
   }
 
-  .update-header {
+  .option-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+  }
+
+  .option-title {
+    font-size: 13.5px;
+    font-weight: 550;
+    color: var(--text-primary);
+  }
+
+  .option-desc {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+  }
+
+  .option-control {
+    flex-shrink: 0;
+  }
+
+  /* Specific Control Sizing */
+  .port-input, .retention-input {
+    width: 90px;
+    text-align: center;
+  }
+
+  /* API Key Field Wrapper */
+  .option-control-group {
+    width: 100%;
+  }
+
+  .key-field-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+
+  .key-field {
+    padding-right: 140px; /* Space for overlay actions */
+    width: 100%;
+  }
+
+  .key-action-buttons {
+    position: absolute;
+    right: 4px;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    background: linear-gradient(90deg, transparent, var(--bg-input-overlay) 20%);
+    padding-left: 12px;
+  }
+
+  .icon-action-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-xs);
+    transition: all var(--transition-fast);
+  }
+
+  .icon-action-btn:hover:not(:disabled) {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .icon-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Panel bottom action bar */
+  .panel-footer {
+    padding: 16px 24px;
+    background: rgba(255, 255, 255, 0.012);
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
+  }
+
+  .footer-tip {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+  }
+
+  /* ── Updates Panel Special ──────────────────────────── */
+  .panel-update {
+    border-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 4px 20px rgba(59,130,246,0.05);
   }
 
   .update-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    color: #3b82f6;
+    color: #60a5fa;
+    margin: 0;
   }
 
   .update-icon {
-    color: #3b82f6;
-    animation: bounce 2s infinite;
+    color: #60a5fa;
+    animation: bounce-micro 2s infinite;
+  }
+
+  @keyframes bounce-micro {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-2px); }
   }
 
   .update-date {
     font-size: 11px;
-    color: var(--text-secondary);
+    color: var(--text-muted);
   }
 
   .update-notes {
@@ -903,22 +1005,22 @@
     flex-direction: column;
     gap: 6px;
     background: rgba(0, 0, 0, 0.2);
-    padding: 10px;
-    border-radius: var(--radius-sm);
+    padding: 12px;
+    border-radius: var(--radius-md);
     border: 1px solid var(--border);
   }
 
   .update-notes-title {
     font-size: 11px;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
   }
 
   .update-notes-content {
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: 11.5px;
+    line-height: 1.55;
     color: var(--text-secondary);
     max-height: 150px;
     overflow-y: auto;
@@ -928,17 +1030,51 @@
     scrollbar-width: thin;
   }
 
+  .text-blue { color: #60a5fa; }
   .update-actions {
     display: flex;
     gap: 8px;
   }
 
-  @keyframes bounce {
-    0%, 100% {
-      transform: translateY(0);
-    }
-    50% {
-      transform: translateY(-3px);
+  /* ── Theme Segment ───────────────────────────────────── */
+  .theme-segment {
+    display: flex;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .theme-segment-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .theme-segment-btn:hover:not(.active) {
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .theme-segment-btn.active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-xs);
+    font-weight: 600;
+  }
+
+  /* ── Responsive ───────────────────────────────────────── */
+  @media (max-width: 960px) {
+    .settings-layout {
+      grid-template-columns: 1fr;
+      gap: 20px;
     }
   }
 </style>

@@ -2,6 +2,7 @@
   import { page } from '$app/stores';
   import { i18n } from '../i18n.svelte';
   import { gatewayHealth } from '../gateway-health.svelte';
+  import { themeManager } from '../theme.svelte';
   import pkg from '../../../package.json';
 
   const statusDotClass: Record<string, string> = {
@@ -129,6 +130,36 @@
       </button>
     </div>
 
+    <div class="theme-switch">
+      <button
+        type="button"
+        class="theme-btn"
+        class:active={themeManager.current === 'light'}
+        onclick={() => themeManager.set('light')}
+        title="Light Theme"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </button>
+      <button
+        type="button"
+        class="theme-btn"
+        class:active={themeManager.current === 'dark'}
+        onclick={() => themeManager.set('dark')}
+        title="Dark Theme"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+      </button>
+      <button
+        type="button"
+        class="theme-btn"
+        class:active={themeManager.current === 'system'}
+        onclick={() => themeManager.set('system')}
+        title="System Preference"
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </button>
+    </div>
+
     <div class="sidebar-footer">
       <div class="gateway-status">
         <span class="dot {statusDotClass[gatewayHealth.status]}"></span>
@@ -222,7 +253,7 @@
   }
 
   .nav-item:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg-hover);
     color: var(--text-primary);
   }
 
@@ -263,42 +294,51 @@
     flex-direction: column;
   }
 
-  .lang-switch {
+  .lang-switch,
+  .theme-switch {
     display: flex;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 2px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
-  .lang-btn {
+  .lang-btn,
+  .theme-btn {
     flex: 1;
     background: transparent;
     border: none;
-    color: var(--text-secondary);
+    color: var(--text-muted);
     font-size: 11px;
     font-weight: 500;
     padding: 4px 0;
     border-radius: 4px;
     cursor: pointer;
     transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .lang-btn.active {
-    background: rgba(255, 255, 255, 0.06);
-    color: white;
-    box-shadow: var(--shadow-sm);
-  }
-
-  .lang-btn:hover:not(.active) {
+  .lang-btn.active,
+  .theme-btn.active {
+    background: var(--bg-primary);
     color: var(--text-primary);
+    box-shadow: var(--shadow-xs);
+  }
+
+  .lang-btn:hover:not(.active),
+  .theme-btn:hover:not(.active) {
+    color: var(--text-secondary);
+    background: var(--glass-bg-subtle);
   }
 
   .sidebar-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: 4px;
   }
 
   .gateway-status {

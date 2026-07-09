@@ -12,6 +12,14 @@
   import DataTable from '$lib/components/DataTable.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { JsonView, darkStyles, allExpanded } from '@humanspeak/svelte-json-view-lite';
+  import { themeManager } from '$lib/theme.svelte';
+
+  let isDarkTheme = $derived(
+    themeManager.current === 'system'
+      ? (typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true)
+      : themeManager.current === 'dark'
+  );
+  let jsonViewStyle = $derived(isDarkTheme ? darkStyles : undefined);
 
   let logs = $state<RequestLog[]>([]);
   let total = $state(0);
@@ -388,6 +396,18 @@
 
         <div class="detail-section">
           <div class="detail-section-title">Tokens</div>
+          <!-- Token breakdown capsule bar -->
+          <div class="token-ratio-bar">
+            {#if (row.input_tokens || 0) > 0}
+              <div class="bar-segment input" style="flex: {row.input_tokens};" title="Input Tokens"></div>
+            {/if}
+            {#if (row.cache_read_tokens || 0) > 0}
+              <div class="bar-segment cache" style="flex: {row.cache_read_tokens};" title="Cache Read Tokens"></div>
+            {/if}
+            {#if (row.output_tokens || 0) > 0}
+              <div class="bar-segment output" style="flex: {row.output_tokens};" title="Output Tokens"></div>
+            {/if}
+          </div>
           <div class="detail-row">
             <span class="detail-label">Input</span>
             <span class="detail-value mono">{row.input_tokens?.toLocaleString() ?? '0'}</span>
@@ -416,6 +436,14 @@
             <span class="detail-label">Latency</span>
             <span class="detail-value mono">{row.latency_ms}ms</span>
           </div>
+          {#if (row.output_tokens || 0) > 0 && (row.latency_ms || 0) > 0}
+            <div class="detail-row">
+              <span class="detail-label">Speed</span>
+              <span class="detail-value mono" style="color: #60a5fa;">
+                {((row.output_tokens ?? 0) / ((row.latency_ms ?? 1) / 1000)).toFixed(1)} tokens/s
+              </span>
+            </div>
+          {/if}
           <div class="detail-row">
             <span class="detail-label">Status</span>
             <span class="detail-value">
@@ -426,11 +454,15 @@
       </div>
 
       {#if row.error_message}
-        <div class="detail-error">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-          </svg>
-          <span>{row.error_message}</span>
+        <div class="terminal-error-diagnoser">
+          <div class="diag-header">
+            <span class="diag-dot red"></span>
+            <span class="diag-dot yellow"></span>
+            <span class="diag-dot green"></span>
+            <span class="diag-title mono">gateway-diagnostic-terminal.log</span>
+          </div>
+          <pre class="diag-content mono"><code>[ERROR] Gateway invocation failed with HTTP {row.status_code}
+{row.error_message}</code></pre>
         </div>
       {/if}
 
@@ -438,7 +470,7 @@
         {#if row.request_body}
           <button class="body-btn" onclick={() => openBodyModal(row.request_body, 'Request Body')}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4M6 12h12" />
             </svg>
             <span>Request Body</span>
             <svg width="12" height="12" class="body-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -548,7 +580,7 @@
       </div>
       <div class="modal-scroll">
         {#if modalData}
-          <JsonView data={modalData} style={darkStyles} shouldExpandNode={allExpanded} />
+          <JsonView data={modalData} style={jsonViewStyle} shouldExpandNode={allExpanded} />
         {:else}
           <pre class="modal-code"><code>{modalContent}</code></pre>
         {/if}
@@ -558,6 +590,85 @@
 {/if}
 
 <style>
+  /* ── Token Ratio Bar ────────────────────────────────── */
+  .token-ratio-bar {
+    display: flex;
+    height: 6px;
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    background: var(--bg-badge);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+    margin-top: 4px;
+    width: 100%;
+  }
+
+  .bar-segment {
+    height: 100%;
+    transition: width var(--transition-normal);
+  }
+
+  .bar-segment.input {
+    background: #3b82f6; /* Blue input */
+  }
+
+  .bar-segment.cache {
+    background: #10b981; /* Green cache read */
+  }
+
+  .bar-segment.output {
+    background: #a855f7; /* Purple output */
+  }
+
+  /* ── Terminal Diagnostic box ───────────────────────── */
+  .terminal-error-diagnoser {
+    background: #030303;
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin: 16px 0;
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.05);
+  }
+
+  .diag-header {
+    background: var(--glass-bg-subtle);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .diag-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+  }
+
+  .diag-dot.red { background: #ef4444; }
+  .diag-dot.yellow { background: #f59e0b; }
+  .diag-dot.green { background: #10b981; }
+
+  .diag-title {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    margin-left: 6px;
+  }
+
+  .diag-content {
+    margin: 0;
+    padding: 14px;
+    overflow-x: auto;
+  }
+
+  .diag-content code {
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: #fca5a5;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
   .filter-bar {
     display: flex;
     gap: 8px;

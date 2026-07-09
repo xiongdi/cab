@@ -1,6 +1,6 @@
 <script lang="ts">
   import { catalogBrandStyle } from '$lib/catalog-brand-colors';
-  import { catalogLogoUrl, type CatalogLogoKind } from '$lib/models-dev';
+  import { catalogLogoUrl, providerLogoUrl, type CatalogLogoKind } from '$lib/models-dev';
 
   let {
     id,
@@ -21,6 +21,7 @@
   let failed = $state(false);
   let svgMarkup = $state<string | null>(null);
   const src = $derived(catalogLogoUrl(id, kind));
+  const fallbackSrc = $derived(kind === 'lab' ? providerLogoUrl(id) : null);
   const label = $derived(alt || id);
   const initial = $derived(id.trim().charAt(0).toUpperCase() || '?');
   const brand = $derived(catalogBrandStyle(id));
@@ -56,6 +57,16 @@
       if (cancelled) return;
       if (markup) {
         svgMarkup = markup;
+      } else if (fallbackSrc) {
+        // Lab logo failed; try provider logo as fallback
+        loadSvg(fallbackSrc).then((fallbackMarkup) => {
+          if (cancelled) return;
+          if (fallbackMarkup) {
+            svgMarkup = fallbackMarkup;
+          } else {
+            failed = true;
+          }
+        });
       } else {
         failed = true;
       }

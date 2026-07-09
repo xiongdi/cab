@@ -39,6 +39,7 @@ export interface Provider {
   env?: Array<string> | null;
   npm?: string | null;
   model_count: number;
+  logo?: string | null;
   catalog_models?: Array<string>;
 }
 
@@ -58,6 +59,7 @@ export interface UpdateProvider {
   env?: Array<string> | null;
   npm?: string | null;
   model_count?: number;
+  logo?: string | null;
 }
 
 export interface Model {
@@ -249,6 +251,7 @@ export interface ProviderUserSettings {
   api_key?: string;
   api_keys?: Array<ApiKeyConfig>;
   endpoints?: Array<ProviderEndpoint>;
+  logo?: string | null;
 }
 
 export interface ModelUserSettings {
