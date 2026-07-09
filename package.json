@@ -29,6 +29,7 @@
     "tauri:pre-build": "node scripts/pre-build.js"
   },
   "dependencies": {
+    "@humanspeak/svelte-json-view-lite": "^0.2.1",
     "@tauri-apps/api": "^2.11.0"
   },
   "devDependencies": {

@@ -25,17 +25,29 @@ Gateway still not on ${GatewayPort}. Start backend (one instance):
     exit 1
 }
 
-$settingsPath = Join-Path $env:USERPROFILE ".cab\settings.json"
-$settings = Get-Content $settingsPath | ConvertFrom-Json
-$key = $settings.gateway_key
-if ($settings.gateway_port -and [int]$settings.gateway_port -ne $GatewayPort) {
-    Write-Error "settings.json gateway_port must be $GatewayPort"
+$dbPath = Join-Path $env:USERPROFILE ".cab/cab.db"
+if (-not (Test-Path $dbPath)) {
+    $dbPath = Join-Path $env:HOME ".cab/cab.db"
+}
+$key = (sqlite3 $dbPath "SELECT json_extract(data, '$.gateway_key') FROM settings WHERE id = 1").Trim()
+$port = (sqlite3 $dbPath "SELECT json_extract(data, '$.gateway_port') FROM settings WHERE id = 1").Trim()
+if ($port -and [int]$port -ne $GatewayPort) {
+    Write-Error "SQLite settings gateway_port must be $GatewayPort"
     exit 1
 }
 
-$claude = Join-Path $env:USERPROFILE ".local\bin\claude.exe"
+$claude = Join-Path $env:USERPROFILE ".local/bin/claude.exe"
 if (-not (Test-Path $claude)) {
-    Write-Error "Claude Code CLI not found at $claude"
+    $claude = "/home/linuxbrew/.linuxbrew/bin/claude"
+}
+if (-not (Test-Path $claude)) {
+    $claude = Join-Path $env:USERPROFILE ".local/bin/claude"
+}
+if (-not (Test-Path $claude)) {
+    $claude = (Get-Command claude -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source)
+}
+if (-not $claude -or -not (Test-Path $claude)) {
+    Write-Error "Claude Code CLI not found"
     exit 1
 }
 

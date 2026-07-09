@@ -166,11 +166,11 @@ export const translations = {
     models: {
       title: '模型目录',
       subtitle:
-        '列表展示 models.dev 目录字段；展开查看 models.dev、Artificial Analysis 与 settings.json 三部分数据',
+        '列表展示 models.dev 目录字段；展开查看 models.dev、Artificial Analysis 与 SQLite 数据库用户设置三部分数据',
       section_models_dev: 'models.dev',
       section_aa: 'Artificial Analysis',
       section_gateways: '可用提供商',
-      section_settings: 'settings.json',
+      section_settings: '用户覆盖设置',
       sub_providers: '上游提供商',
       no_sub_providers: '暂无可用提供商映射，请先在 提供商页同步 models.dev 目录',
       endpoints_loading: '正在加载网关…',
@@ -194,7 +194,7 @@ export const translations = {
       filter_enabled: '已启用',
       filter_disabled: '已禁用',
       enabled_label: '启用此模型',
-      enabled_hint: '写入 ~/.cab/settings.json 的 models 字段',
+      enabled_hint: '保存至 SQLite 数据库的用户覆盖设置',
       family: '系列',
       capabilities: '能力',
       context_length: '上下文 (Tokens)',
@@ -653,11 +653,11 @@ export const translations = {
     models: {
       title: 'Model Catalog',
       subtitle:
-        'List shows models.dev catalog fields; expand for models.dev, Artificial Analysis, and settings.json',
+        'List shows models.dev catalog fields; expand for models.dev, Artificial Analysis, and SQLite database overrides',
       section_models_dev: 'models.dev',
       section_aa: 'Artificial Analysis',
       section_gateways: 'Serving Gateways',
-      section_settings: 'settings.json',
+      section_settings: 'User Overrides',
       sub_providers: 'Sub-providers',
       no_sub_providers:
         'No gateway mappings yet — sync the models.dev catalog on the Gateways page first',
@@ -682,7 +682,7 @@ export const translations = {
       filter_enabled: 'Enabled',
       filter_disabled: 'Disabled',
       enabled_label: 'Enable this model',
-      enabled_hint: 'Persisted to models in ~/.cab/settings.json',
+      enabled_hint: 'Persisted to SQLite database overrides',
       family: 'Family',
       capabilities: 'Capabilities',
       context_length: 'Context (Tokens)',

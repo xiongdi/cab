@@ -140,6 +140,8 @@ mod tests {
             error: None,
             path: "/v1/chat/completions".into(),
             stream: false,
+            request_body: None,
+            response_body: None,
         }
     }
 

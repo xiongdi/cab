@@ -10,7 +10,7 @@ use serde_json;
 
 use crate::endpoint::ModelEndpoint;
 
-const SCHEMA_VERSION: u32 = 3;
+const SCHEMA_VERSION: u32 = 4;
 
 pub fn db_path() -> PathBuf {
     let home = std::env::var("HOME")
@@ -116,7 +116,9 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
              path TEXT NOT NULL,
              stream INTEGER NOT NULL DEFAULT 0,
              cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-             cache_creation_tokens INTEGER NOT NULL DEFAULT 0
+             cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
+             request_body TEXT,
+             response_body TEXT
          );
 
          CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON request_logs(timestamp);
@@ -218,6 +220,9 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
             }
             if v < 3 {
                 migrate_v2_to_v3(conn)?;
+            }
+            if v < 4 {
+                migrate_v3_to_v4(conn)?;
             }
         }
         _ => {}
@@ -325,6 +330,22 @@ fn migrate_v2_to_v3(conn: &Connection) -> Result<(), String> {
     .map_err(|e| format!("Failed to update schema version: {e}"))?;
 
     tracing::info!("Schema migration v2 → v3 complete");
+    Ok(())
+}
+
+fn migrate_v3_to_v4(conn: &Connection) -> Result<(), String> {
+    tracing::info!("Migrating schema from v3 to v4: adding raw request/response logging columns");
+
+    let _ = conn.execute("ALTER TABLE request_logs ADD COLUMN request_body TEXT", []);
+    let _ = conn.execute("ALTER TABLE request_logs ADD COLUMN response_body TEXT", []);
+
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
+        rusqlite::params![SCHEMA_VERSION],
+    )
+    .map_err(|e| format!("Failed to update schema version: {e}"))?;
+
+    tracing::info!("Schema migration v3 → v4 complete");
     Ok(())
 }
 
@@ -859,8 +880,8 @@ pub fn load_state(conn: &Connection) -> Result<PersistedState, String> {
 pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
     conn.execute(
         "INSERT OR REPLACE INTO request_logs
-         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
         rusqlite::params![
             log.id,
             log.timestamp,
@@ -877,6 +898,8 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
             log.stream as i64,
             log.cache_read_tokens,
             log.cache_creation_tokens,
+            log.request_body,
+            log.response_body,
         ],
     )
     .map_err(|e| format!("Append log failed: {e}"))?;
@@ -886,7 +909,7 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
 pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens
+            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body
              FROM request_logs ORDER BY timestamp DESC LIMIT ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -908,6 +931,8 @@ pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, Str
                 stream: row.get::<_, i64>(12)? != 0,
                 cache_read_tokens: row.get(13)?,
                 cache_creation_tokens: row.get(14)?,
+                request_body: row.get(15)?,
+                response_body: row.get(16)?,
             })
         })
         .map_err(|e| e.to_string())?;

@@ -82,7 +82,7 @@ npm run dev:server
 
 ## 数据与配置
 
-- 运行时状态：`~/.cab/`（`settings.json`、`state.json`、日志等）
+- 运行时状态：`~/.cab/`（SQLite 数据库 `cab.db` 为唯一配置/状态数据源，禁止使用或修改已废弃的 `settings.json`、`state.json` 等文件）
 - `gateway_port` 保持 **3125**
 - Agent CLI 的 `ANTHROPIC_BASE_URL` 必须是 `http://localhost:3125`
 
@@ -112,12 +112,12 @@ powershell -File scripts/test-cc-headless.ps1
    ```
 
 2. **启动唯一 dev 套**（各 1 个进程）
-   - 终端 A：`npm run dev:server`（等到 catalog sync 完成、`3125` LISTENING）
+   - 终端 A：`npm run dev:server`（等到 catalog sync完成、`3125` LISTENING）
    - 终端 B：`npm run dev`（`5173` LISTENING）
 
 3. **同步 token**（CC 401 的常见原因）
-   - `gateway_key` 来自 `~/.cab/settings.json`
-   - 改 key 或重启后：`PUT /api/settings` 空 body 触发 agent sync，或确认 `~/.claude/settings.json` 里 `ANTHROPIC_AUTH_TOKEN` 与 `gateway_key` 一致
+   - `gateway_key` 来自 SQLite 数据库中的 `settings` 表（`id = 1`）。
+   - 重启或修改后：可确认 `~/.claude/settings.json` 里 `ANTHROPIC_AUTH_TOKEN` 与 SQLite 中的 `gateway_key` 一致。
 
 4. **最小验证清单**（全部通过才算完成）
 
@@ -128,12 +128,14 @@ powershell -File scripts/test-cc-headless.ps1
    | 网关     | `POST /v1/messages`（`x-api-key: <gateway_key>`）                         | HTTP 200                          |
    | 前端     | `GET http://127.0.0.1:5173`                                               | HTTP 200                          |
    | CC 无头  | 见下方                                                                    | 输出含 `CAB ok`，进程在超时内退出 |
-   | 配置     | 读 `~/.cab/settings.json`                                                 | `providers` 未被清空              |
+   | 配置     | 查询 SQLite `settings` 表                                                 | `providers` 未被清空              |
 
 5. **CC 无头测试**（必须带硬超时，禁止无限挂后台）
 
    ```powershell
-   $key = (Get-Content "$env:USERPROFILE\.cab\settings.json" | ConvertFrom-Json).gateway_key
+   $dbPath = Join-Path $env:USERPROFILE ".cab/cab.db"
+   if (-not (Test-Path $dbPath)) { $dbPath = Join-Path $env:HOME ".cab/cab.db" }
+   $key = (sqlite3 $dbPath "SELECT json_extract(data, '$.gateway_key') FROM settings WHERE id = 1").Trim()
    $env:ANTHROPIC_BASE_URL = "http://127.0.0.1:3125"
    $env:ANTHROPIC_AUTH_TOKEN = $key
    $env:CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY = "1"

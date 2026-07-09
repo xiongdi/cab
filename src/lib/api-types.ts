@@ -212,6 +212,8 @@ export interface RequestLog {
   latency_ms: number;
   status_code: number;
   error_message?: string;
+  request_body?: string;
+  response_body?: string;
 }
 
 export interface LogFilter {

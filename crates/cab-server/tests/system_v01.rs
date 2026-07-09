@@ -203,6 +203,8 @@ async fn st_logs_survive_restart_via_sqlite() {
             error: None,
             path: "/v1/chat/completions".into(),
             stream: false,
+            request_body: None,
+            response_body: None,
         },
     )
     .await

@@ -78,6 +78,8 @@ pub struct IrRequest {
 pub struct IrUsage {
     pub input_tokens: u64,
     pub output_tokens: u64,
+    pub cache_read_tokens: u64,
+    pub cache_creation_tokens: u64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1144,6 +1146,21 @@ pub fn decode_anthropic_response(body: &Value) -> IrResponse {
                 .and_then(|u| u.get("output_tokens"))
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
+            cache_read_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_read_input_tokens"))
+                .or_else(|| body.get("usage").and_then(|u| u.get("cache_read_tokens")))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            cache_creation_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_creation_input_tokens"))
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("cache_creation_tokens"))
+                })
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
         },
     }
 }
@@ -1222,6 +1239,26 @@ pub fn decode_openai_chat_response(body: &Value) -> IrResponse {
                 .or_else(|| body.get("usage").and_then(|u| u.get("output_tokens")))
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
+            cache_read_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_read_input_tokens"))
+                .or_else(|| body.get("usage").and_then(|u| u.get("cache_read_tokens")))
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("prompt_tokens_details"))
+                        .and_then(|d| d.get("cached_tokens"))
+                })
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            cache_creation_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_creation_input_tokens"))
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("cache_creation_tokens"))
+                })
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
         },
     }
 }
@@ -1297,6 +1334,26 @@ pub fn decode_responses_response(body: &Value) -> IrResponse {
                 .and_then(|u| u.get("output_tokens"))
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
+            cache_read_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_read_input_tokens"))
+                .or_else(|| body.get("usage").and_then(|u| u.get("cache_read_tokens")))
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("prompt_tokens_details"))
+                        .and_then(|d| d.get("cached_tokens"))
+                })
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            cache_creation_tokens: body
+                .get("usage")
+                .and_then(|u| u.get("cache_creation_input_tokens"))
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("cache_creation_tokens"))
+                })
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
         },
     }
 }
@@ -1320,6 +1377,15 @@ fn openai_finish_reason(stop: &str) -> &'static str {
 
 pub fn encode_anthropic_response(ir: &IrResponse) -> Value {
     let content: Vec<Value> = ir.blocks.iter().map(ir_block_to_anthropic_value).collect();
+    let mut usage = serde_json::json!({
+        "input_tokens": ir.usage.input_tokens,
+        "output_tokens": ir.usage.output_tokens,
+    });
+    if ir.usage.cache_read_tokens > 0 || ir.usage.cache_creation_tokens > 0 {
+        usage["cache_read_input_tokens"] = serde_json::Value::from(ir.usage.cache_read_tokens);
+        usage["cache_creation_input_tokens"] =
+            serde_json::Value::from(ir.usage.cache_creation_tokens);
+    }
     serde_json::json!({
         "id": ir.id,
         "type": "message",
@@ -1327,10 +1393,7 @@ pub fn encode_anthropic_response(ir: &IrResponse) -> Value {
         "model": ir.model,
         "content": content,
         "stop_reason": anthropic_stop_reason(&ir.stop_reason),
-        "usage": {
-            "input_tokens": ir.usage.input_tokens,
-            "output_tokens": ir.usage.output_tokens,
-        }
+        "usage": usage,
     })
 }
 
@@ -1372,6 +1435,17 @@ pub fn encode_openai_chat_response(ir: &IrResponse) -> Value {
     if !tool_calls.is_empty() {
         message["tool_calls"] = Value::Array(tool_calls);
     }
+    let total = ir.usage.input_tokens + ir.usage.output_tokens;
+    let mut usage = serde_json::json!({
+        "prompt_tokens": ir.usage.input_tokens,
+        "completion_tokens": ir.usage.output_tokens,
+        "total_tokens": total,
+    });
+    if ir.usage.cache_read_tokens > 0 || ir.usage.cache_creation_tokens > 0 {
+        usage["cache_read_input_tokens"] = serde_json::Value::from(ir.usage.cache_read_tokens);
+        usage["cache_creation_input_tokens"] =
+            serde_json::Value::from(ir.usage.cache_creation_tokens);
+    }
     serde_json::json!({
         "id": ir.id,
         "object": "chat.completion",
@@ -1382,11 +1456,7 @@ pub fn encode_openai_chat_response(ir: &IrResponse) -> Value {
             "message": message,
             "finish_reason": openai_finish_reason(&ir.stop_reason),
         }],
-        "usage": {
-            "prompt_tokens": ir.usage.input_tokens,
-            "completion_tokens": ir.usage.output_tokens,
-            "total_tokens": ir.usage.input_tokens + ir.usage.output_tokens,
-        }
+        "usage": usage,
     })
 }
 
@@ -1432,6 +1502,17 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
     } else {
         &ir.model
     };
+    let total = ir.usage.input_tokens + ir.usage.output_tokens;
+    let mut usage = serde_json::json!({
+        "input_tokens": ir.usage.input_tokens,
+        "output_tokens": ir.usage.output_tokens,
+        "total_tokens": total,
+    });
+    if ir.usage.cache_read_tokens > 0 || ir.usage.cache_creation_tokens > 0 {
+        usage["cache_read_input_tokens"] = serde_json::Value::from(ir.usage.cache_read_tokens);
+        usage["cache_creation_input_tokens"] =
+            serde_json::Value::from(ir.usage.cache_creation_tokens);
+    }
     serde_json::json!({
         "id": ir.id,
         "object": "response",
@@ -1439,10 +1520,6 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
         "model": model,
         "output": output,
         "output_text": all_text,
-        "usage": {
-            "input_tokens": ir.usage.input_tokens,
-            "output_tokens": ir.usage.output_tokens,
-            "total_tokens": ir.usage.input_tokens + ir.usage.output_tokens,
-        }
+        "usage": usage,
     })
 }

@@ -16,12 +16,12 @@ fn find_cab_cli(app: &tauri::AppHandle) -> PathBuf {
         "cab-cli"
     };
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join(bin_name);
-            if candidate.exists() {
-                return candidate;
-            }
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(dir) = exe.parent()
+    {
+        let candidate = dir.join(bin_name);
+        if candidate.exists() {
+            return candidate;
         }
     }
 

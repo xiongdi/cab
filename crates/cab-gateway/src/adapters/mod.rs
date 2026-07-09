@@ -40,6 +40,7 @@ pub async fn handle_proxied_request(
 ) -> Result<Response, CabError> {
     let start = std::time::Instant::now();
     let agent = crate::agent_id::extract_agent_id(&headers);
+    let request_body = String::from_utf8(body.to_vec()).ok();
 
     let body_json: serde_json::Value = serde_json::from_slice(&body)
         .map_err(|e| CabError::InvalidRequest(format!("Invalid JSON body: {e}")))?;
@@ -199,6 +200,8 @@ pub async fn handle_proxied_request(
                     error: None,
                     path: adapter.log_path().to_string(),
                     stream: true,
+                    request_body: request_body.clone(),
+                    response_body: None,
                 };
                 let (parts, body) = final_response.into_parts();
                 let tracking_stream = crate::protocol::TokenTrackingStream::new(
@@ -217,6 +220,7 @@ pub async fn handle_proxied_request(
                         axum::body::Bytes::new()
                     }
                 };
+                let response_body = String::from_utf8(body_bytes.to_vec()).ok();
                 if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&body_bytes)
                     && let Some(usage) = json_val.get("usage")
                 {
@@ -242,6 +246,8 @@ pub async fn handle_proxied_request(
                     error: None,
                     path: adapter.log_path().to_string(),
                     stream: false,
+                    request_body: request_body.clone(),
+                    response_body,
                 };
                 let pool = state.pool.clone();
                 let usage_record = build_usage_record(
@@ -293,6 +299,8 @@ pub async fn handle_proxied_request(
                 error: Some(cab_core::redact_secrets(&e.to_string())),
                 path: adapter.log_path().to_string(),
                 stream,
+                request_body: request_body.clone(),
+                response_body: None,
             };
             let pool = state.pool.clone();
             tokio::spawn(async move {

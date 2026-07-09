@@ -301,6 +301,10 @@ pub struct RequestLog {
     pub error: Option<String>,
     pub path: String,
     pub stream: bool,
+    #[serde(default)]
+    pub request_body: Option<String>,
+    #[serde(default)]
+    pub response_body: Option<String>,
 }
 
 // ──────────────────────────── Usage Tracking ────────────────────────────

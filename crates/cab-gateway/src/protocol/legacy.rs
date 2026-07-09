@@ -775,6 +775,7 @@ pub struct TokenTrackingStream<S> {
     /// counts are accumulated during streaming and the log is persisted on Drop.
     log: RequestLog,
     buffer: Vec<u8>,
+    accumulated_response: Vec<u8>,
 }
 
 impl<S> TokenTrackingStream<S> {
@@ -784,6 +785,7 @@ impl<S> TokenTrackingStream<S> {
             pool,
             log,
             buffer: Vec::new(),
+            accumulated_response: Vec::new(),
         }
     }
 
@@ -871,6 +873,7 @@ where
         match Pin::new(&mut this.inner).poll_next(cx) {
             Poll::Ready(Some(Ok(bytes))) => {
                 this.process_bytes(&bytes);
+                this.accumulated_response.extend_from_slice(&bytes);
                 Poll::Ready(Some(Ok(bytes)))
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
@@ -883,6 +886,9 @@ where
 impl<S> Drop for TokenTrackingStream<S> {
     fn drop(&mut self) {
         self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
+        if let Ok(resp_str) = String::from_utf8(self.accumulated_response.clone()) {
+            self.log.response_body = Some(resp_str);
+        }
         let pool = self.pool.clone();
         let log = self.log.clone();
 
@@ -1332,6 +1338,8 @@ data: [DONE]\n\n";
             error: None,
             path: "/v1/chat/completions".into(),
             stream: true,
+            request_body: None,
+            response_body: None,
         };
 
         let chunks = futures::stream::iter(vec![

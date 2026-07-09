@@ -37,3 +37,4 @@ scratch/
 
 # Generated package manifests
 dist/
+.omo/

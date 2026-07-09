@@ -11,6 +11,7 @@
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
   import { i18n } from '$lib/i18n.svelte';
+  import { JsonView, darkStyles, allExpanded } from '@humanspeak/svelte-json-view-lite';
 
   let logs = $state<RequestLog[]>([]);
   let total = $state(0);
@@ -20,6 +21,71 @@
   let loading = $state(true);
   let autoRefresh = $state(false);
   let refreshInterval: ReturnType<typeof setInterval> | null = null;
+  let expandedLogId = $state<string | null>(null);
+  let modalContent = $state<string | null>(null);
+  let modalLabel = $state('');
+
+  let modalData = $derived.by(() => {
+    if (!modalContent) return null;
+    try {
+      return JSON.parse(modalContent);
+    } catch {
+      return null;
+    }
+  });
+
+  function isRowExpanded(row: RequestLog): boolean {
+    return expandedLogId === row.id;
+  }
+
+  function toggleRow(row: RequestLog) {
+    expandedLogId = expandedLogId === row.id ? null : row.id;
+  }
+
+  function openBodyModal(body: string | undefined | null, label: string) {
+    if (!body) return;
+    modalContent = formatJson(body);
+    modalLabel = label;
+  }
+
+  function closeBodyModal() {
+    modalContent = null;
+    modalLabel = '';
+  }
+
+  function formatTimestamp(ts: string): string {
+    try {
+      const d = new Date(ts);
+      return d.toLocaleString();
+    } catch {
+      return ts;
+    }
+  }
+
+  function timeAgo(ts: string): string {
+    try {
+      const diff = Date.now() - new Date(ts).getTime();
+      const secs = Math.floor(diff / 1000);
+      if (secs < 60) return `${secs}s ago`;
+      const mins = Math.floor(secs / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.floor(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.floor(hrs / 24);
+      return `${days}d ago`;
+    } catch {
+      return '';
+    }
+  }
+
+  function formatJson(raw: string | undefined | null): string {
+    if (!raw) return '';
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
+    }
+  }
 
   // Tool-schema weight diagnostics (cache prefix).
   let toolWeights = $state<ToolWeightSnapshot[]>([]);
@@ -75,11 +141,13 @@
       align: 'right' as const,
       render: (v: number, row: RequestLog) => {
         const cacheRead = v ?? 0;
-        const denom = (row.input_tokens ?? 0) + cacheRead;
-        if (denom <= 0) return '<span class="mono" style="color:var(--text-muted)">—</span>';
-        const pct = Math.round((cacheRead / denom) * 100);
+        const total = (row.input_tokens ?? 0);
+        if (total <= 0 || cacheRead <= 0) {
+          return '<span class="mono" style="color:var(--text-muted)">—</span>';
+        }
+        const pct = (cacheRead / total) * 100;
         const color = pct >= 50 ? 'var(--success)' : pct > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
-        return `<span class="mono" style="color:${color}" title="${cacheRead.toLocaleString()} cached tokens">${pct}%</span>`;
+        return `<span class="mono" style="color:${color}" title="${cacheRead.toLocaleString()} cached / ${total.toLocaleString()} input tokens">${pct.toFixed(2)}%</span>`;
       },
     },
     {
@@ -287,11 +355,120 @@
 {#if loading && logs.length === 0}
   <div class="skeleton" style="height: 300px; border-radius: var(--radius-lg);"></div>
 {:else}
+  {#snippet expandedRow(row: RequestLog)}
+    <div class="log-detail-panel">
+      <div class="detail-grid">
+        <div class="detail-section">
+          <div class="detail-section-title">{i18n.t('logs.time')}</div>
+          <div class="detail-row">
+            <span class="detail-label">Timestamp</span>
+            <span class="detail-value mono">{formatTimestamp(row.timestamp)}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Relative</span>
+            <span class="detail-value mono">{timeAgo(row.timestamp)}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Routing</div>
+          <div class="detail-row">
+            <span class="detail-label">Agent</span>
+            <span class="detail-value">{row.agent}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Provider</span>
+            <span class="detail-value">{row.provider}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Model</span>
+            <span class="detail-value mono">{row.model}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Tokens</div>
+          <div class="detail-row">
+            <span class="detail-label">Input</span>
+            <span class="detail-value mono">{row.input_tokens?.toLocaleString() ?? '0'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Output</span>
+            <span class="detail-value mono">{row.output_tokens?.toLocaleString() ?? '0'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Cache Read</span>
+            <span class="detail-value mono">{row.cache_read_tokens?.toLocaleString() ?? '0'}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Cache Creation</span>
+            <span class="detail-value mono">{row.cache_creation_tokens?.toLocaleString() ?? '0'}</span>
+          </div>
+          <div class="detail-row detail-row--total">
+            <span class="detail-label">Total</span>
+            <span class="detail-value mono">{row.total_tokens?.toLocaleString() ?? '0'}</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Performance</div>
+          <div class="detail-row">
+            <span class="detail-label">Latency</span>
+            <span class="detail-value mono">{row.latency_ms}ms</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Status</span>
+            <span class="detail-value">
+              <span class="badge {row.status_code < 300 ? 'badge-success' : row.status_code < 500 ? 'badge-warning' : 'badge-error'}">{row.status_code}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {#if row.error_message}
+        <div class="detail-error">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+          <span>{row.error_message}</span>
+        </div>
+      {/if}
+
+      <div class="detail-bodies">
+        {#if row.request_body}
+          <button class="body-btn" onclick={() => openBodyModal(row.request_body, 'Request Body')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+            <span>Request Body</span>
+            <svg width="12" height="12" class="body-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        {/if}
+        {#if row.response_body}
+          <button class="body-btn" onclick={() => openBodyModal(row.response_body, 'Response Body')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 4l-4 16m-4-4l-4-4 4-4M18 16l4-4-4-4" />
+            </svg>
+            <span>Response Body</span>
+            <svg width="12" height="12" class="body-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        {/if}
+      </div>
+    </div>
+  {/snippet}
+
   <DataTable
     {columns}
     data={logs}
     emptyMessage={i18n.t('logs.empty_filtered')}
     searchPlaceholder={i18n.t('common.search')}
+    {expandedRow}
+    {isRowExpanded}
+    onRowClick={toggleRow}
   />
 
   <!-- Pagination -->
@@ -355,6 +532,29 @@
       </div>
     </div>
   {/if}
+{/if}
+
+<!-- Body JSON Modal -->
+{#if modalContent}
+  <div class="modal-overlay" onclick={closeBodyModal} role="presentation">
+    <div class="modal-container" onclick={(e) => e.stopPropagation()} role="dialog" aria-label={modalLabel}>
+      <div class="modal-header">
+        <span class="modal-label">{modalLabel}</span>
+        <button class="modal-close-btn" onclick={closeBodyModal}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-scroll">
+        {#if modalData}
+          <JsonView data={modalData} style={darkStyles} shouldExpandNode={allExpanded} />
+        {:else}
+          <pre class="modal-code"><code>{modalContent}</code></pre>
+        {/if}
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -525,5 +725,233 @@
     margin-top: 6px;
     font-size: 11px;
     color: var(--text-muted);
+  }
+
+  /* ── Expanded Log Detail Panel ─────────────────────────── */
+  .log-detail-panel {
+    background: rgba(255, 255, 255, 0.02);
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+
+  .detail-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .detail-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .detail-row--total {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .detail-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .detail-value {
+    font-size: 12px;
+    color: var(--text-primary);
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .detail-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: var(--radius-md);
+    color: #fca5a5;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  .detail-error svg {
+    margin-top: 1px;
+    flex-shrink: 0;
+    color: #ef4444;
+  }
+
+  /* ── Request / Response Body Buttons ─────────────────────── */
+  .detail-bodies {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .body-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    font-family: var(--font-sans);
+  }
+
+  .body-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--border-hover);
+    color: var(--text-primary);
+  }
+
+  .body-btn-arrow {
+    opacity: 0.4;
+    transition: transform var(--transition-fast);
+  }
+
+  .body-btn:hover .body-btn-arrow {
+    transform: translateX(2px);
+    opacity: 0.8;
+  }
+
+  /* ── Body JSON Modal ─────────────────────────────────────── */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    animation: fadeIn 0.12s ease-out;
+    padding: 24px;
+  }
+
+  .modal-container {
+    width: 100%;
+    max-width: 800px;
+    max-height: 80vh;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalIn 0.15s ease-out;
+  }
+
+  @keyframes modalIn {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .modal-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .modal-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .modal-close-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+  }
+
+  .modal-scroll {
+    overflow: auto;
+    padding: 4px 0 4px 4px;
+    flex: 1;
+  }
+
+  .modal-scroll :global(div[role='tree']) {
+    --sjv-background: transparent;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.65;
+    padding: 12px 16px;
+  }
+
+  .modal-code {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    white-space: pre;
+    word-wrap: normal;
+    padding: 12px 16px;
+  }
+
+  @media (max-width: 900px) {
+    .detail-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 500px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

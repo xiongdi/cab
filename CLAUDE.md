@@ -13,7 +13,7 @@ Cargo workspace (`crates/*`, `src-tauri`) + Svelte/Tauri frontend (`src/`, `src-
 | Crate          | Role                                                                                                           |
 | -------------- | -------------------------------------------------------------------------------------------------------------- |
 | `cab-core`     | Types, request profiling, routing/scoring algorithm                                                            |
-| `cab-db`       | `~/.cab/` storage (`settings.json`, `state.json`, JSONL logs)                                                  |
+| `cab-db`       | `~/.cab/` storage (`cab.db` SQLite database, JSONL logs)                                                       |
 | `cab-services` | Catalog sync, route resolution, agent config switcher                                                          |
 | `cab-gateway`  | Gateway auth, protocol adapters (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), upstream forwarding |
 | `cab-api`      | Management REST API (`/api/*`)                                                                                 |
@@ -21,7 +21,7 @@ Cargo workspace (`crates/*`, `src-tauri`) + Svelte/Tauri frontend (`src/`, `src-
 | `src/`         | Svelte dashboard (consumed by both Tauri and `cab-srv`)                                                        |
 | `src-tauri/`   | Tauri shell                                                                                                    |
 
-Runtime state lives at `~/.cab/`. Agent configs (e.g. `~/.claude/settings.json`) are rewritten when switching modes (Native / Auto / Manual).
+Runtime state lives at `~/.cab/cab.db` (SQLite). Agent configs (e.g. `~/.claude/settings.json`) are rewritten when switching modes (Native / Auto / Manual).
 
 ## Dev environment — strict rules
 
@@ -82,21 +82,20 @@ After **any** code or config change, before reporting back:
 
 1. Clean: `scripts/kill-dev-ports.ps1` + stop stray `claude,cab-srv,cargo-watch`.
 2. Start the unique dev pair: `npm run dev:server` (wait for catalog sync + 3125 LISTENING), then `npm run dev` (5173 LISTENING).
-3. Sync `gateway_key` from `~/.cab/settings.json` into `~/.claude/settings.json` `ANTHROPIC_AUTH_TOKEN` if keys changed.
+3. Sync `gateway_key` from SQLite `settings` table into `~/.claude/settings.json` `ANTHROPIC_AUTH_TOKEN` if keys changed.
 4. Run the full verification checklist in `AGENTS.md` §"最小验证清单" (providers, `/api/routing/explain`, `/v1/messages`, frontend 200, headless CC, settings intact).
 5. Report pass/fail with concrete evidence (port status, routing result, CC output, gateway logs from `GET /api/logs?per_page=3` on failure). Never report "should be fine" without verification.
 
 ## Configuration / data locations
 
-- **`cab.toml`** (system bootstrap, NOT API-editable): `gateway.host` (default `127.0.0.1`), `gateway.port` (default `3125`, seeds `settings.json` on first install)
-- **`~/.cab/settings.json`** (user runtime, API-editable): `gateway_port` (runtime port), `gateway_key`, `auth_enabled`, `log_retention_days`, providers, models, api_keys
-- **`~/.cab/state.json`**: agent modes + route bindings (persistent since v0.2.0)
+- **`cab.toml`** (system bootstrap, NOT API-editable): `gateway.host` (default `127.0.0.1`), `gateway.port` (default `3125`, seeds database on first install)
+- **`~/.cab/cab.db`** (SQLite database, user runtime, API-editable): Stores settings (gateway_port, gateway_key, auth_enabled, log_retention_days, providers, models, api_keys, agents, routes, etc.)
 - **`~/.cab/logs/*.jsonl`**: request audit logs with retention policy
 - Agent configs rewritten by CAB: `~/.claude/settings.json`, `~/.codex/config.toml`, `~/.config/opencode/opencode.json`, `~/.hermes/config.yaml`, `~/.config/kilo/opencode.json`, `~/.pi/agent/models.json`
 - Docs source: `docs/` (published to GitHub Pages)
 - Specs: `spec/` (API/protocol design notes)
 
-Port priority chain: `settings.json gateway_port` (runtime) → `cab.toml [gateway] port` (bootstrap fallback) → hardcoded `3125`. Host is always from `cab.toml`.
+Port priority chain: SQLite `settings` `gateway_port` (runtime) → `cab.toml [gateway] port` (bootstrap fallback) → hardcoded `3125`. Host is always from `cab.toml`.
 
 ## Release / version
 

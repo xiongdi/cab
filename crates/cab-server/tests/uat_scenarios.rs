@@ -1,4 +1,4 @@
-//! UAT: local user-acceptance tests with real ~/.cab/settings.json keys and upstream LLM calls.
+//! UAT: local user-acceptance tests with real SQLite database keys and upstream LLM calls.
 //!
 //! ```bash
 //! ./scripts/run-uat.sh

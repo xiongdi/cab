@@ -124,6 +124,8 @@ mod tests {
             },
             path: "/v1/test".into(),
             stream: false,
+            request_body: None,
+            response_body: None,
         }
     }
 

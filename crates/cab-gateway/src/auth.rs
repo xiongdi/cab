@@ -21,16 +21,11 @@ pub async fn gateway_middleware(
 
     if let Err(err) = cab_db::auth::verify_with_api_key(&state.pool, auth_header, x_api_key).await {
         tracing::warn!(
-            "Gateway auth rejected request to {}: {:?} (auth header: {:?})",
+            "Gateway auth rejected request to {}: {:?} (auth header: {:?}, x-api-key: {:?})",
             request.uri(),
             err,
-            auth_header.map(|h| {
-                if h.len() > 20 {
-                    format!("{}...", &h[..20])
-                } else {
-                    h.to_string()
-                }
-            }),
+            auth_header,
+            x_api_key,
         );
         return err.into_response();
     }
