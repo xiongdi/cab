@@ -254,6 +254,7 @@ mod tests {
                     "https://api.minimaxi.com/anthropic/v1",
                     50,
                 )]),
+                logo: None,
             },
         );
 

@@ -180,6 +180,7 @@ mod tests {
             env: None,
             npm: None,
             model_count: 0,
+            logo: None,
             catalog_models: vec![],
         }
     }

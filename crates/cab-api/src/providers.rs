@@ -290,6 +290,7 @@ mod handler_and_catalog_tests {
             env: Some(vec!["PROVIDER_API_KEY".into()]),
             npm: Some("@ai-sdk/openai-compatible".into()),
             model_count: 1,
+            logo: None,
             catalog_models: vec!["provider/model-one".into()],
         }
     }
@@ -382,6 +383,7 @@ mod handler_and_catalog_tests {
                 env: None,
                 npm: None,
                 model_count: None,
+                logo: None,
             }),
         )
         .await
@@ -408,6 +410,7 @@ mod handler_and_catalog_tests {
                     env: None,
                     npm: None,
                     model_count: None,
+                    logo: None,
                 }),
             )
             .await,
@@ -434,6 +437,7 @@ mod handler_and_catalog_tests {
                     env: None,
                     npm: None,
                     model_count: None,
+                    logo: None,
                 }),
             )
             .await,
@@ -459,6 +463,7 @@ mod handler_and_catalog_tests {
                 env: None,
                 npm: None,
                 model_count: None,
+                logo: None,
             }),
         )
         .await
@@ -578,6 +583,7 @@ mod handler_and_catalog_tests {
                 api_key: Some("settings-key".into()),
                 api_keys: Some(vec![api_key("settings-key", true)]),
                 endpoints: Some(vec![endpoint("settings-anthropic", "anthropic")]),
+                logo: None,
             },
         );
         settings.models.insert(
@@ -600,6 +606,7 @@ mod handler_and_catalog_tests {
             &defaults,
             None,
             &cab_core::AaModelMapFile::default(),
+            &reqwest::Client::new(),
         )
         .await
         .unwrap();
@@ -673,6 +680,7 @@ mod handler_and_catalog_tests {
             &defaults,
             None,
             &cab_core::AaModelMapFile::default(),
+            &reqwest::Client::new(),
         )
         .await
         .unwrap();

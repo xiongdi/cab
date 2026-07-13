@@ -516,6 +516,7 @@ pub async fn sync_models_internal(
     sync_models_dev_catalog(pool).await
 }
 
+#[allow(clippy::too_many_arguments, clippy::collapsible_if)]
 pub async fn sync_models_dev_models(
     pool: &cab_db::InMemoryStore,
     providers_data: &std::collections::HashMap<String, ModelsDevProvider>,

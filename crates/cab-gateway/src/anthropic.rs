@@ -159,6 +159,7 @@ event: message_delta\ndata: {\"usage\":{\"output_tokens\":4}}\n\n",
                     env: None,
                     npm: None,
                     model_count: 1,
+                    logo: None,
                     catalog_models: vec![],
                 },
             );

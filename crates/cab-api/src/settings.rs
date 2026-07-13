@@ -1,3 +1,4 @@
+#![allow(clippy::items_after_test_module)]
 use axum::Json;
 use axum::extract::State;
 use axum::response::IntoResponse;
@@ -111,6 +112,7 @@ mod tests {
                 api_key: Some("keep-me".into()),
                 api_keys: None,
                 endpoints: None,
+                logo: None,
             },
         )
         .await
@@ -141,6 +143,7 @@ mod tests {
     }
 }
 
+#[allow(clippy::collapsible_if)]
 pub async fn get_logo_svg(
     _state: State<ApiState>,
     axum::extract::Path(path): axum::extract::Path<String>,

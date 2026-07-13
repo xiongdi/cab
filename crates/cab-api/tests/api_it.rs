@@ -31,6 +31,7 @@ async fn store_with_catalog() -> InMemoryStore {
                 env: None,
                 npm: None,
                 model_count: 1,
+                logo: None,
                 catalog_models: vec!["model-test".into()],
             },
         );

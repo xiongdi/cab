@@ -480,6 +480,7 @@ mod tests {
             env: Some(vec!["PROVIDER_KEY".into()]),
             npm: Some("@provider/sdk".into()),
             model_count: Some(2),
+            logo: None,
         }
     }
 
@@ -509,6 +510,7 @@ mod tests {
             Some(&["ENV".into()]),
             Some("npm"),
             3,
+            None,
             &["model-a".into()],
         )
         .await
@@ -528,6 +530,7 @@ mod tests {
             None,
             None,
             0,
+            None,
             &[],
         )
         .await
@@ -547,6 +550,7 @@ mod tests {
             Some(&["ENV2".into()]),
             Some("npm2"),
             4,
+            None,
             &["model-b".into()],
         )
         .await
@@ -611,6 +615,7 @@ mod tests {
                 env: Some(vec!["ENV".into()]),
                 npm: Some("npm".into()),
                 model_count: Some(9),
+                logo: None,
             },
         )
         .await
@@ -641,6 +646,7 @@ mod tests {
                     env: None,
                     npm: None,
                     model_count: None,
+                    logo: None,
                 },
             )
             .await
@@ -671,6 +677,7 @@ mod tests {
                         "openai-responses",
                         "https://settings.test/v1",
                     )]),
+                    logo: None,
                 },
             );
         }

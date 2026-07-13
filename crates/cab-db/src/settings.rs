@@ -153,6 +153,7 @@ mod tests {
                 api_key: Some("key".into()),
                 api_keys: None,
                 endpoints: None,
+                logo: None,
             },
         )
         .await

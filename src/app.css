@@ -94,7 +94,7 @@
 }
 
 /* ── Light Theme Variables Override ────────────────────────── */
-html[data-theme="light"] {
+html[data-theme='light'] {
   /* Backgrounds */
   --bg-primary: #ffffff;
   --bg-secondary: #f4f4f5;
@@ -163,29 +163,29 @@ html[data-theme="light"] {
 }
 
 /* Global Light Theme Badge overrides */
-html[data-theme="light"] :global(.badge-success),
-html[data-theme="light"] :global(.badge-active),
-html[data-theme="light"] :global(.dot-active) {
+html[data-theme='light'] :global(.badge-success),
+html[data-theme='light'] :global(.badge-active),
+html[data-theme='light'] :global(.dot-active) {
   color: #047857 !important;
   background-color: rgba(52, 211, 153, 0.12) !important;
   border-color: rgba(16, 185, 129, 0.25) !important;
 }
 
-html[data-theme="light"] :global(.badge-error),
-html[data-theme="light"] :global(.badge-stopped),
-html[data-theme="light"] :global(.dot-error) {
+html[data-theme='light'] :global(.badge-error),
+html[data-theme='light'] :global(.badge-stopped),
+html[data-theme='light'] :global(.dot-error) {
   color: #b91c1c !important;
   background-color: rgba(239, 68, 68, 0.08) !important;
   border-color: rgba(239, 68, 68, 0.2) !important;
 }
 
-html[data-theme="light"] :global(.badge-warning) {
+html[data-theme='light'] :global(.badge-warning) {
   color: #b45309 !important;
   background-color: rgba(245, 158, 11, 0.08) !important;
   border-color: rgba(245, 158, 11, 0.2) !important;
 }
 
-html[data-theme="light"] :global(.badge-cache--hit) {
+html[data-theme='light'] :global(.badge-cache--hit) {
   color: #047857 !important;
   background-color: rgba(16, 185, 129, 0.08) !important;
   border-color: rgba(16, 185, 129, 0.2) !important;

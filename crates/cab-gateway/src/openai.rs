@@ -444,6 +444,7 @@ data: [DONE]\n",
             env: None,
             npm: None,
             model_count: 0,
+            logo: None,
             catalog_models: vec![],
         }
     }
@@ -479,6 +480,7 @@ data: [DONE]\n",
             env: None,
             npm: None,
             model_count: 0,
+            logo: None,
             catalog_models: vec![],
         }
     }

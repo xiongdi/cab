@@ -189,7 +189,7 @@ async fn st_logs_survive_restart_via_sqlite() {
         &store,
         &cab_core::types::RequestLog {
             id: "log-uat-11".into(),
-            timestamp: "2026-06-10T12:00:00Z".into(),
+            timestamp: chrono::Utc::now().to_rfc3339(),
             agent: "codex".into(),
             provider: "provider-1".into(),
             model: "provider/model-1".into(),
@@ -262,6 +262,7 @@ async fn st_routing_explain_returns_decision_trace() {
                 env: None,
                 npm: None,
                 model_count: 1,
+                logo: None,
                 catalog_models: vec![],
             },
         );
@@ -379,6 +380,7 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 env: None,
                 npm: None,
                 model_count: 2,
+                logo: None,
                 catalog_models: vec![],
             },
         );
@@ -414,6 +416,7 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 env: None,
                 npm: None,
                 model_count: 2,
+                logo: None,
                 catalog_models: vec![],
             },
         );

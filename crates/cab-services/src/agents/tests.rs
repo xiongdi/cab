@@ -77,6 +77,7 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 env: None,
                 npm: None,
                 model_count: 0,
+                logo: None,
                 catalog_models: vec![],
             },
         );
