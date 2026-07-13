@@ -247,7 +247,7 @@
     color: var(--text-secondary);
     text-decoration: none;
     font-size: 13px;
-    font-weight: 450;
+    font-weight: 400;
     transition: all var(--transition-fast);
     position: relative;
   }

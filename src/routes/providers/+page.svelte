@@ -951,8 +951,8 @@
   /* ── Detail Panel ────────────────────────────────────── */
   .detail-panel {
     padding: 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    background: rgba(0, 0, 0, 0.15);
+    border-top: 1px solid var(--border);
+    background: var(--bg-card-expanded);
   }
 
   .detail-meta {
@@ -961,7 +961,7 @@
     gap: 16px;
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.03);
+    border-bottom: 1px dashed var(--border-dashed);
   }
 
   .detail-field {
@@ -1003,7 +1003,7 @@
 
   .detail-section {
     margin-top: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.03);
+    border-top: 1px solid var(--border);
     padding-top: 20px;
   }
 
@@ -1032,7 +1032,7 @@
     overflow-y: auto;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--bg-elevated);
     scrollbar-width: thin;
   }
 

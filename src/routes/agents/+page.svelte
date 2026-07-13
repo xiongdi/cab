@@ -410,7 +410,7 @@
     transition: all var(--transition-fast);
     flex-shrink: 0;
     border: 1px solid var(--border);
-    background: #fff;
+    background: var(--bg-input-overlay);
     overflow: hidden;
     padding: 7px;
     box-sizing: border-box;
@@ -570,7 +570,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: #030303;
+    background: var(--bg-terminal);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
     padding: 6px 10px;

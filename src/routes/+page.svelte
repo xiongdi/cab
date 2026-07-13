@@ -575,7 +575,7 @@
 
   .gateway-meta h3 {
     font-size: 15px;
-    font-weight: 650;
+    font-weight: 700;
     color: var(--text-primary);
     margin: 0;
   }
@@ -636,7 +636,7 @@
 
   .perf-card-value {
     font-size: 16px;
-    font-weight: 650;
+    font-weight: 700;
     color: var(--text-primary);
   }
 
@@ -711,7 +711,7 @@
 
   .metric-value {
     font-size: 20px;
-    font-weight: 650;
+    font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--text-primary);
     line-height: 1.2;
@@ -767,12 +767,13 @@
   .breakdown-label {
     font-size: 11.5px;
     color: var(--text-secondary);
-    width: 100px;
+    min-width: 60px;
+    max-width: 120px;
     flex-shrink: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-weight: 450;
+    font-weight: 400;
   }
 
   .breakdown-track {
@@ -854,7 +855,7 @@
 
   /* ── Expanded Detail Panel (Row Expansion) ────────────── */
   .expanded-detail-panel {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-card-expanded);
     border-bottom: 1px solid var(--border);
     padding: 20px 24px;
     animation: slide-down 0.2s ease-out;
@@ -978,7 +979,7 @@
 
   /* Diagnostic console */
   .error-terminal {
-    background: #06060c;
+    background: var(--bg-terminal);
     border: 1px solid rgba(239, 68, 68, 0.15);
     border-radius: var(--radius-md);
     overflow: hidden;

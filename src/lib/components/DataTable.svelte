@@ -294,12 +294,14 @@
           </select>
         {/if}
 
-        <!-- Status Filter Dropdown -->
-        <select class="select filter-select" bind:value={selectedStatus}>
-          <option value="all">{i18n.t('datatable.all_status')}</option>
-          <option value="active">{i18n.t('datatable.status_active')}</option>
-          <option value="inactive">{i18n.t('datatable.status_inactive')}</option>
-        </select>
+        <!-- Status Filter Dropdown: only shown when table has enabled/effective_enabled column -->
+        {#if columns.some((c) => c.key === 'enabled' || c.key === 'effective_enabled')}
+          <select class="select filter-select" bind:value={selectedStatus}>
+            <option value="all">{i18n.t('datatable.all_status')}</option>
+            <option value="active">{i18n.t('datatable.status_active')}</option>
+            <option value="inactive">{i18n.t('datatable.status_inactive')}</option>
+          </select>
+        {/if}
       </div>
     </div>
 
@@ -548,7 +550,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    column-gap: 16px;
+    row-gap: 10px;
     flex-wrap: wrap;
   }
 

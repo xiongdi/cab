@@ -582,8 +582,8 @@
             {/if}
           </div>
           
-          <div class="panel-footer" style="background: rgba(59, 130, 246, 0.03);">
-            <span class="footer-tip text-blue">自动更新包已就绪，可一键完成本地覆盖安装。</span>
+          <div class="panel-footer panel-footer--update">
+            <span class="footer-tip text-accent">自动更新包已就绪，可一键完成本地覆盖安装。</span>
             <div class="update-actions">
               <button
                 type="button"
@@ -634,7 +634,7 @@
   }
 
   .sidebar-widget {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0.005) 100%);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 20px;
@@ -651,7 +651,7 @@
 
   .widget-avatar-shell {
     padding: 4px;
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
     border-radius: var(--radius-full);
     margin-bottom: 12px;
   }
@@ -665,14 +665,14 @@
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    font-weight: 750;
+    font-weight: 700;
     color: white;
     box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
   }
 
   .widget-meta h4 {
     font-size: 13.5px;
-    font-weight: 650;
+    font-weight: 700;
     color: var(--text-primary);
     margin: 0 0 2px 0;
   }
@@ -830,7 +830,7 @@
 
   .panel-header {
     padding: 20px 24px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--border);
   }
 
   .panel-header h3 {
@@ -860,7 +860,7 @@
     align-items: center;
     gap: 24px;
     padding: 20px 0;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.03);
+    border-bottom: 1px dashed var(--border-dashed);
   }
 
   .option-row:last-child {
@@ -882,7 +882,7 @@
 
   .option-title {
     font-size: 13.5px;
-    font-weight: 550;
+    font-weight: 600;
     color: var(--text-primary);
   }
 
@@ -945,7 +945,7 @@
 
   .icon-action-btn:hover:not(:disabled) {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--bg-elevated);
   }
 
   .icon-action-btn:disabled {
@@ -956,8 +956,8 @@
   /* Panel bottom action bar */
   .panel-footer {
     padding: 16px 24px;
-    background: rgba(255, 255, 255, 0.012);
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
+    background: var(--bg-tertiary);
+    border-top: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -981,12 +981,12 @@
     gap: 8px;
     font-size: 14px;
     font-weight: 600;
-    color: #60a5fa;
+    color: var(--accent-text);
     margin: 0;
   }
 
   .update-icon {
-    color: #60a5fa;
+    color: var(--accent-text);
     animation: bounce-micro 2s infinite;
   }
 
@@ -1004,7 +1004,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-card-expanded);
     padding: 12px;
     border-radius: var(--radius-md);
     border: 1px solid var(--border);
@@ -1030,7 +1030,7 @@
     scrollbar-width: thin;
   }
 
-  .text-blue { color: #60a5fa; }
+  .text-blue { color: var(--accent-text); }
   .update-actions {
     display: flex;
     gap: 8px;
@@ -1039,7 +1039,7 @@
   /* ── Theme Segment ───────────────────────────────────── */
   .theme-segment {
     display: flex;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 3px;
@@ -1060,7 +1060,7 @@
 
   .theme-segment-btn:hover:not(.active) {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-primary);
   }
 
   .theme-segment-btn.active {
@@ -1069,7 +1069,14 @@
     box-shadow: var(--shadow-xs);
     font-weight: 600;
   }
+  .panel-footer--update {
+    background: var(--accent-muted);
+    border-top: 1px solid var(--border);
+  }
 
+  .text-accent {
+    color: var(--accent-text);
+  }
   /* ── Responsive ───────────────────────────────────────── */
   @media (max-width: 960px) {
     .settings-layout {

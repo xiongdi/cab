@@ -159,7 +159,10 @@ pub async fn get_logo_svg(
     // 1. Serve from disk if available
     if logo_path.exists() {
         if let Ok(bytes) = std::fs::read(&logo_path) {
-            return Ok(([(header::CONTENT_TYPE, "image/svg+xml")], String::from_utf8_lossy(&bytes).into_owned()));
+            return Ok((
+                [(header::CONTENT_TYPE, "image/svg+xml")],
+                String::from_utf8_lossy(&bytes).into_owned(),
+            ));
         }
     }
 

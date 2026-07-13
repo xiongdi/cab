@@ -43,7 +43,7 @@
 
   .header-title {
     font-size: 22px;
-    font-weight: 650;
+    font-weight: 700;
     letter-spacing: -0.02em;
     color: var(--text-primary);
   }

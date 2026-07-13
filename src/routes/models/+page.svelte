@@ -833,9 +833,9 @@
   }
 
   .segment-btn.active {
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--accent);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--glass-bg-hover);
+    color: var(--accent-text);
+    border: 1px solid var(--border-hover);
     font-weight: 600;
   }
 
@@ -901,7 +901,7 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
   }
 
@@ -952,7 +952,7 @@
   .constraint-badge {
     display: inline-flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.015);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: var(--radius-xs);
     overflow: hidden;
@@ -963,7 +963,7 @@
   .badge-icon {
     padding: 0 5px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--bg-card);
     font-weight: 600;
   }
 
@@ -995,7 +995,7 @@
     display: inline-flex;
     align-items: center;
     border-radius: var(--radius-xs);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text-secondary);
     text-transform: capitalize;
@@ -1010,7 +1010,7 @@
     height: 20px;
     border-radius: var(--radius-full);
     font-weight: 500;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text-muted);
   }

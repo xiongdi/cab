@@ -649,13 +649,13 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 3px 8px;
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--success-text);
+    border: 1px solid rgba(34, 197, 94, 0.25);
     border-radius: var(--radius-full);
-    background: rgba(34, 197, 94, 0.08);
-    color: #4ade80;
-    border: 1px solid rgba(34, 197, 94, 0.15);
+    font-size: 10.5px;
+    padding: 2px 7px;
+    font-weight: 600;
   }
 
   .st-dot {
@@ -676,8 +676,8 @@
 
   /* Resolved Block */
   .resolved-block {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
     padding: 12px 14px;
     margin-bottom: 20px;
@@ -710,8 +710,8 @@
   }
 
   .pb-table-wrap {
-    border: 1px solid rgba(255, 255, 255, 0.04);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     overflow: hidden;
   }
 
@@ -723,16 +723,18 @@
   }
 
   .pb-table th {
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--bg-tertiary);
     color: var(--text-muted);
     font-weight: 600;
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--border);
   }
 
   .pb-table td {
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
   }
 
   .pb-table tr:last-child td {
@@ -754,6 +756,7 @@
 
   .c-name {
     font-weight: 500;
+    color: var(--text-primary);
   }
 
   .c-slug {
@@ -775,8 +778,8 @@
     color: var(--text-muted);
     text-align: center;
     padding: 20px;
-    background: rgba(255, 255, 255, 0.01);
-    border: 1px dashed rgba(255, 255, 255, 0.05);
+    background: var(--bg-secondary);
+    border: 1px dashed var(--border);
     border-radius: var(--radius-md);
   }
 
@@ -796,8 +799,8 @@
   .meta-badge {
     font-size: 11px;
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
     padding: 4px 8px;
     border-radius: var(--radius-sm);
   }
@@ -1014,12 +1017,11 @@
   }
 
   .decision-step.matched .step-code {
-    color: #a7f3d0;
+    color: var(--success-text);
   }
 
   :global(html[data-theme="light"]) .decision-step.matched .step-code {
-    color: #047857;
-    background: rgba(16, 185, 129, 0.08);
+    background: var(--bg-badge);
   }
 
   .provider-badge {

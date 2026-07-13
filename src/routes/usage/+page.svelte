@@ -267,8 +267,8 @@
   }
 
   .range-btn.active {
-    background: #ffffff;
-    color: #030303;
+    background: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
     font-weight: 600;
   }
 
@@ -303,7 +303,7 @@
 
   .stat-value {
     font-size: 24px;
-    font-weight: 650;
+    font-weight: 700;
     color: var(--text-primary);
   }
 

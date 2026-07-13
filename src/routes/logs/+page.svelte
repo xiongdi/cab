@@ -622,7 +622,7 @@
 
   /* ── Terminal Diagnostic box ───────────────────────── */
   .terminal-error-diagnoser {
-    background: #030303;
+    background: var(--bg-terminal);
     border: 1px solid rgba(239, 68, 68, 0.15);
     border-radius: var(--radius-md);
     overflow: hidden;
