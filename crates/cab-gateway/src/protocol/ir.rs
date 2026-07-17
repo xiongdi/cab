@@ -165,17 +165,17 @@ fn anthropic_block_from_value(block: &Value) -> Option<IrBlock> {
                 .or_else(|| block.get("media_type").and_then(|m| m.as_str()))
                 .unwrap_or("image/jpeg")
                 .to_string();
-            let source = if let Some(data) = block
+            let data = block
                 .get("source")
                 .and_then(|s| s.get("data"))
-                .and_then(|d| d.as_str())
-            {
-                IrImageSource::Base64(data.to_string())
-            } else if let Some(url) = block
+                .and_then(|d| d.as_str());
+            let url = block
                 .get("source")
                 .and_then(|s| s.get("url"))
-                .and_then(|u| u.as_str())
-            {
+                .and_then(|u| u.as_str());
+            let source = if let Some(data) = data {
+                IrImageSource::Base64(data.to_string())
+            } else if let Some(url) = url {
                 IrImageSource::Url(url.to_string())
             } else {
                 return None;
