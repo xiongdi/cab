@@ -5,6 +5,32 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-07-17
+
+### Added
+
+- **Dashboard redesign**. Overhauled the Svelte dashboard layout and component styling, including refined light/dark theme support driven by CSS variables.
+- **Log detail expansion**. Expanded the request-log detail view for richer inspection of gateway traffic.
+- **Auto-install daemon on first launch + CLI in PATH**. CAB now installs the `cab-srv` daemon automatically on first launch and puts the `cab` CLI on the system `PATH`, so the gateway is running and the command is reachable without manual setup.
+- **GOAL.md**. New top-level project goals and quickstart documentation.
+
+### Changed
+
+- **Cache token IR fix**. Corrected how cache-read/creation tokens are captured through the gateway's intermediate representation, so cache-hit costing and reporting stay accurate.
+- **Artificial Analysis data migrated from JSON file to SQLite**. AA benchmark data now lives in `~/.cab/cab.db` alongside the rest of the catalog, removing the standalone JSON cache file.
+
+### Build
+
+- **Split macOS builds into separate Intel and Apple Silicon packages**. macOS releases now ship distinct `x64` (Intel) and `arm64` (Apple Silicon) `.dmg` assets instead of a single universal binary.
+
+### Refactored
+
+- **Unified package naming to `cab-cli` / `cab-srv` / `cab-gui`**. Rust crate and package names consolidated for a consistent identity across the CLI, daemon, and desktop GUI.
+
+### Fixed
+
+- **Clippy errors + dynamic log retention test**. Resolved compiler clippy warnings across the workspace and fixed the dynamic log-retention test.
+
 ## [0.6.1] - 2026-07-05
 
 ### Changed
