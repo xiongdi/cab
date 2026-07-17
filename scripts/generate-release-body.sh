@@ -56,13 +56,13 @@ ${CHANGELOG_SECTION}
 | Platform | Minimum | Architectures | Notes |
 | -------- | ------- | ------------- | ----- |
 | **Windows** | Windows 10 **1809+** (Win 11 recommended) | x64, ARM64 | [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) required |
-| **macOS** | **10.13+** | Intel + Apple Silicon | Universal \`.dmg\` |
+| **macOS** | **10.13+** | Intel + Apple Silicon | Separate Intel / Apple Silicon \`.dmg\` |
 | **Linux** | WebKitGTK **4.1+** | x64, ARM64 | e.g. Ubuntu 22.04+, Debian 12+, Fedora 36+ |
 
 | 平台 | 最低版本 | 架构 | 说明 |
 | ---- | -------- | ---- | ---- |
 | **Windows** | Windows 10 **1809+**（推荐 Win 11） | x64、ARM64 | 需 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/) |
-| **macOS** | **10.13+** | Intel + Apple Silicon | 通用 \`.dmg\` |
+| **macOS** | **10.13+** | Intel + Apple Silicon | 独立 Intel / Apple Silicon \`.dmg\` |
 | **Linux** | WebKitGTK **4.1+** | x64、ARM64 | 如 Ubuntu 22.04+、Debian 12+、Fedora 36+ |
 
 ---
