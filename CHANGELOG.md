@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-07-17
+
+### Fixed
+
+- **CI clippy failures on `main`**. Resolved a `clippy::question_mark` lint (new in clippy 1.97) in `crates/cab-gateway/src/protocol/ir.rs` that flagged the image-source parsing. Rewrote the `media_type` / `source` extraction as explicit `if let` / `match` chains. Also corrected the release-notes template (`scripts/generate-release-body.sh`), which still claimed a universal `.dmg` after the v0.7.0 macOS split.
+
 ## [0.7.0] - 2026-07-17
 
 ### Added
