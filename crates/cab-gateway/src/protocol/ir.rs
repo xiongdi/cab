@@ -158,13 +158,17 @@ fn anthropic_block_from_value(block: &Value) -> Option<IrBlock> {
                 .map(str::to_string),
         }),
         Some("image") => {
-            let media_type = block
+            let media_type = if let Some(m) = block
                 .get("source")
                 .and_then(|s| s.get("media_type"))
                 .and_then(|m| m.as_str())
-                .or_else(|| block.get("media_type").and_then(|m| m.as_str()))
-                .unwrap_or("image/jpeg")
-                .to_string();
+            {
+                m.to_string()
+            } else if let Some(m) = block.get("media_type").and_then(|m| m.as_str()) {
+                m.to_string()
+            } else {
+                "image/jpeg".to_string()
+            };
             let data = block
                 .get("source")
                 .and_then(|s| s.get("data"))
