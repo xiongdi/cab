@@ -68,13 +68,15 @@ jobs:
             arch: 'arm64'
             cargo_target: ''
             path: 'target/aarch64-pc-windows-msvc/release/bundle/**'
-          - platform: 'ubuntu-latest'
+          # Ubuntu 22.04 keeps glibc ≤ 2.35 so packages run on Deepin 25 / older distros.
+          # ubuntu-latest (24.04) links against glibc 2.39 and breaks those systems.
+          - platform: 'ubuntu-22.04'
             args: ''
             target: ''
             arch: 'x64'
             cargo_target: ''
             path: 'target/release/bundle/**'
-          - platform: 'ubuntu-24.04-arm'
+          - platform: 'ubuntu-22.04-arm'
             args: ''
             target: ''
             arch: 'arm64'

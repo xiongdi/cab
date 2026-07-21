@@ -5,6 +5,16 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-07-21
+
+### Fixed
+
+- **Linux release builds on Ubuntu 22.04** (`ubuntu-22.04` / `ubuntu-22.04-arm`). Packages no longer link against glibc 2.39 from Ubuntu 24.04, so they run on glibc 2.35+ hosts (e.g. Deepin 25, Ubuntu 22.04, Debian 12).
+
+### Changed
+
+- **Desktop OS minimums aligned with Tauri 2**: Windows 7+, macOS 10.15 Catalina+ (`bundle.macOS.minimumSystemVersion`), Linux WebKitGTK 4.1 + glibc 2.35+.
+
 ## [0.8.0] - 2026-07-21
 
 ### Added

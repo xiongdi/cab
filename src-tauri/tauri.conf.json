@@ -1,6 +1,6 @@
 {
   "productName": "cab-gui",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",
@@ -37,6 +37,9 @@
           "/usr/share/cab/ui": "../resources/ui"
         }
       }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
     },
     "windows": {
       "wix": {
