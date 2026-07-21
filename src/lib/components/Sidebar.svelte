@@ -136,7 +136,7 @@
         class="theme-btn"
         class:active={themeManager.current === 'light'}
         onclick={() => themeManager.set('light')}
-        title="Light Theme"
+        title={i18n.t('common.theme_light')}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
       </button>
@@ -145,7 +145,7 @@
         class="theme-btn"
         class:active={themeManager.current === 'dark'}
         onclick={() => themeManager.set('dark')}
-        title="Dark Theme"
+        title={i18n.t('common.theme_dark')}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
       </button>
@@ -154,7 +154,7 @@
         class="theme-btn"
         class:active={themeManager.current === 'system'}
         onclick={() => themeManager.set('system')}
-        title="System Preference"
+        title={i18n.t('common.theme_system')}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
       </button>
@@ -203,8 +203,8 @@
     width: 32px;
     height: 32px;
     border-radius: var(--radius-md);
-    background: linear-gradient(135deg, var(--accent), #8b5cf6);
-    color: white;
+    background: linear-gradient(135deg, var(--accent), var(--accent-violet));
+    color: var(--on-accent);
     flex-shrink: 0;
   }
 
@@ -217,7 +217,7 @@
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.04em;
-    background: linear-gradient(135deg, #fff 0%, var(--text-secondary) 100%);
+    background: var(--gradient-logo-text);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

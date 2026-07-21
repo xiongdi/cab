@@ -14,19 +14,19 @@
   } = $props();
 
   const colorMap: Record<string, string> = {
-    default: 'rgba(255, 255, 255, 0.06)',
-    blue: 'rgba(59, 130, 246, 0.12)',
-    green: 'rgba(34, 197, 94, 0.12)',
-    purple: 'rgba(139, 92, 246, 0.12)',
-    amber: 'rgba(245, 158, 11, 0.12)',
+    default: 'var(--badge-neutral-bg)',
+    blue: 'var(--icon-blue-bg)',
+    green: 'var(--icon-green-bg)',
+    purple: 'var(--icon-purple-bg)',
+    amber: 'var(--icon-amber-bg)',
   };
 
   const iconColorMap: Record<string, string> = {
     default: 'var(--text-secondary)',
-    blue: '#60a5fa',
-    green: '#4ade80',
-    purple: '#a78bfa',
-    amber: '#fbbf24',
+    blue: 'var(--chart-blue)',
+    green: 'var(--chart-green)',
+    purple: 'var(--chart-purple)',
+    amber: 'var(--chart-amber)',
   };
 </script>
 
@@ -77,7 +77,7 @@
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    background: var(--gradient-shine);
   }
 
   .stat-card:hover {

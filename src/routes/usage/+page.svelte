@@ -11,11 +11,14 @@
   let loading = $state(true);
   let range = $state('month');
 
-  const ranges = [
-    { value: 'day', label: '24h' },
-    { value: 'week', label: '7d' },
-    { value: 'month', label: '30d' },
-  ];
+  const ranges = $derived.by(() => {
+    void i18n.currentLang;
+    return [
+      { value: 'day', label: i18n.t('usage.range_day') },
+      { value: 'week', label: i18n.t('usage.range_week') },
+      { value: 'month', label: i18n.t('usage.range_month') },
+    ];
+  });
 
   async function loadData() {
     loading = true;
@@ -40,42 +43,45 @@
     loadData();
   });
 
-  const columns: Column[] = [
-    {
-      key: 'timestamp',
-      label: 'Time',
-      sortable: true,
-      render: (v: string) => {
-        try {
-          const d = new Date(v);
-          return `<span class="mono" style="font-size:11px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span>`;
-        } catch {
-          return v;
-        }
+  const columns = $derived.by((): Column[] => {
+    void i18n.currentLang;
+    return [
+      {
+        key: 'timestamp',
+        label: i18n.t('usage.col_time'),
+        sortable: true,
+        render: (v: string) => {
+          try {
+            const d = new Date(v);
+            return `<span class="mono" style="font-size:11px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span>`;
+          } catch {
+            return v;
+          }
+        },
       },
-    },
-    { key: 'agent_id', label: 'Agent', sortable: true },
-    { key: 'provider_id', label: 'Provider', sortable: true },
-    { key: 'model_id', label: 'Model', sortable: true },
-    {
-      key: 'input_tokens',
-      label: 'Input',
-      sortable: true,
-      render: (v: number) => v.toLocaleString(),
-    },
-    {
-      key: 'output_tokens',
-      label: 'Output',
-      sortable: true,
-      render: (v: number) => v.toLocaleString(),
-    },
-    {
-      key: 'cost_usd',
-      label: 'Cost (USD)',
-      sortable: true,
-      render: (v: number) => `$${v.toFixed(4)}`,
-    },
-  ];
+      { key: 'agent_id', label: i18n.t('usage.col_agent'), sortable: true },
+      { key: 'provider_id', label: i18n.t('usage.col_provider'), sortable: true },
+      { key: 'model_id', label: i18n.t('usage.col_model'), sortable: true },
+      {
+        key: 'input_tokens',
+        label: i18n.t('usage.col_input'),
+        sortable: true,
+        render: (v: number) => v.toLocaleString(),
+      },
+      {
+        key: 'output_tokens',
+        label: i18n.t('usage.col_output'),
+        sortable: true,
+        render: (v: number) => v.toLocaleString(),
+      },
+      {
+        key: 'cost_usd',
+        label: i18n.t('usage.col_cost'),
+        sortable: true,
+        render: (v: number) => `$${v.toFixed(4)}`,
+      },
+    ];
+  });
 
   function fmt(n: number): string {
     return n.toLocaleString();
@@ -110,7 +116,7 @@
   );
 </script>
 
-<PageHeader title={i18n.t('usage.title') || 'Usage'} description={i18n.t('usage.subtitle') || 'Token consumption and cost tracking'} />
+<PageHeader title={i18n.t('usage.title')} description={i18n.t('usage.subtitle')} />
 
 <div class="usage-page">
   <div class="range-selector">
@@ -124,33 +130,31 @@
   {#if loading}
     <div class="loading">
       <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-      &nbsp;Loading usage data...
+      &nbsp;{i18n.t('usage.loading')}
     </div>
   {:else if summary}
-    <!-- Glow stat cards -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-label">Total Requests</div>
+        <div class="stat-label">{i18n.t('usage.total_requests')}</div>
         <div class="stat-value mono">{fmt(summary.total_requests)}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Input Tokens</div>
+        <div class="stat-label">{i18n.t('usage.input_tokens')}</div>
         <div class="stat-value mono">{fmt(summary.total_input_tokens)}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Output Tokens</div>
+        <div class="stat-label">{i18n.t('usage.output_tokens')}</div>
         <div class="stat-value mono">{fmt(summary.total_output_tokens)}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Total Cost</div>
-        <div class="stat-value mono text-white">{fmtCost(summary.total_cost_usd)}</div>
+        <div class="stat-label">{i18n.t('usage.total_cost')}</div>
+        <div class="stat-value mono stat-value-accent">{fmtCost(summary.total_cost_usd)}</div>
       </div>
     </div>
 
-    <!-- Visual Progress breakdowns -->
     <div class="breakdown-grid">
       <div class="breakdown-section">
-        <h3>By Provider</h3>
+        <h3>{i18n.t('usage.by_provider')}</h3>
         <div class="breakdown-list">
           {#each providerRows as row}
             {@const pct = summary.total_cost_usd > 0 ? (row.cost_usd / summary.total_cost_usd) * 100 : 0}
@@ -163,18 +167,18 @@
                 <div class="progress-bar-fill" style="width: {Math.max(2, Math.round(pct))}%"></div>
               </div>
               <div class="progress-subinfo">
-                <span>{fmt(row.requests)} reqs</span>
-                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
+                <span>{fmt(row.requests)} {i18n.t('usage.reqs')}</span>
+                <span>{fmt(row.input_tokens + row.output_tokens)} {i18n.t('usage.tokens')}</span>
               </div>
             </div>
           {:else}
-            <div class="empty-list">No provider data</div>
+            <div class="empty-list">{i18n.t('usage.no_provider_data')}</div>
           {/each}
         </div>
       </div>
 
       <div class="breakdown-section">
-        <h3>By Model</h3>
+        <h3>{i18n.t('usage.by_model')}</h3>
         <div class="breakdown-list">
           {#each modelRows as row}
             {@const pct = summary.total_cost_usd > 0 ? (row.cost_usd / summary.total_cost_usd) * 100 : 0}
@@ -187,47 +191,47 @@
                 <div class="progress-bar-fill highlight" style="width: {Math.max(2, Math.round(pct))}%"></div>
               </div>
               <div class="progress-subinfo">
-                <span>{fmt(row.requests)} reqs</span>
-                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
+                <span>{fmt(row.requests)} {i18n.t('usage.reqs')}</span>
+                <span>{fmt(row.input_tokens + row.output_tokens)} {i18n.t('usage.tokens')}</span>
               </div>
             </div>
           {:else}
-            <div class="empty-list">No model data</div>
+            <div class="empty-list">{i18n.t('usage.no_model_data')}</div>
           {/each}
         </div>
       </div>
 
       <div class="breakdown-section">
-        <h3>By Agent</h3>
+        <h3>{i18n.t('usage.by_agent')}</h3>
         <div class="breakdown-list">
           {#each agentRows as row}
             {@const pct = summary.total_requests > 0 ? (row.requests / summary.total_requests) * 100 : 0}
             <div class="progress-item">
               <div class="progress-meta">
                 <span class="progress-name">{row.id}</span>
-                <span class="progress-val mono">{fmt(row.requests)} reqs</span>
+                <span class="progress-val mono">{fmt(row.requests)} {i18n.t('usage.reqs')}</span>
               </div>
               <div class="progress-bar-track">
                 <div class="progress-bar-fill" style="width: {Math.max(2, Math.round(pct))}%"></div>
               </div>
               <div class="progress-subinfo">
-                <span>{fmt(row.input_tokens + row.output_tokens)} tokens</span>
-                <span>{fmtCost(row.cost_usd)} cost</span>
+                <span>{fmt(row.input_tokens + row.output_tokens)} {i18n.t('usage.tokens')}</span>
+                <span>{fmtCost(row.cost_usd)} {i18n.t('usage.cost')}</span>
               </div>
             </div>
           {:else}
-            <div class="empty-list">No agent data</div>
+            <div class="empty-list">{i18n.t('usage.no_agent_data')}</div>
           {/each}
         </div>
       </div>
     </div>
 
     <div class="records-section">
-      <h3>Recent Records</h3>
+      <h3>{i18n.t('usage.recent_records')}</h3>
       <DataTable {columns} data={records} />
     </div>
   {:else}
-    <div class="empty">No usage data yet. Usage is recorded when requests are proxied through the gateway.</div>
+    <div class="empty">{i18n.t('usage.empty')}</div>
   {/if}
 </div>
 
@@ -263,7 +267,7 @@
 
   .range-btn:hover:not(.active) {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--glass-bg-hover);
   }
 
   .range-btn.active {
@@ -307,8 +311,8 @@
     color: var(--text-primary);
   }
 
-  .text-white {
-    color: #ffffff;
+  .stat-value-accent {
+    color: var(--accent-text);
   }
 
   /* ── Breakdown Visual Lists ─────────────────────────── */
@@ -382,7 +386,7 @@
   }
 
   .progress-bar-fill.highlight {
-    background: linear-gradient(90deg, #60a5fa, #3b82f6);
+    background: var(--progress-highlight);
   }
 
   .progress-subinfo {

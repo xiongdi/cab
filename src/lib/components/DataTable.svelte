@@ -595,7 +595,7 @@
 
   .clear-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-raised);
   }
 
   .filters-wrapper {

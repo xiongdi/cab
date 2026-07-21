@@ -74,7 +74,7 @@
           if (lower.includes('claude')) cls = 'badge-agent-claude';
           else if (lower.includes('code')) cls = 'badge-agent-code';
           else if (lower.includes('pi')) cls = 'badge-agent-pi';
-          return `<span class="badge-agent ${cls}">${v || 'unknown'}</span>`;
+          return `<span class="badge-agent ${cls}">${v || i18n.t('common.unknown')}</span>`;
         },
       },
       {
@@ -171,18 +171,18 @@
           <span class="pulse-dot {gatewayHealth.status}"></span>
         </div>
         <div class="gateway-meta">
-          <h3>网关控制舱</h3>
+          <h3>{i18n.t('dashboard.gateway_center_title')}</h3>
           <span class="gateway-subtitle">
             {#if gatewayHealth.status === 'running'}
-              统一网关已就绪，正在本地代理请求端口 3125
+              {i18n.tParams('dashboard.gateway_running_subtitle', { port: '3125' })}
             {:else}
-              本地网关未启动，请重启后端 watch 进程
+              {i18n.t('dashboard.gateway_stopped_subtitle')}
             {/if}
           </span>
         </div>
       </div>
       <div class="port-badge-wrapper">
-        <span class="port-badge">PORT: 3125</span>
+        <span class="port-badge">{i18n.tParams('dashboard.port_badge', { port: '3125' })}</span>
       </div>
     </div>
     
@@ -195,7 +195,7 @@
         </div>
         <div class="perf-card-body">
           <span class="perf-card-value font-mono">{successRate}%</span>
-          <span class="perf-card-label">近百次成功率</span>
+          <span class="perf-card-label">{i18n.t('dashboard.recent_success_rate')}</span>
         </div>
       </div>
       
@@ -207,7 +207,7 @@
         </div>
         <div class="perf-card-body">
           <span class="perf-card-value font-mono">{averageLatency}ms</span>
-          <span class="perf-card-label">近百次平均延迟</span>
+          <span class="perf-card-label">{i18n.t('dashboard.recent_avg_latency')}</span>
         </div>
       </div>
       
@@ -219,7 +219,7 @@
         </div>
         <div class="perf-card-body">
           <span class="perf-card-value font-mono">{cacheHitRate}%</span>
-          <span class="perf-card-label">前缀缓存命中率</span>
+          <span class="perf-card-label">{i18n.t('dashboard.cache_hit_rate')}</span>
         </div>
       </div>
     </div>
@@ -277,7 +277,7 @@
   <div class="breakdown-grid">
     <Card padding="0">
       <div class="section-card-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: #60a5fa; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--chart-blue); flex-shrink: 0;">
           <path d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
         </svg>
         <h3>{i18n.t('dashboard.req_by_provider')}</h3>
@@ -304,7 +304,7 @@
 
     <Card padding="0">
       <div class="section-card-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: #a78bfa; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--chart-purple); flex-shrink: 0;">
           <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
         <h3>{i18n.t('dashboard.req_by_model')}</h3>
@@ -331,7 +331,7 @@
 
     <Card padding="0">
       <div class="section-card-header">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: #34d399; flex-shrink: 0;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="color: var(--success-text); flex-shrink: 0;">
           <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z" />
         </svg>
         <h3>{i18n.t('dashboard.req_by_agent')}</h3>
@@ -381,34 +381,34 @@
           <div class="detail-grid">
             <!-- Token Breakdown -->
             <div class="detail-section">
-              <h4 class="detail-section-title">Token 消耗分布</h4>
+              <h4 class="detail-section-title">{i18n.t('dashboard.detail_token_distribution')}</h4>
               <div class="token-breakdown-container">
                 <div class="token-progress-bar">
                   {#if (row.cache_read_tokens ?? 0) > 0}
                     <div 
                       class="token-bar token-bar--cache" 
                       style:width="{(row.cache_read_tokens / row.total_tokens) * 100}%"
-                      title="前缀缓存命中: {row.cache_read_tokens} tokens"
+                      title={i18n.tParams('dashboard.legend_cache_hit', { tokens: String(row.cache_read_tokens), pct: String(Math.round((row.cache_read_tokens / row.total_tokens) * 100)) })}
                     ></div>
                   {/if}
                   <div 
                     class="token-bar token-bar--input" 
                     style:width="{((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100}%"
-                    title="输入 Token: {row.input_tokens - (row.cache_read_tokens ?? 0)} tokens"
+                    title={i18n.tParams('dashboard.legend_input', { tokens: String(row.input_tokens - (row.cache_read_tokens ?? 0)), pct: String(Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100)) })}
                   ></div>
                   <div 
                     class="token-bar token-bar--output" 
                     style:width="{(row.output_tokens / row.total_tokens) * 100}%"
-                    title="输出 Token: {row.output_tokens} tokens"
+                    title={i18n.tParams('dashboard.legend_output', { tokens: String(row.output_tokens), pct: String(Math.round((row.output_tokens / row.total_tokens) * 100)) })}
                   ></div>
                 </div>
                 
                 <div class="token-legend">
                   {#if (row.cache_read_tokens ?? 0) > 0}
-                    <span class="legend-item"><span class="legend-dot legend-dot--cache"></span>缓存命中: {row.cache_read_tokens} ({Math.round((row.cache_read_tokens/row.total_tokens)*100)}%)</span>
+                    <span class="legend-item"><span class="legend-dot legend-dot--cache"></span>{i18n.tParams('dashboard.legend_cache_hit', { tokens: String(row.cache_read_tokens), pct: String(Math.round((row.cache_read_tokens / row.total_tokens) * 100)) })}</span>
                   {/if}
-                  <span class="legend-item"><span class="legend-dot legend-dot--input"></span>输入 Token: {row.input_tokens - (row.cache_read_tokens ?? 0)} ({Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0))/row.total_tokens)*100)}%)</span>
-                  <span class="legend-item"><span class="legend-dot legend-dot--output"></span>输出 Token: {row.output_tokens} ({Math.round((row.output_tokens/row.total_tokens)*100)}%)</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--input"></span>{i18n.tParams('dashboard.legend_input', { tokens: String(row.input_tokens - (row.cache_read_tokens ?? 0)), pct: String(Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100)) })}</span>
+                  <span class="legend-item"><span class="legend-dot legend-dot--output"></span>{i18n.tParams('dashboard.legend_output', { tokens: String(row.output_tokens), pct: String(Math.round((row.output_tokens / row.total_tokens) * 100)) })}</span>
                 </div>
               </div>
             </div>
@@ -420,7 +420,7 @@
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;">
                     <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
-                  网关诊断错误输出
+                  {i18n.t('dashboard.gateway_diag_error')}
                 </h4>
                 <div class="error-terminal">
                   <div class="terminal-header">
@@ -429,35 +429,35 @@
                     <span class="terminal-dot green"></span>
                     <span class="terminal-title">status_{row.status_code}.log</span>
                   </div>
-                  <pre class="terminal-body">{row.error_message || `HTTP ${row.status_code}: Request failed without detailed error message.`}</pre>
+                  <pre class="terminal-body">{row.error_message || i18n.tParams('dashboard.request_failed_fallback', { code: row.status_code })}</pre>
                 </div>
               </div>
             {:else}
               <div class="detail-section">
-                <h4 class="detail-section-title">性能诊断</h4>
+                <h4 class="detail-section-title">{i18n.t('logs.detail_performance')}</h4>
                 <div class="performance-metrics-list">
                   <div class="perf-metric">
-                    <span class="perf-label">缓存状态</span>
+                    <span class="perf-label">{i18n.t('dashboard.perf_cache_status')}</span>
                     <span class="perf-value">
                       {#if (row.cache_read_tokens ?? 0) > 0}
-                        <span class="badge-cache badge-cache--hit">前缀缓存已命中 ({Math.round((row.cache_read_tokens / row.input_tokens) * 100)}%)</span>
+                        <span class="badge-cache badge-cache--hit">{i18n.tParams('dashboard.perf_cache_hit', { pct: String(Math.round((row.cache_read_tokens / row.input_tokens) * 100)) })}</span>
                       {:else}
-                        <span class="badge-cache badge-cache--miss">前缀缓存未命中</span>
+                        <span class="badge-cache badge-cache--miss">{i18n.t('dashboard.perf_cache_miss')}</span>
                       {/if}
                     </span>
                   </div>
                   <div class="perf-metric">
-                    <span class="perf-label">处理效率</span>
+                    <span class="perf-label">{i18n.t('dashboard.perf_efficiency')}</span>
                     <span class="perf-value">
                       {#if row.output_tokens > 0 && row.latency_ms > 0}
-                        <span class="mono-text">{Math.round((row.output_tokens / (row.latency_ms / 1000)) * 10) / 10} tokens/s</span>
+                        <span class="mono-text">{i18n.tParams('common.tokens_per_sec', { value: String(Math.round((row.output_tokens / (row.latency_ms / 1000)) * 10) / 10) })}</span>
                       {:else}
                         -
                       {/if}
                     </span>
                   </div>
                   <div class="perf-metric">
-                    <span class="perf-label">请求 ID</span>
+                    <span class="perf-label">{i18n.t('dashboard.request_id')}</span>
                     <span class="perf-value mono-text text-small">{row.id}</span>
                   </div>
                 </div>
@@ -487,7 +487,7 @@
 
   /* ── Gateway Control Center ───────────────────────────── */
   .gateway-center-card {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+    background: var(--gradient-card);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
@@ -502,7 +502,7 @@
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.04) 0%, transparent 60%);
+    background: var(--gateway-accent-glow);
     pointer-events: none;
   }
 
@@ -590,7 +590,7 @@
   }
 
   .port-badge {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg-hover);
     border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: var(--radius-sm);
@@ -624,9 +624,9 @@
     border-radius: var(--radius-md);
   }
 
-  .perf-icon-bg--green { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
-  .perf-icon-bg--blue { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
-  .perf-icon-bg--purple { background: rgba(139, 92, 246, 0.1); color: #c084fc; }
+  .perf-icon-bg--green { background: var(--icon-green-bg); color: var(--chart-green); }
+  .perf-icon-bg--blue { background: var(--icon-blue-bg); color: var(--chart-blue); }
+  .perf-icon-bg--purple { background: var(--icon-purple-bg); color: var(--chart-purple-light); }
 
   .perf-card-body {
     display: flex;
@@ -658,7 +658,7 @@
     align-items: center;
     gap: 14px;
     padding: 20px;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.005) 100%);
+    background: var(--gradient-card-subtle);
     backdrop-filter: var(--glass-blur);
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid var(--glass-border);
@@ -673,7 +673,7 @@
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
+    background: var(--gradient-shine);
   }
 
   .metric-card:hover {
@@ -697,10 +697,10 @@
     flex-shrink: 0;
   }
 
-  .metric-icon--blue { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
-  .metric-icon--purple { background: rgba(139, 92, 246, 0.1); color: #a78bfa; }
-  .metric-icon--green { background: rgba(34, 197, 94, 0.1); color: #4ade80; }
-  .metric-icon--amber { background: rgba(245, 158, 11, 0.1); color: #fbbf24; }
+  .metric-icon--blue { background: var(--icon-blue-bg); color: var(--chart-blue); }
+  .metric-icon--purple { background: var(--icon-purple-bg); color: var(--chart-purple); }
+  .metric-icon--green { background: var(--icon-green-bg); color: var(--chart-green); }
+  .metric-icon--amber { background: var(--icon-amber-bg); color: var(--chart-amber); }
 
   .metric-body {
     display: flex;
@@ -732,7 +732,7 @@
   }
 
   .breakdown-grid :global(.card) {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0.005) 100%) !important;
+    background: var(--gradient-card-faint) !important;
     border: 1px solid var(--border) !important;
   }
 
@@ -798,12 +798,7 @@
     content: '';
     position: absolute;
     top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(
-      90deg, 
-      rgba(255, 255, 255, 0) 0%, 
-      rgba(255, 255, 255, 0.12) 50%, 
-      rgba(255, 255, 255, 0) 100%
-    );
+    background: var(--bar-shimmer);
     animation: shimmer-bar 3s infinite linear;
   }
 
@@ -812,9 +807,9 @@
     100% { transform: translateX(100%); }
   }
 
-  .breakdown-fill--blue { background: linear-gradient(90deg, #2563eb, #60a5fa); box-shadow: 0 0 10px rgba(59, 130, 246, 0.15); }
-  .breakdown-fill--purple { background: linear-gradient(90deg, #7c3aed, #c084fc); box-shadow: 0 0 10px rgba(139, 92, 246, 0.15); }
-  .breakdown-fill--green { background: linear-gradient(90deg, #059669, #34d399); box-shadow: 0 0 10px rgba(52, 211, 153, 0.15); }
+  .breakdown-fill--blue { background: linear-gradient(90deg, var(--chart-blue-deep), var(--chart-blue)); box-shadow: 0 0 10px rgba(59, 130, 246, 0.15); }
+  .breakdown-fill--purple { background: linear-gradient(90deg, var(--chart-purple-deep), var(--chart-purple-light)); box-shadow: 0 0 10px rgba(139, 92, 246, 0.15); }
+  .breakdown-fill--green { background: linear-gradient(90deg, var(--chart-green-strong), var(--success-text)); box-shadow: 0 0 10px rgba(52, 211, 153, 0.15); }
 
   .breakdown-value {
     font-size: 11.5px;
@@ -887,7 +882,7 @@
   }
 
   .detail-section-title.error-text {
-    color: #f87171;
+    color: var(--error-text);
   }
 
   /* Token progress bar stack */
@@ -913,9 +908,9 @@
     transition: width 0.4s ease;
   }
 
-  .token-bar--cache { background: linear-gradient(90deg, #10b981, #34d399); }
-  .token-bar--input { background: linear-gradient(90deg, #2563eb, #3b82f6); }
-  .token-bar--output { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+  .token-bar--cache { background: linear-gradient(90deg, var(--success), var(--success-text)); }
+  .token-bar--input { background: linear-gradient(90deg, var(--chart-blue-deep), var(--chart-blue-strong)); }
+  .token-bar--output { background: linear-gradient(90deg, var(--chart-purple-deep), var(--chart-purple)); }
 
   .token-legend {
     display: flex;
@@ -938,9 +933,9 @@
     display: inline-block;
   }
 
-  .legend-dot--cache { background-color: #34d399; }
-  .legend-dot--input { background-color: #3b82f6; }
-  .legend-dot--output { background-color: #a78bfa; }
+  .legend-dot--cache { background-color: var(--success-text); }
+  .legend-dot--input { background-color: var(--chart-blue-strong); }
+  .legend-dot--output { background-color: var(--chart-purple); }
 
   /* Performance list */
   .performance-metrics-list {
@@ -983,7 +978,7 @@
     border: 1px solid rgba(239, 68, 68, 0.15);
     border-radius: var(--radius-md);
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: var(--terminal-shadow);
   }
 
   .terminal-header {
@@ -1001,9 +996,9 @@
     border-radius: var(--radius-full);
   }
 
-  .terminal-dot.red { background-color: #ef4444; }
-  .terminal-dot.yellow { background-color: #f59e0b; }
-  .terminal-dot.green { background-color: #10b981; }
+  .terminal-dot.red { background-color: var(--error); }
+  .terminal-dot.yellow { background-color: var(--warning); }
+  .terminal-dot.green { background-color: var(--success); }
 
   .terminal-title {
     font-family: var(--font-mono);
@@ -1015,7 +1010,7 @@
   .terminal-body {
     margin: 0;
     padding: 12px 16px;
-    color: #f87171;
+    color: var(--error-text);
     font-family: var(--font-mono);
     font-size: 11.5px;
     line-height: 1.5;
@@ -1036,19 +1031,19 @@
 
   :global(.badge-agent-claude) {
     background: rgba(217, 119, 6, 0.1);
-    color: #f59e0b;
+    color: var(--warning);
     border: 1px solid rgba(217, 119, 6, 0.15);
   }
 
   :global(.badge-agent-code) {
-    background: rgba(139, 92, 246, 0.1);
-    color: #a78bfa;
+    background: var(--icon-purple-bg);
+    color: var(--chart-purple);
     border: 1px solid rgba(139, 92, 246, 0.15);
   }
 
   :global(.badge-agent-pi) {
     background: rgba(16, 185, 129, 0.1);
-    color: #34d399;
+    color: var(--success-text);
     border: 1px solid rgba(16, 185, 129, 0.15);
   }
 
@@ -1112,35 +1107,35 @@
 
   :global(.status-glow-success) {
     background: rgba(16, 185, 129, 0.08);
-    color: #34d399;
+    color: var(--success-text);
     border: 1px solid rgba(16, 185, 129, 0.12);
   }
 
   :global(.status-glow-success .status-dot-core) {
-    background-color: #10b981;
-    box-shadow: 0 0 6px #10b981;
+    background-color: var(--success);
+    box-shadow: 0 0 6px var(--success);
   }
 
   :global(.status-glow-warning) {
     background: rgba(245, 158, 11, 0.08);
-    color: #fbbf24;
+    color: var(--chart-amber);
     border: 1px solid rgba(245, 158, 11, 0.12);
   }
 
   :global(.status-glow-warning .status-dot-core) {
-    background-color: #f59e0b;
-    box-shadow: 0 0 6px #f59e0b;
+    background-color: var(--warning);
+    box-shadow: 0 0 6px var(--warning);
   }
 
   :global(.status-glow-error) {
     background: rgba(239, 68, 68, 0.08);
-    color: #f87171;
+    color: var(--error-text);
     border: 1px solid rgba(239, 68, 68, 0.12);
   }
 
   :global(.status-glow-error .status-dot-core) {
-    background-color: #ef4444;
-    box-shadow: 0 0 6px #ef4444;
+    background-color: var(--error);
+    box-shadow: 0 0 6px var(--error);
   }
 
   :global(.badge-cache) {
@@ -1151,8 +1146,8 @@
   }
 
   :global(.badge-cache--hit) {
-    background: rgba(16, 185, 129, 0.08);
-    color: #34d399;
+    background: var(--success-muted);
+    color: var(--success-text);
     border: 1px solid rgba(16, 185, 129, 0.15);
   }
 
@@ -1168,10 +1163,10 @@
     align-items: center;
     gap: 8px;
     padding: 12px 16px;
-    background: rgba(239, 68, 68, 0.1);
+    background: var(--error-muted);
     border: 1px solid rgba(239, 68, 68, 0.2);
     border-radius: var(--radius-md);
-    color: #fca5a5;
+    color: var(--error-text);
     font-size: 13px;
     margin-top: 16px;
   }

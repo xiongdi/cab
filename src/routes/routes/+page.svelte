@@ -37,7 +37,7 @@
     {
       id: 'balanced',
       icon: '⚖️',
-      color: '#f59e0b',
+      color: 'var(--warning)',
       bg: 'rgba(245,158,11,0.06)',
       glow: 'rgba(245,158,11,0.15)',
       border: 'rgba(245,158,11,0.25)',
@@ -45,7 +45,7 @@
     {
       id: 'cheapest',
       icon: '💰',
-      color: '#22c55e',
+      color: 'var(--success)',
       bg: 'rgba(34,197,94,0.06)',
       glow: 'rgba(34,197,94,0.15)',
       border: 'rgba(34,197,94,0.25)',
@@ -53,7 +53,7 @@
     {
       id: 'intelligent',
       icon: '🧠',
-      color: '#a855f7',
+      color: 'var(--chart-purple)',
       bg: 'rgba(168,85,247,0.06)',
       glow: 'rgba(168,85,247,0.15)',
       border: 'rgba(168,85,247,0.25)',
@@ -352,7 +352,7 @@
     </label>
     <label>
       <span>{i18n.t('routes.preview_model')}</span>
-      <input bind:value={previewModel} placeholder="auto" />
+      <input bind:value={previewModel} placeholder={i18n.t('routes.preview_model_ph')} />
     </label>
     <label class="preview-prompt">
       <span>{i18n.t('routes.preview_prompt')}</span>
@@ -649,7 +649,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    background: rgba(34, 197, 94, 0.1);
+    background: var(--icon-green-bg);
     color: var(--success-text);
     border: 1px solid rgba(34, 197, 94, 0.25);
     border-radius: var(--radius-full);
@@ -662,8 +662,8 @@
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 8px #22c55e;
+    background: var(--success);
+    box-shadow: 0 0 8px var(--success);
   }
 
   .strategy-desc {
@@ -908,7 +908,7 @@
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
-    color: #34d399;
+    color: var(--success-text);
   }
 
   .outlet-body {
@@ -930,14 +930,14 @@
   }
 
   .resolved-provider {
-    color: #a7f3d0;
+    color: var(--success-text-light);
   }
 
   .resolved-strategy-tag {
     font-size: 10px;
     padding: 1px 6px;
     border-radius: var(--radius-xs);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg-hover);
     border: 1px solid var(--border);
     color: var(--text-secondary);
     font-weight: 500;
@@ -1004,8 +1004,8 @@
   }
 
   .decision-step.matched::before {
-    background: #10b981;
-    box-shadow: 0 0 6px #10b981;
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
   }
 
   .step-code {

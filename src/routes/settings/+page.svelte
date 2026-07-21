@@ -236,8 +236,8 @@
           <div class="widget-avatar">CAB</div>
         </div>
         <div class="widget-meta">
-          <h4>Coding Agents Bridge</h4>
-          <span class="widget-version">Version {appVersion}</span>
+          <h4>{i18n.t('settings.about')}</h4>
+          <span class="widget-version">{i18n.t('settings.version')} {appVersion}</span>
         </div>
         
         <div class="widget-status-list">
@@ -251,12 +251,12 @@
             </span>
           </div>
           <div class="widget-status-item">
-            <span class="widget-status-label">网关基址</span>
+            <span class="widget-status-label">{i18n.t('settings.api_base')}</span>
             <span class="widget-status-value mono text-xs select-all">http://localhost:{settings?.gateway_port ?? formPort}</span>
           </div>
           <div class="widget-status-item">
-            <span class="widget-status-label">后端核心</span>
-            <span class="widget-status-value">Rust Axum</span>
+            <span class="widget-status-label">{i18n.t('settings.backend')}</span>
+            <span class="widget-status-value">{i18n.t('settings.runtime_stack')}</span>
           </div>
         </div>
         
@@ -280,7 +280,7 @@
       <!-- Sync Status Widget -->
       <div class="sidebar-widget sync-widget">
         <div class="widget-header">
-          <h5>数据目录源</h5>
+          <h5>{i18n.t('settings.catalog_title')}</h5>
           <button
             type="button"
             class="btn-sync-icon"
@@ -328,8 +328,8 @@
       <!-- 1. Authentication & Service (认证与网关端口服务) -->
       <section class="settings-panel">
         <div class="panel-header">
-          <h3>认证与服务端口 (Authentication & Services)</h3>
-          <p>配置 CAB 网关在本地监听的 TCP 端口、日志保留期、以及智能体连接所需的统一授权密钥。</p>
+          <h3>{i18n.t('settings.auth_panel_title')}</h3>
+          <p>{i18n.t('settings.auth_panel_desc')}</p>
         </div>
         
         <form onsubmit={(e) => { e.preventDefault(); handleSave(); }}>
@@ -337,8 +337,8 @@
             <!-- Port option row -->
             <div class="option-row">
               <div class="option-info">
-                <label for="s-port" class="option-title">本地代理端口 (Gateway Port)</label>
-                <span class="option-desc">统一网关在本地监听的 TCP 端口，默认使用 3125（修改后需要重启 watch 进程）。</span>
+                <label for="s-port" class="option-title">{i18n.t('settings.port')}</label>
+                <span class="option-desc">{i18n.t('settings.port_desc')}</span>
               </div>
               <div class="option-control">
                 <input
@@ -355,8 +355,8 @@
             <!-- Log retention option row -->
             <div class="option-row">
               <div class="option-info">
-                <label for="s-retention" class="option-title">日志保留天数 (Logs Retention)</label>
-                <span class="option-desc">网关请求记录日志的本地保留天数，过期请求将被自动轮转清理。</span>
+                <label for="s-retention" class="option-title">{i18n.t('settings.retention')}</label>
+                <span class="option-desc">{i18n.t('settings.retention_desc')}</span>
               </div>
               <div class="option-control">
                 <input
@@ -373,9 +373,9 @@
             <!-- Gateway key option row -->
             <div class="option-row option-row--vertical">
               <div class="option-info">
-                <label for="s-key" class="option-title">网关统一密钥 (Gateway API Key)</label>
+                <label for="s-key" class="option-title">{i18n.t('settings.gateway_key')}</label>
                 <span class="option-desc">
-                  CAB 统一鉴权密钥，若本地智能体（如 Claude Code）的 API Key 为空，将自动注入此密钥以绕过登录校验。
+                  {i18n.t('settings.gateway_key_tip')}
                 </span>
               </div>
               <div class="option-control-group">
@@ -385,7 +385,7 @@
                     id="s-key"
                     type={showKey ? 'text' : 'password'}
                     bind:value={formKey}
-                    placeholder="cab-token-..."
+                    placeholder={i18n.t('settings.gateway_key_placeholder')}
                   />
                   <!-- Minimalist Icon Buttons -->
                   <div class="key-action-buttons">
@@ -434,9 +434,9 @@
             <!-- Artificial Analysis API Key -->
             <div class="option-row option-row--vertical">
               <div class="option-info">
-                <label for="s-aa-key" class="option-title">Artificial Analysis API Key</label>
+                <label for="s-aa-key" class="option-title">{i18n.t('settings.artificial_analysis_key')}</label>
                 <span class="option-desc">
-                  用于同步 Artificial Analysis 模型基准评测数据（若留空，将自动使用环境变量 `ARTIFICIAL_ANALYSIS_API_KEY`）。
+                  {i18n.t('settings.artificial_analysis_key_tip')}
                 </span>
               </div>
               <div class="option-control-group">
@@ -446,7 +446,7 @@
                     id="s-aa-key"
                     type={showArtificialAnalysisKey ? 'text' : 'password'}
                     bind:value={formArtificialAnalysisKey}
-                    placeholder="AA API Key"
+                    placeholder={i18n.t('settings.aa_key_placeholder')}
                   />
                   <div class="key-action-buttons">
                     <button
@@ -469,7 +469,7 @@
           
           <!-- OpenRouter-style panel footer with high-contrast Save button -->
           <div class="panel-footer">
-            <span class="footer-tip">💡 更改监听端口后，需要重启网关后端程序方可生效。</span>
+            <span class="footer-tip">💡 {i18n.t('settings.footer_port_restart_tip')}</span>
             <button type="submit" class="btn btn-primary" disabled={saving}>
               {saving ? i18n.t('common.loading') : i18n.t('common.save')}
             </button>
@@ -480,8 +480,8 @@
       <!-- 2. Performance & Cache Shaping (性能与缓存优化) -->
       <section class="settings-panel">
         <div class="panel-header">
-          <h3>性能与缓存优化 (Performance & Optimization)</h3>
-          <p>启用网关优化选项，改善缓存前缀的命中效率，显著降低在大语言模型请求中的输入成本。</p>
+          <h3>{i18n.t('settings.perf_panel_title')}</h3>
+          <p>{i18n.t('settings.perf_panel_desc')}</p>
         </div>
         
         <form onsubmit={(e) => { e.preventDefault(); handleSave(); }}>
@@ -517,8 +517,8 @@
             <!-- Appearance Theme Row -->
             <div class="option-row">
               <div class="option-info">
-                <span class="option-title">界面外观主题 (Appearance Theme)</span>
-                <span class="option-desc">切换网关面板视觉色彩系统，可选择亮色模式、暗色模式或跟随操作系统的明暗外观设定。</span>
+                <span class="option-title">{i18n.t('settings.theme_section_title')}</span>
+                <span class="option-desc">{i18n.t('settings.theme_section_desc')}</span>
               </div>
               <div class="option-control">
                 <div class="theme-segment">
@@ -528,7 +528,7 @@
                     class:active={themeManager.current === 'light'}
                     onclick={() => themeManager.set('light')}
                   >
-                    亮色
+                    {i18n.t('settings.theme_light')}
                   </button>
                   <button
                     type="button"
@@ -536,7 +536,7 @@
                     class:active={themeManager.current === 'dark'}
                     onclick={() => themeManager.set('dark')}
                   >
-                    暗色
+                    {i18n.t('settings.theme_dark')}
                   </button>
                   <button
                     type="button"
@@ -544,7 +544,7 @@
                     class:active={themeManager.current === 'system'}
                     onclick={() => themeManager.set('system')}
                   >
-                    系统
+                    {i18n.t('settings.theme_system')}
                   </button>
                 </div>
               </div>
@@ -552,7 +552,7 @@
           </div>
           
           <div class="panel-footer">
-            <span class="footer-tip">会话粘性优化在多轮对话中效果显著，能有效缩减 Prompt 输入时间。</span>
+            <span class="footer-tip">{i18n.t('settings.footer_affinity_tip')}</span>
             <button type="submit" class="btn btn-primary" disabled={saving}>
               {saving ? i18n.t('common.loading') : i18n.t('common.save')}
             </button>
@@ -569,7 +569,7 @@
               <span>{i18n.t('settings.update_available').replace('{version}', updateInfo.latest_version)}</span>
             </h3>
             {#if updateInfo.published_at}
-              <span class="update-date">发布于 {new Date(updateInfo.published_at).toLocaleDateString()}</span>
+              <span class="update-date">{i18n.tParams('settings.update_published_at', { date: new Date(updateInfo.published_at).toLocaleDateString() })}</span>
             {/if}
           </div>
           
@@ -583,7 +583,7 @@
           </div>
           
           <div class="panel-footer panel-footer--update">
-            <span class="footer-tip text-accent">自动更新包已就绪，可一键完成本地覆盖安装。</span>
+            <span class="footer-tip text-accent">{i18n.t('settings.update_ready_tip')}</span>
             <div class="update-actions">
               <button
                 type="button"
@@ -605,7 +605,7 @@
                   rel="noopener noreferrer"
                   class="btn btn-secondary btn-sm"
                 >
-                  手动下载
+                  {i18n.t('settings.update_manual_download')}
                 </a>
               {/if}
             </div>
@@ -659,14 +659,14 @@
   .widget-avatar {
     width: 52px;
     height: 52px;
-    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    background: linear-gradient(135deg, var(--accent), var(--accent-violet));
     border-radius: var(--radius-full);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
     font-weight: 700;
-    color: white;
+    color: var(--on-accent);
     box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
   }
 
@@ -766,7 +766,7 @@
 
   .btn-sync-icon:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-raised);
   }
 
   .catalog-mini-list {
@@ -776,7 +776,7 @@
   }
 
   .catalog-mini-item {
-    background: rgba(255,255,255,0.005);
+    background: var(--border-subtle);
     border-left: 2px solid rgba(59, 130, 246, 0.3);
     padding: 6px 0 6px 10px;
     display: flex;

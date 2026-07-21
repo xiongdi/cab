@@ -397,11 +397,11 @@
             <!-- Card Badges Row -->
             <div class="provider-card-badges">
               <span class="badge-indicator">
-                <span class="badge-label">Models</span>
+                <span class="badge-label">{i18n.t('providers.col_models')}</span>
                 <span class="badge-val">{provider.model_count ?? 0}</span>
               </span>
               <span class="badge-indicator">
-                <span class="badge-label">Keys</span>
+                <span class="badge-label">{i18n.t('providers.col_keys')}</span>
                 <span class="badge-val">{keyCount(provider.id)}</span>
               </span>
               
@@ -731,13 +731,13 @@
 
   .segment-btn:hover:not(.active) {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
   }
 
   .segment-btn.active {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-raised);
     color: var(--accent);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border-hover);
     font-weight: 600;
   }
 
@@ -809,7 +809,7 @@
     align-items: center;
     justify-content: center;
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.015);
+    background: var(--glass-bg-subtle);
     border: 1px solid var(--border);
   }
 
@@ -848,7 +848,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    border-top: 1px dashed rgba(255, 255, 255, 0.03);
+    border-top: 1px dashed var(--border-dashed-subtle);
     padding-top: 12px;
     width: 100%;
   }
@@ -856,7 +856,7 @@
   .badge-indicator {
     display: inline-flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border: 1px solid var(--border);
     border-radius: var(--radius-xs);
     overflow: hidden;
@@ -867,7 +867,7 @@
   .badge-label {
     padding: 0 6px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.01);
+    background: var(--glass-bg-subtle);
     font-weight: 500;
   }
 
@@ -890,7 +890,7 @@
     display: inline-flex;
     align-items: center;
     border-radius: var(--radius-xs);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--border-dashed-subtle);
     border: 1px solid var(--border);
     color: var(--text-secondary);
   }
@@ -905,14 +905,14 @@
     border-radius: var(--radius-full);
     font-weight: 500;
     margin-left: auto;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border: 1px solid var(--border);
     color: var(--text-muted);
   }
 
   .badge-status.enabled {
     background: rgba(16, 185, 129, 0.06);
-    color: #34d399;
+    color: var(--success-text);
     border-color: rgba(16, 185, 129, 0.12);
   }
 
@@ -924,8 +924,8 @@
   }
 
   .badge-status.enabled .status-dot {
-    background-color: #10b981;
-    box-shadow: 0 0 6px #10b981;
+    background-color: var(--success);
+    box-shadow: 0 0 6px var(--success);
   }
 
   .status-badge {
@@ -937,14 +937,14 @@
     height: 20px;
     border-radius: var(--radius-full);
     font-weight: 500;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border: 1px solid var(--border);
     color: var(--text-muted);
   }
 
   .status-badge.enabled {
     background: rgba(16, 185, 129, 0.06);
-    color: #34d399;
+    color: var(--success-text);
     border-color: rgba(16, 185, 129, 0.12);
   }
 
@@ -1118,7 +1118,7 @@
     border-radius: var(--radius-sm);
     border: 1px solid rgba(239, 68, 68, 0.35);
     background: rgba(239, 68, 68, 0.1);
-    color: #f87171;
+    color: var(--error-text);
     font-size: 10px;
     font-weight: 600;
     white-space: nowrap;
@@ -1155,7 +1155,7 @@
   }
 
   .btn-icon-delete:hover {
-    color: var(--error, #ef4444);
+    color: var(--error, var(--error));
     background: rgba(239, 68, 68, 0.1);
   }
 

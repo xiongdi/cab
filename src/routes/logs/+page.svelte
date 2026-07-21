@@ -155,7 +155,13 @@
         }
         const pct = (cacheRead / total) * 100;
         const color = pct >= 50 ? 'var(--success)' : pct > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
-        return `<span class="mono" style="color:${color}" title="${cacheRead.toLocaleString()} cached / ${total.toLocaleString()} input tokens">${pct.toFixed(2)}%</span>`;
+        const tooltip = i18n
+          .tParams('logs.cache_hit_tooltip', {
+            cached: cacheRead.toLocaleString(),
+            total: total.toLocaleString(),
+          })
+          .replace(/"/g, '&quot;');
+        return `<span class="mono" style="color:${color}" title="${tooltip}">${pct.toFixed(2)}%</span>`;
       },
     },
     {
@@ -369,83 +375,85 @@
         <div class="detail-section">
           <div class="detail-section-title">{i18n.t('logs.time')}</div>
           <div class="detail-row">
-            <span class="detail-label">Timestamp</span>
+            <span class="detail-label">{i18n.t('logs.detail_timestamp')}</span>
             <span class="detail-value mono">{formatTimestamp(row.timestamp)}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Relative</span>
+            <span class="detail-label">{i18n.t('common.relative')}</span>
             <span class="detail-value mono">{timeAgo(row.timestamp)}</span>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">Routing</div>
+          <div class="detail-section-title">{i18n.t('logs.detail_routing')}</div>
           <div class="detail-row">
-            <span class="detail-label">Agent</span>
+            <span class="detail-label">{i18n.t('logs.agent')}</span>
             <span class="detail-value">{row.agent}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Provider</span>
+            <span class="detail-label">{i18n.t('logs.provider')}</span>
             <span class="detail-value">{row.provider}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Model</span>
+            <span class="detail-label">{i18n.t('logs.model')}</span>
             <span class="detail-value mono">{row.model}</span>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">Tokens</div>
+          <div class="detail-section-title">{i18n.t('logs.detail_tokens')}</div>
           <!-- Token breakdown capsule bar -->
           <div class="token-ratio-bar">
             {#if (row.input_tokens || 0) > 0}
-              <div class="bar-segment input" style="flex: {row.input_tokens};" title="Input Tokens"></div>
+              <div class="bar-segment input" style="flex: {row.input_tokens};" title={i18n.t('logs.detail_input_tokens_title')}></div>
             {/if}
             {#if (row.cache_read_tokens || 0) > 0}
-              <div class="bar-segment cache" style="flex: {row.cache_read_tokens};" title="Cache Read Tokens"></div>
+              <div class="bar-segment cache" style="flex: {row.cache_read_tokens};" title={i18n.t('logs.detail_cache_read_title')}></div>
             {/if}
             {#if (row.output_tokens || 0) > 0}
-              <div class="bar-segment output" style="flex: {row.output_tokens};" title="Output Tokens"></div>
+              <div class="bar-segment output" style="flex: {row.output_tokens};" title={i18n.t('logs.detail_output_tokens_title')}></div>
             {/if}
           </div>
           <div class="detail-row">
-            <span class="detail-label">Input</span>
+            <span class="detail-label">{i18n.t('dashboard.inputs')}</span>
             <span class="detail-value mono">{row.input_tokens?.toLocaleString() ?? '0'}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Output</span>
+            <span class="detail-label">{i18n.t('dashboard.outputs')}</span>
             <span class="detail-value mono">{row.output_tokens?.toLocaleString() ?? '0'}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Cache Read</span>
+            <span class="detail-label">{i18n.t('logs.cache_hit')}</span>
             <span class="detail-value mono">{row.cache_read_tokens?.toLocaleString() ?? '0'}</span>
           </div>
           <div class="detail-row">
-            <span class="detail-label">Cache Creation</span>
+            <span class="detail-label">{i18n.t('logs.detail_cache_creation')}</span>
             <span class="detail-value mono">{row.cache_creation_tokens?.toLocaleString() ?? '0'}</span>
           </div>
           <div class="detail-row detail-row--total">
-            <span class="detail-label">Total</span>
+            <span class="detail-label">{i18n.t('common.total')}</span>
             <span class="detail-value mono">{row.total_tokens?.toLocaleString() ?? '0'}</span>
           </div>
         </div>
 
         <div class="detail-section">
-          <div class="detail-section-title">Performance</div>
+          <div class="detail-section-title">{i18n.t('logs.detail_performance')}</div>
           <div class="detail-row">
-            <span class="detail-label">Latency</span>
+            <span class="detail-label">{i18n.t('logs.latency')}</span>
             <span class="detail-value mono">{row.latency_ms}ms</span>
           </div>
           {#if (row.output_tokens || 0) > 0 && (row.latency_ms || 0) > 0}
             <div class="detail-row">
-              <span class="detail-label">Speed</span>
-              <span class="detail-value mono" style="color: #60a5fa;">
-                {((row.output_tokens ?? 0) / ((row.latency_ms ?? 1) / 1000)).toFixed(1)} tokens/s
+              <span class="detail-label">{i18n.t('common.speed')}</span>
+              <span class="detail-value mono detail-speed">
+                {i18n.tParams('common.tokens_per_sec', {
+                  value: ((row.output_tokens ?? 0) / ((row.latency_ms ?? 1) / 1000)).toFixed(1),
+                })}
               </span>
             </div>
           {/if}
           <div class="detail-row">
-            <span class="detail-label">Status</span>
+            <span class="detail-label">{i18n.t('common.status')}</span>
             <span class="detail-value">
               <span class="badge {row.status_code < 300 ? 'badge-success' : row.status_code < 500 ? 'badge-warning' : 'badge-error'}">{row.status_code}</span>
             </span>
@@ -459,31 +467,31 @@
             <span class="diag-dot red"></span>
             <span class="diag-dot yellow"></span>
             <span class="diag-dot green"></span>
-            <span class="diag-title mono">gateway-diagnostic-terminal.log</span>
+            <span class="diag-title mono">{i18n.t('logs.diag_terminal_title')}</span>
           </div>
-          <pre class="diag-content mono"><code>[ERROR] Gateway invocation failed with HTTP {row.status_code}
+          <pre class="diag-content mono"><code>{i18n.tParams('logs.diag_error_prefix', { code: row.status_code })}
 {row.error_message}</code></pre>
         </div>
       {/if}
 
       <div class="detail-bodies">
         {#if row.request_body}
-          <button class="body-btn" onclick={() => openBodyModal(row.request_body, 'Request Body')}>
+          <button class="body-btn" onclick={() => openBodyModal(row.request_body, i18n.t('logs.detail_request_body'))}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
               <path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4M6 12h12" />
             </svg>
-            <span>Request Body</span>
+            <span>{i18n.t('logs.detail_request_body')}</span>
             <svg width="12" height="12" class="body-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18l6-6-6-6" />
             </svg>
           </button>
         {/if}
         {#if row.response_body}
-          <button class="body-btn" onclick={() => openBodyModal(row.response_body, 'Response Body')}>
+          <button class="body-btn" onclick={() => openBodyModal(row.response_body, i18n.t('logs.detail_response_body'))}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 4l-4 16m-4-4l-4-4 4-4M18 16l4-4-4-4" />
             </svg>
-            <span>Response Body</span>
+            <span>{i18n.t('logs.detail_response_body')}</span>
             <svg width="12" height="12" class="body-btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18l6-6-6-6" />
             </svg>
@@ -609,15 +617,15 @@
   }
 
   .bar-segment.input {
-    background: #3b82f6; /* Blue input */
+    background: var(--chart-blue-strong); /* Blue input */
   }
 
   .bar-segment.cache {
-    background: #10b981; /* Green cache read */
+    background: var(--success); /* Green cache read */
   }
 
   .bar-segment.output {
-    background: #a855f7; /* Purple output */
+    background: var(--chart-purple); /* Purple output */
   }
 
   /* ── Terminal Diagnostic box ───────────────────────── */
@@ -645,9 +653,9 @@
     border-radius: var(--radius-full);
   }
 
-  .diag-dot.red { background: #ef4444; }
-  .diag-dot.yellow { background: #f59e0b; }
-  .diag-dot.green { background: #10b981; }
+  .diag-dot.red { background: var(--error); }
+  .diag-dot.yellow { background: var(--warning); }
+  .diag-dot.green { background: var(--success); }
 
   .diag-title {
     font-size: 10.5px;
@@ -664,7 +672,7 @@
   .diag-content code {
     font-size: 11.5px;
     line-height: 1.5;
-    color: #fca5a5;
+    color: var(--error-text-soft);
     white-space: pre-wrap;
     word-break: break-all;
   }
@@ -719,7 +727,7 @@
   }
 
   .page-btn:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--glass-bg-hover);
   }
 
   .page-btn.active {
@@ -730,9 +738,9 @@
 
   .weights-panel {
     margin-bottom: 16px;
-    border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+    border: 1px solid var(--border-color, var(--border-hover));
     border-radius: var(--radius-lg);
-    background: var(--surface-1, rgba(255, 255, 255, 0.02));
+    background: var(--surface-1, var(--bg-badge));
     overflow: hidden;
   }
 
@@ -814,7 +822,7 @@
   .weights-bar-track {
     height: 8px;
     border-radius: 4px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-raised);
     overflow: hidden;
   }
 
@@ -822,7 +830,7 @@
     display: block;
     height: 100%;
     border-radius: 4px;
-    background: var(--accent, #3b82f6);
+    background: var(--accent, var(--chart-blue-strong));
   }
 
   .weights-tokens {
@@ -840,7 +848,7 @@
 
   /* ── Expanded Log Detail Panel ─────────────────────────── */
   .log-detail-panel {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border-top: 1px solid var(--border);
     padding: 16px 20px;
     animation: fadeIn 0.15s ease-out;
@@ -866,7 +874,7 @@
     color: var(--text-muted);
     margin-bottom: 4px;
     padding-bottom: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--surface-raised);
   }
 
   .detail-row {
@@ -878,7 +886,7 @@
 
   .detail-row--total {
     padding-top: 4px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--surface-raised);
   }
 
   .detail-label {
@@ -896,6 +904,10 @@
     white-space: nowrap;
   }
 
+  .detail-speed {
+    color: var(--accent);
+  }
+
   .detail-error {
     display: flex;
     align-items: flex-start;
@@ -905,7 +917,7 @@
     background: rgba(239, 68, 68, 0.08);
     border: 1px solid rgba(239, 68, 68, 0.15);
     border-radius: var(--radius-md);
-    color: #fca5a5;
+    color: var(--error-text-soft);
     font-size: 12px;
     line-height: 1.5;
   }
@@ -913,7 +925,7 @@
   .detail-error svg {
     margin-top: 1px;
     flex-shrink: 0;
-    color: #ef4444;
+    color: var(--error);
   }
 
   /* ── Request / Response Body Buttons ─────────────────────── */
@@ -930,7 +942,7 @@
     padding: 6px 12px;
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--border-dashed-subtle);
     color: var(--text-secondary);
     font-size: 11px;
     font-weight: 500;
@@ -940,7 +952,7 @@
   }
 
   .body-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--badge-neutral-bg);
     border-color: var(--border-hover);
     color: var(--text-primary);
   }
@@ -959,7 +971,7 @@
   .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
+    background: var(--overlay-backdrop);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
     display: flex;
@@ -1025,7 +1037,7 @@
   }
 
   .modal-close-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--badge-neutral-bg);
     color: var(--text-primary);
   }
 

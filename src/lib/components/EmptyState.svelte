@@ -53,7 +53,7 @@
     width: 56px;
     height: 56px;
     border-radius: var(--radius-lg);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--border-dashed-subtle);
     color: var(--text-muted);
     margin-bottom: 4px;
   }

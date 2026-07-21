@@ -396,11 +396,11 @@
             
             <!-- Card Middle: Token constraints -->
             <div class="model-card-middle">
-              <span class="constraint-badge" title="Context Limit">
+              <span class="constraint-badge" title={i18n.t('models.col_context')}>
                 <span class="badge-icon">CTX</span>
                 <span class="badge-val mono">{formatTokens(limitField(entry, 'context'))}</span>
               </span>
-              <span class="constraint-badge" title="Max Output">
+              <span class="constraint-badge" title={i18n.t('models.col_output')}>
                 <span class="badge-icon">OUT</span>
                 <span class="badge-val mono">{formatTokens(limitField(entry, 'output'))}</span>
               </span>
@@ -520,7 +520,7 @@
                       <div class="modality-row">
                         {#if modalities.input.length > 0}
                           <div class="modality-group">
-                            <span class="modality-dir">In</span>
+                            <span class="modality-dir">{i18n.t('dashboard.inputs')}</span>
                             <div class="chip-row">
                               {#each modalities.input as item}
                                 <span class="chip">{item}</span>
@@ -530,7 +530,7 @@
                         {/if}
                         {#if modalities.output.length > 0}
                           <div class="modality-group">
-                            <span class="modality-dir">Out</span>
+                            <span class="modality-dir">{i18n.t('dashboard.outputs')}</span>
                             <div class="chip-row">
                               {#each modalities.output as item}
                                 <span class="chip">{item}</span>
@@ -695,9 +695,9 @@
                             : i18n.t('models.endpoint_degraded')}
                         </div>
                         <div class="gateway-pricing mono">
-                          <span>In {formatEndpointCost(ep.input_cost)}</span>
+                          <span>{i18n.t('dashboard.inputs')} {formatEndpointCost(ep.input_cost)}</span>
                           <span class="gateway-sep">·</span>
-                          <span>Out {formatEndpointCost(ep.output_cost)}</span>
+                          <span>{i18n.t('dashboard.outputs')} {formatEndpointCost(ep.output_cost)}</span>
                         </div>
                         {#if ep.native_model_id}
                           <div class="gateway-native mono">{ep.native_model_id}</div>
@@ -710,10 +710,10 @@
                             <span class="gateway-badge">{i18n.t('models.tool_call')}</span>
                           {/if}
                           {#if ep.context_length}
-                            <span class="gateway-badge">{formatTokens(ep.context_length)} ctx</span>
+                            <span class="gateway-badge">{i18n.tParams('models.gateway_context_badge', { tokens: formatTokens(ep.context_length) })}</span>
                           {/if}
                           {#if ep.uptime_30m != null}
-                            <span class="gateway-badge">{ep.uptime_30m.toFixed(1)}% up</span>
+                            <span class="gateway-badge">{i18n.tParams('models.gateway_uptime_badge', { pct: ep.uptime_30m.toFixed(1) })}</span>
                           {/if}
                         </div>
                       </article>
@@ -829,7 +829,7 @@
 
   .segment-btn:hover:not(.active) {
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
   }
 
   .segment-btn.active {
@@ -935,7 +935,7 @@
   .model-card-family {
     font-size: 10.5px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     padding: 1px 6px;
     border-radius: var(--radius-xs);
     border: 1px solid var(--border);
@@ -1017,7 +1017,7 @@
 
   .badge-status.enabled {
     background: rgba(16, 185, 129, 0.06);
-    color: #34d399;
+    color: var(--success-text);
     border-color: rgba(16, 185, 129, 0.12);
   }
 
@@ -1029,8 +1029,8 @@
   }
 
   .badge-status.enabled .status-dot {
-    background-color: #10b981;
-    box-shadow: 0 0 6px #10b981;
+    background-color: var(--success);
+    box-shadow: 0 0 6px var(--success);
   }
 
   .status-badge {
@@ -1042,14 +1042,14 @@
     height: 20px;
     border-radius: var(--radius-full);
     font-weight: 500;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border: 1px solid var(--border);
     color: var(--text-muted);
   }
 
   .status-badge.enabled {
     background: rgba(16, 185, 129, 0.06);
-    color: #34d399;
+    color: var(--success-text);
     border-color: rgba(16, 185, 129, 0.12);
   }
 
@@ -1090,7 +1090,7 @@
     padding: 1px 7px;
     border-radius: 999px;
     background: rgba(59, 130, 246, 0.15);
-    color: #60a5fa;
+    color: var(--chart-blue);
   }
 
   .gateway-grid {
@@ -1155,7 +1155,7 @@
   .gateway-health {
     font-size: 11px;
     font-weight: 600;
-    color: #f59e0b;
+    color: var(--warning);
   }
 
   .gateway-health.ok {

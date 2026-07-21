@@ -158,9 +158,9 @@
   async function handleCopyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success(i18n.t('settings.key_copied') || 'Copied!');
+      toast.success(i18n.t('settings.key_copied'));
     } catch {
-      toast.error('Copy failed');
+      toast.error(i18n.t('common.copy_failed'));
     }
   }
 </script>
@@ -309,7 +309,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_claude_code')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export ANTHROPIC_BASE_URL="http://localhost:3125"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export ANTHROPIC_BASE_URL="http://localhost:3125"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export ANTHROPIC_BASE_URL="http://localhost:3125"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -319,7 +319,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_codex')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export CODEX_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export CODEX_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export CODEX_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -329,7 +329,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_opencode')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export OPENAI_BASE_URL="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENAI_BASE_URL="http://localhost:3125/v1"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENAI_BASE_URL="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -339,7 +339,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_hermes')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export HERMES_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export HERMES_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export HERMES_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -353,7 +353,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_openclaw')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export OPENCLAW_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENCLAW_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENCLAW_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -367,7 +367,7 @@
             <p class="guide-desc">{i18n.t('agents.guide_reasonix')}</p>
             <div class="terminal-block">
               <span class="mono text-xs">export REASONIX_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export REASONIX_API_BASE="http://localhost:3125/v1"')} title="Copy command">
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export REASONIX_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>
@@ -510,7 +510,7 @@
     line-height: 1.6;
     margin: 0;
     padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-badge);
     border: 1px dashed var(--border);
     border-radius: var(--radius-sm);
   }
@@ -600,6 +600,6 @@
 
   .terminal-copy-btn:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-raised);
   }
 </style>
