@@ -121,14 +121,14 @@ powershell -File scripts/test-cc-headless.ps1
 
 4. **最小验证清单**（全部通过才算完成）
 
-   | 步骤     | 命令/检查                                                                 | 期望                              |
-   | -------- | ------------------------------------------------------------------------- | --------------------------------- |
-   | Provider | `GET /api/providers`                                                      | 目标 provider `enabled` 且有 key  |
-   | 路由     | `POST /api/routing/explain` body `{"agent":"claude-code","model":"auto"}` | `resolved` 非空                   |
-   | 网关     | `POST /v1/messages`（`Authorization: Bearer <gateway_key>`；亦接受 `x-api-key`） | HTTP 200                    |
-   | 前端     | `GET http://127.0.0.1:5173`                                               | HTTP 200                          |
-   | CC 无头  | 见下方                                                                    | 输出含 `CAB ok`，进程在超时内退出 |
-   | 配置     | 查询 SQLite `settings` 表                                                 | `providers` 未被清空              |
+   | 步骤     | 命令/检查                                                                        | 期望                              |
+   | -------- | -------------------------------------------------------------------------------- | --------------------------------- |
+   | Provider | `GET /api/providers`                                                             | 目标 provider `enabled` 且有 key  |
+   | 路由     | `POST /api/routing/explain` body `{"agent":"claude-code","model":"auto"}`        | `resolved` 非空                   |
+   | 网关     | `POST /v1/messages`（`Authorization: Bearer <gateway_key>`；亦接受 `x-api-key`） | HTTP 200                          |
+   | 前端     | `GET http://127.0.0.1:5173`                                                      | HTTP 200                          |
+   | CC 无头  | 见下方                                                                           | 输出含 `CAB ok`，进程在超时内退出 |
+   | 配置     | 查询 SQLite `settings` 表                                                        | `providers` 未被清空              |
 
 5. **CC 无头测试**（必须带硬超时，禁止无限挂后台）
 

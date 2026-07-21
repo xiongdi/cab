@@ -25,10 +25,12 @@ import { Card, CardGrid } from '@astrojs/starlight/components';
 
 <CardGrid stagger>
   <Card title="一个网关，多个 Agent" icon="rocket">
-    Claude Code、Codex、OpenCode、Hermes、Kilo Code、OpenClaw、Pi、Reasonix——全部指向同一个 CAB 本地端点。
+    Claude Code、Codex、OpenCode、Hermes、Kilo Code、OpenClaw、Pi、Reasonix——全部指向同一个 CAB
+    本地端点。
   </Card>
   <Card title="智能路由" icon="setting">
-    选择策略——auto、balanced、intelligent、price、speed 或 agentic——CAB 按能力、基准数据和 token 成本排序选模。
+    选择策略——auto、balanced、intelligent、price、speed 或 agentic——CAB 按能力、基准数据和 token
+    成本排序选模。
   </Card>
   <Card title="桌面控制台" icon="laptop">
     基于 Tauri + Svelte 的仪表盘，管理提供商、模型、路由、Agent、日志和设置。
@@ -53,14 +55,14 @@ graph LR
 
 ## 内置路由策略
 
-| 策略            | 适用场景                               |
-| --------------- | -------------------------------------- |
-| **Auto**        | 按任务类型、复杂度、能力与成本动态选模 |
-| **Balanced**    | 性价比最优——能力与 10:1 加权 token 成本 |
-| **Intelligent** | 最难的编程任务——AA coding index 最高   |
+| 策略            | 适用场景                                     |
+| --------------- | -------------------------------------------- |
+| **Auto**        | 按任务类型、复杂度、能力与成本动态选模       |
+| **Balanced**    | 性价比最优——能力与 10:1 加权 token 成本      |
+| **Intelligent** | 最难的编程任务——AA coding index 最高         |
 | **Agentic**     | 工具密集 / 多步工作流——AA agentic index 最高 |
-| **Price**       | 成本最低——始终选最便宜的已启用模型     |
-| **Speed**       | 总响应时间最低（`TTFT + 1000/tps`）    |
+| **Price**       | 成本最低——始终选最便宜的已启用模型           |
+| **Speed**       | 总响应时间最低（`TTFT + 1000/tps`）          |
 
 详见 [路由策略](guides/routing/)。
 

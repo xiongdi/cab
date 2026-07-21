@@ -42,11 +42,11 @@ The gateway also accepts `x-api-key: <gateway_key>` (Bearer wins if both are pre
 
 ## Configuration storage
 
-| Location                 | Contents                                                              |
-| ------------------------ | --------------------------------------------------------------------- |
-| `~/.cab/cab.db`          | Settings (port, gateway key, auth), agents, routes, request logs, …   |
-| `cab.toml`               | Bootstrap host + first-install port seed (not API-editable)           |
-| `~/.cab/catalog/`        | models.dev / related download cache                                   |
+| Location          | Contents                                                            |
+| ----------------- | ------------------------------------------------------------------- |
+| `~/.cab/cab.db`   | Settings (port, gateway key, auth), agents, routes, request logs, … |
+| `cab.toml`        | Bootstrap host + first-install port seed (not API-editable)         |
+| `~/.cab/catalog/` | models.dev / related download cache                                 |
 
 Deprecated (not runtime config): `~/.cab/settings.json`, `~/.cab/state.json`, `~/.cab/logs/*.jsonl`.
 

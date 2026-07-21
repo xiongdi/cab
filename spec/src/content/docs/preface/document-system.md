@@ -29,13 +29,13 @@ order: 2
 
 ## 持久化与配置追溯
 
-| 文件            | 路径                                             | 写入方                              |
-| --------------- | ------------------------------------------------ | ----------------------------------- |
-| 运行时数据库    | `~/.cab/cab.db`                                  | `cab-db`（settings/agents/routes/logs/catalog） |
-| models.dev 缓存 | `~/.cab/catalog/models.dev/catalog.json`         | catalog sync                        |
-| AA 模型映射     | `config/aa-model-map.json` / catalog 缓存        | `cab-core` / sync                   |
-| 内置端点默认    | `config/provider-endpoints.defaults.json`        | 随仓库发布                          |
-| 系统引导        | `cab.toml`                                       | 用户放置；host + 端口种子           |
+| 文件            | 路径                                      | 写入方                                          |
+| --------------- | ----------------------------------------- | ----------------------------------------------- |
+| 运行时数据库    | `~/.cab/cab.db`                           | `cab-db`（settings/agents/routes/logs/catalog） |
+| models.dev 缓存 | `~/.cab/catalog/models.dev/catalog.json`  | catalog sync                                    |
+| AA 模型映射     | `config/aa-model-map.json` / catalog 缓存 | `cab-core` / sync                               |
+| 内置端点默认    | `config/provider-endpoints.defaults.json` | 随仓库发布                                      |
+| 系统引导        | `cab.toml`                                | 用户放置；host + 端口种子                       |
 
 ## 检查清单
 

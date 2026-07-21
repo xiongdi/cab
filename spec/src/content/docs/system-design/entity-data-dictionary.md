@@ -22,19 +22,19 @@ RequestLog ──引用── Provider, Model, Agent
 
 ## Configuration vs Runtime
 
-| 分类          | 实体                   | 持久化                     |
-| ------------- | ---------------------- | -------------------------- |
-| Configuration | Settings, Agent, Route | SQLite `settings`/`agents`/`routes` |
-| Catalog       | Provider, Model        | SQLite catalog 表 + `catalog/` 缓存 |
+| 分类          | 实体                   | 持久化                                  |
+| ------------- | ---------------------- | --------------------------------------- |
+| Configuration | Settings, Agent, Route | SQLite `settings`/`agents`/`routes`     |
+| Catalog       | Provider, Model        | SQLite catalog 表 + `catalog/` 缓存     |
 | Observability | RequestLog, Usage      | SQLite `request_logs` / `usage_records` |
-| Runtime       | subscription quotas    | SQLite `subscription_quotas` |
+| Runtime       | subscription quotas    | SQLite `subscription_quotas`            |
 
 ## Agents / Routes（SQLite）
 
-| 字段    | 说明                          |
-| ------- | ----------------------------- |
-| agents  | 8 个内置 Agent（含 reasonix） |
-| routes  | 用户路由规则                  |
+| 字段   | 说明                          |
+| ------ | ----------------------------- |
+| agents | 8 个内置 Agent（含 reasonix） |
+| routes | 用户路由规则                  |
 
 ## RouteExplainResult
 

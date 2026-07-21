@@ -46,12 +46,12 @@ effective_cost = blended_input × ratio + output
 
 **任务主能力**（`balanced` / `auto` 打分与 auto 过滤使用）：
 
-| 任务    | 主能力指数                                       |
-| ------- | ------------------------------------------------ |
-| coding  | `coding_index`，否则 `overall_intelligence`      |
-| math    | `math_index`，否则 `overall_intelligence`        |
-| agentic | `agentic_index`，否则 `overall_intelligence`     |
-| general | `overall_intelligence`                           |
+| 任务    | 主能力指数                                   |
+| ------- | -------------------------------------------- |
+| coding  | `coding_index`，否则 `overall_intelligence`  |
+| math    | `math_index`，否则 `overall_intelligence`    |
+| agentic | `agentic_index`，否则 `overall_intelligence` |
+| general | `overall_intelligence`                       |
 
 **请求画像**（`build_request_profile`）：从消息文本、Agent ID、tools 等推断 `task` 与 `complexity`（0.0–1.0）。
 
@@ -59,14 +59,14 @@ effective_cost = blended_input × ratio + output
 
 每种策略保存正语义的 **主键**（`value`）与 **次键**（`capability`），比较方向因策略而异；再平局则模型名、服务商 ID。
 
-| 策略            | 主键（`value`）                            | 次键（`capability`）            | 主键方向 | 次键方向 | 参与条件                         |
-| --------------- | ------------------------------------------ | ------------------------------- | -------- | -------- | -------------------------------- |
-| **auto**        | capability / effective_cost                | `overall_intelligence`          | DESC     | DESC     | 有任务主能力                     |
-| **balanced**    | capability / effective_cost                | `overall_intelligence`          | DESC     | DESC     | 有任务主能力                     |
-| **cheapest**    | `effective_cost`                           | `overall_intelligence`          | ASC      | DESC     | 始终（缺价沉底）                 |
-| **intelligent** | `coding_index`                             | capability / effective_cost     | DESC     | DESC     | 有 `coding_index`                |
-| **agentic**     | `agentic_index`                            | capability / effective_cost     | DESC     | DESC     | 有 `agentic_index`               |
-| **speed**       | `TTFT + 1000 / output_speed_tps`（秒）     | `effective_cost`                | ASC      | ASC      | 有 AA 速度数据；否则降级 cheapest |
+| 策略            | 主键（`value`）                        | 次键（`capability`）        | 主键方向 | 次键方向 | 参与条件                          |
+| --------------- | -------------------------------------- | --------------------------- | -------- | -------- | --------------------------------- |
+| **auto**        | capability / effective_cost            | `overall_intelligence`      | DESC     | DESC     | 有任务主能力                      |
+| **balanced**    | capability / effective_cost            | `overall_intelligence`      | DESC     | DESC     | 有任务主能力                      |
+| **cheapest**    | `effective_cost`                       | `overall_intelligence`      | ASC      | DESC     | 始终（缺价沉底）                  |
+| **intelligent** | `coding_index`                         | capability / effective_cost | DESC     | DESC     | 有 `coding_index`                 |
+| **agentic**     | `agentic_index`                        | capability / effective_cost | DESC     | DESC     | 有 `agentic_index`                |
+| **speed**       | `TTFT + 1000 / output_speed_tps`（秒） | `effective_cost`            | ASC      | ASC      | 有 AA 速度数据；否则降级 cheapest |
 
 **Auto 过滤**（排序前；若为空则回退）：
 

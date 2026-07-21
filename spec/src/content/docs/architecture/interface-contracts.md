@@ -7,13 +7,13 @@ order: 3
 
 ## Gateway 对外契约
 
-| 方法 | 路径                   | 协议               |
-| ---- | ---------------------- | ------------------ |
-| POST | `/v1/chat/completions` | OpenAI Chat        |
-| POST | `/v1/responses`        | OpenAI Responses   |
+| 方法 | 路径                   | 协议                |
+| ---- | ---------------------- | ------------------- |
+| POST | `/v1/chat/completions` | OpenAI Chat         |
+| POST | `/v1/responses`        | OpenAI Responses    |
 | GET  | `/v1/responses`        | Responses WebSocket |
-| POST | `/v1/messages`         | Anthropic Messages |
-| GET  | `/v1/models`           | OpenAI Models      |
+| POST | `/v1/messages`         | Anthropic Messages  |
+| GET  | `/v1/models`           | OpenAI Models       |
 
 **认证**：见 [`security-model.md`](security-model.md)。`auth_enabled == true` 时 `/v1/*` 须 `Authorization: Bearer {gateway_key}`（亦接受 `x-api-key`）。`/api/*` 同理，本机仪表盘 Origin/Referer 可绕过。
 

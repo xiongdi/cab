@@ -20,19 +20,19 @@ order: 1
 
 ## cab-db 模组
 
-| 模组      | 文件           | 职责                                  |
-| --------- | -------------- | ------------------------------------- |
-| store     | `lib.rs`       | `InMemoryStore`、`RouteCatalog`       |
-| sqlite    | `sqlite.rs`    | schema、连接、`~/.cab/cab.db`         |
-| state     | `state.rs`     | agents/routes ↔ SQLite                |
-| settings  | `settings.rs`  | settings JSON blob ↔ SQLite           |
-| provider  | `provider.rs`  | LLM 提供商 CRUD                       |
-| model     | `model.rs`     | 模型 CRUD                             |
-| endpoint  | `endpoint.rs`  | ModelEndpoint                         |
-| route     | `route.rs`     | 路由规则 CRUD                         |
-| agent     | `agent.rs`     | Agent 更新                            |
-| log       | `log.rs`       | RequestLog 查询（SQLite）             |
-| dashboard | `dashboard.rs` | 统计聚合                              |
+| 模组      | 文件           | 职责                            |
+| --------- | -------------- | ------------------------------- |
+| store     | `lib.rs`       | `InMemoryStore`、`RouteCatalog` |
+| sqlite    | `sqlite.rs`    | schema、连接、`~/.cab/cab.db`   |
+| state     | `state.rs`     | agents/routes ↔ SQLite          |
+| settings  | `settings.rs`  | settings JSON blob ↔ SQLite     |
+| provider  | `provider.rs`  | LLM 提供商 CRUD                 |
+| model     | `model.rs`     | 模型 CRUD                       |
+| endpoint  | `endpoint.rs`  | ModelEndpoint                   |
+| route     | `route.rs`     | 路由规则 CRUD                   |
+| agent     | `agent.rs`     | Agent 更新                      |
+| log       | `log.rs`       | RequestLog 查询（SQLite）       |
+| dashboard | `dashboard.rs` | 统计聚合                        |
 
 ## cab-services 模组
 

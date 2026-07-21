@@ -46,12 +46,12 @@ If input or output is missing:
 
 **Primary task capability** (used by `balanced` / `auto` scoring and by auto filters):
 
-| Task    | Primary capability                          |
-| ------- | ------------------------------------------- |
-| coding  | `coding_index`, else `overall_intelligence` |
-| math    | `math_index`, else `overall_intelligence`   |
-| agentic | `agentic_index`, else `overall_intelligence`|
-| general | `overall_intelligence`                      |
+| Task    | Primary capability                           |
+| ------- | -------------------------------------------- |
+| coding  | `coding_index`, else `overall_intelligence`  |
+| math    | `math_index`, else `overall_intelligence`    |
+| agentic | `agentic_index`, else `overall_intelligence` |
+| general | `overall_intelligence`                       |
 
 **Request profile** (`build_request_profile`): infers `task` and `complexity` (0.0–1.0) from message text, agent id, tools, etc.
 
@@ -59,14 +59,14 @@ If input or output is missing:
 
 Each strategy stores a positive semantic **primary** (`value`) and **secondary** (`capability`). Comparator direction is per-strategy. Ties then break on model name, then service provider id.
 
-| Strategy        | Primary (`value`)                                      | Secondary (`capability`)     | Primary dir | Secondary dir | Eligibility                         |
-| --------------- | ------------------------------------------------------ | ---------------------------- | ----------- | ------------- | ----------------------------------- |
-| **auto**        | capability / effective_cost                            | `overall_intelligence`       | DESC        | DESC          | task capability available           |
-| **balanced**    | capability / effective_cost                            | `overall_intelligence`       | DESC        | DESC          | task capability available           |
-| **cheapest**    | `effective_cost`                                       | `overall_intelligence`       | ASC         | DESC          | always (missing cost → sink)        |
-| **intelligent** | `coding_index`                                         | capability / effective_cost  | DESC        | DESC          | has `coding_index`                  |
-| **agentic**     | `agentic_index`                                        | capability / effective_cost  | DESC        | DESC          | has `agentic_index`                 |
-| **speed**       | `TTFT + 1000 / output_speed_tps` (seconds)             | `effective_cost`             | ASC         | ASC           | has AA speed data; else → cheapest  |
+| Strategy        | Primary (`value`)                          | Secondary (`capability`)    | Primary dir | Secondary dir | Eligibility                        |
+| --------------- | ------------------------------------------ | --------------------------- | ----------- | ------------- | ---------------------------------- |
+| **auto**        | capability / effective_cost                | `overall_intelligence`      | DESC        | DESC          | task capability available          |
+| **balanced**    | capability / effective_cost                | `overall_intelligence`      | DESC        | DESC          | task capability available          |
+| **cheapest**    | `effective_cost`                           | `overall_intelligence`      | ASC         | DESC          | always (missing cost → sink)       |
+| **intelligent** | `coding_index`                             | capability / effective_cost | DESC        | DESC          | has `coding_index`                 |
+| **agentic**     | `agentic_index`                            | capability / effective_cost | DESC        | DESC          | has `agentic_index`                |
+| **speed**       | `TTFT + 1000 / output_speed_tps` (seconds) | `effective_cost`            | ASC         | ASC           | has AA speed data; else → cheapest |
 
 **Auto filters** (before rank; if empty, fall back):
 

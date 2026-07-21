@@ -41,16 +41,16 @@ graph TD
     API --> Services
 ```
 
-| Crate          | Role                                                          |
-| -------------- | ------------------------------------------------------------- |
-| `cab-core`     | Types, request profiling, routing algorithm                   |
+| Crate          | Role                                                           |
+| -------------- | -------------------------------------------------------------- |
+| `cab-core`     | Types, request profiling, routing algorithm                    |
 | `cab-db`       | SQLite store (`~/.cab/cab.db`: settings, agents, routes, logs) |
-| `cab-services` | Catalog sync, route resolution, agent config                  |
-| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                  |
-| `cab-api`      | Management REST API (`/api/*`)                                |
-| `cab-srv`      | Headless daemon (gateway + API + static UI)                   |
-| `cab`          | CLI (`cab-cli`) for management API operations                 |
-| `src`          | Svelte dashboard                                              |
+| `cab-services` | Catalog sync, route resolution, agent config                   |
+| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                   |
+| `cab-api`      | Management REST API (`/api/*`)                                 |
+| `cab-srv`      | Headless daemon (gateway + API + static UI)                    |
+| `cab`          | CLI (`cab-cli`) for management API operations                  |
+| `src`          | Svelte dashboard                                               |
 
 > Current version tracks `Cargo.toml` / `package.json` together. See [CHANGELOG](CHANGELOG.md).
 
@@ -103,16 +103,16 @@ cargo run -p cab-srv
 
 ## Supported coding agents
 
-| Agent       | Integration                                            |
-| ----------- | ------------------------------------------------------ |
-| Claude Code | `~/.claude/settings.json`                              |
-| Codex       | `~/.codex/config.toml`                                 |
-| OpenCode    | `~/.config/opencode/opencode.json`                     |
-| Hermes      | `~/.hermes/config.yaml`                                |
-| Kilo Code   | `~/.config/kilo/opencode.json`                         |
-| OpenClaw    | `openclaw config`                                      |
-| Pi          | `~/.pi/agent/models.json`                              |
-| Reasonix    | `~/.reasonix/config.toml`, `~/.reasonix/.env`          |
+| Agent       | Integration                                   |
+| ----------- | --------------------------------------------- |
+| Claude Code | `~/.claude/settings.json`                     |
+| Codex       | `~/.codex/config.toml`                        |
+| OpenCode    | `~/.config/opencode/opencode.json`            |
+| Hermes      | `~/.hermes/config.yaml`                       |
+| Kilo Code   | `~/.config/kilo/opencode.json`                |
+| OpenClaw    | `openclaw config`                             |
+| Pi          | `~/.pi/agent/models.json`                     |
+| Reasonix    | `~/.reasonix/config.toml`, `~/.reasonix/.env` |
 
 Configure modes in the **Agents** page: **Native** (bypass CAB), **Auto** (routing strategy), **Manual** (expose all enabled models).
 

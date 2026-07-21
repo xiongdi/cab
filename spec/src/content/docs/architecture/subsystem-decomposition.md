@@ -14,10 +14,10 @@ Coding Agent ──HTTP──► CAB（网关 + 管理 UI）──HTTPS──►
                               └── Artificial Analysis 基准
 ```
 
-| 容器            | 技术               | 说明                                     |
-| --------------- | ------------------ | ---------------------------------------- |
-| cab-srv / Tauri | Axum               | HTTP gateway_port（默认 3125）           |
-| 管理前端        | SvelteKit `build/` | 由 `ServeDir` 托管                       |
+| 容器            | 技术               | 说明                                              |
+| --------------- | ------------------ | ------------------------------------------------- |
+| cab-srv / Tauri | Axum               | HTTP gateway_port（默认 3125）                    |
+| 管理前端        | SvelteKit `build/` | 由 `ServeDir` 托管                                |
 | 持久化          | `~/.cab/cab.db`    | SQLite（settings、agents、routes、logs、catalog） |
 
 ## Rust Workspace 子系统
