@@ -21,10 +21,12 @@ CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed fo
 ```mermaid
 graph TD
     subgraph Frontend [Desktop GUI / Web View]
-        Svelte[Svelte Frontend] <--> Tauri[Tauri Core]
+        Tauri[cab-gui Tauri Shell]
+        Svelte[Svelte UI served by cab-srv]
+        Tauri -->|opens http://127.0.0.1:port| Svelte
     end
 
-    subgraph Backend [cab-srv / Daemon]
+    subgraph Backend [cab-srv / Daemon — sole HTTP server]
         API[cab-api: Management API]
         Gateway[cab-gateway: HTTP Gateway]
         Services[cab-services: Application Layer]
@@ -48,11 +50,12 @@ graph TD
 | `cab-services` | Catalog sync, route resolution, agent config                   |
 | `cab-gateway`  | Auth, protocol adapters, upstream forwarding                   |
 | `cab-api`      | Management REST API (`/api/*`)                                 |
-| `cab-srv`      | Headless daemon (gateway + API + static UI)                    |
-| `cab`          | CLI (`cab-cli`) for management API operations                  |
-| `src`          | Svelte dashboard                                               |
+| `cab-srv`      | **Sole** HTTP daemon (gateway + API + static UI)               |
+| `cab`          | CLI (`cab-cli`) for daemon control and management API          |
+| `src`          | Svelte dashboard (served by `cab-srv`)                         |
+| `src-tauri`    | Thin desktop shell — ensures `cab-srv` and opens its URL       |
 
-> Current version tracks `Cargo.toml` / `package.json` together. See [CHANGELOG](CHANGELOG.md).
+> **Do not** run `cab-gui` and a second gateway on the same port: the GUI does not embed a server; it only talks to `cab-srv`. See [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -82,22 +85,30 @@ Default gateway: `http://127.0.0.1:3125/v1`
 
 > **Port conflicts**: never change ports or stack a second instance. Kill the occupying process first — see `scripts/kill-dev-ports.ps1`.
 
-### Desktop GUI build (Tauri)
+### Desktop GUI (Tauri)
 
-For desktop app packaging and testing (not daily dev — conflicts with the watch server on port 3125):
+The desktop app is a **thin client**: it ensures `cab-srv` is running and opens `http://127.0.0.1:{gateway_port}/`. It does **not** embed a second gateway (no port conflict with the daemon).
 
 ```bash
 npm install
+# Ensure cab-srv / npm run dev:server is available, then:
 npm run tauri:dev
 ```
 
 ### Headless release binary
 
-For release testing or running a pre-built binary without the desktop UI (not daily dev):
+Install as a user or system service (not for daily `dev:server` workflow):
 
 ```bash
-cargo run -p cab-srv
+cab-cli service install --scope user     # ~/.cab — user service / LaunchAgent / Task Scheduler
+# sudo cab-cli service install --scope system
+#   Linux: systemd as user `cab` + hardening; macOS: LaunchDaemon as `_cab`;
+#   Windows: SCM as LocalService (service-scoped env, not machine setx)
+cab-cli start
+# or foreground: cargo run -p cab-srv
 ```
+
+See [Gateway & Auth](https://xiongdi.github.io/cab/guides/gateway-auth/) for scope / data paths.
 
 ---
 

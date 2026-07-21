@@ -13,17 +13,7 @@ use crate::endpoint::ModelEndpoint;
 const SCHEMA_VERSION: u32 = 4;
 
 pub fn db_path() -> PathBuf {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| {
-            let tmp = std::env::temp_dir().join(".cab-fallback");
-            tracing::warn!(
-                "Neither HOME nor USERPROFILE set; falling back to {}",
-                tmp.display()
-            );
-            tmp.to_string_lossy().into_owned()
-        });
-    PathBuf::from(home).join(".cab").join("cab.db")
+    cab_core::paths::cab_home().join("cab.db")
 }
 
 pub fn pool() -> Result<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>, String> {
@@ -262,11 +252,7 @@ fn import_catalog_from_json_cache(conn: &Connection) -> Result<(), String> {
         return Ok(());
     }
 
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    let catalog_path = PathBuf::from(home)
-        .join(".cab")
+    let catalog_path = cab_core::paths::cab_home()
         .join("catalog")
         .join("models.dev")
         .join("catalog.json");
@@ -365,11 +351,7 @@ fn import_aa_from_json_cache(conn: &Connection) -> Result<(), String> {
         return Ok(());
     }
 
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    let aa_path = PathBuf::from(home)
-        .join(".cab")
+    let aa_path = cab_core::paths::cab_home()
         .join("catalog")
         .join("artificial-analysis")
         .join("models.json");

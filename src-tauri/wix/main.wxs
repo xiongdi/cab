@@ -15,4 +15,15 @@
       </Component>
     </DirectoryRef>
   </Fragment>
+
+  <!--
+    MSI does not show a full dual-scope wizard page (NSIS does via hooks.nsh).
+    Default: leave service uninstalled here; cab-gui first-run prompts for user|system.
+    Optional silent install:
+      msiexec /i cab-gui.msi CABSERVICESCOPE=system
+    then run: cab-cli service install --scope %CABSERVICESCOPE%
+  -->
+  <Fragment>
+    <Property Id="CABSERVICESCOPE" Value="user" Secure="yes" />
+  </Fragment>
 </Wix>

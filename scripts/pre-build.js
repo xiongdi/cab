@@ -1,5 +1,5 @@
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, copyFileSync } from 'fs';
+import { existsSync, mkdirSync, copyFileSync, cpSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -23,8 +23,9 @@ run('npm', ['run', 'build']);
 const targetFlag = process.env.CAB_CARGO_TARGET ? ['--target', process.env.CAB_CARGO_TARGET] : [];
 run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-srv', ...targetFlag]);
 
-// 3. Create the unified resources bin directory
+// 3. Create the unified resources directories
 const resourcesBinDir = join(ROOT, 'resources', 'bin');
+const resourcesUiDir = join(ROOT, 'resources', 'ui');
 if (!existsSync(resourcesBinDir)) {
   mkdirSync(resourcesBinDir, { recursive: true });
 }
@@ -47,5 +48,17 @@ copyFileSync(cabSrc, cabDst);
 
 console.log(`Copying ${cabSrvSrc} to ${cabSrvDst}`);
 copyFileSync(cabSrvSrc, cabSrvDst);
+
+// 6. Copy built frontend to resources/ui for cab-srv to serve
+const buildDir = join(ROOT, 'build');
+if (!existsSync(buildDir)) {
+  console.error(`Frontend build directory missing: ${buildDir}`);
+  process.exit(1);
+}
+if (existsSync(resourcesUiDir)) {
+  rmSync(resourcesUiDir, { recursive: true, force: true });
+}
+console.log(`Copying ${buildDir} to ${resourcesUiDir}`);
+cpSync(buildDir, resourcesUiDir, { recursive: true });
 
 console.log('Pre-build steps completed successfully.');

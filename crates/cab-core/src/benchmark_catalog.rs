@@ -75,10 +75,7 @@ pub struct BenchmarkCatalog {
 }
 
 pub fn catalog_root_dir() -> PathBuf {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_else(|_| ".".to_string());
-    PathBuf::from(home).join(".cab").join("catalog")
+    crate::paths::cab_home().join("catalog")
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -789,7 +786,7 @@ mod tests {
     #[test]
     fn catalog_paths_statuses_and_raw_writes_use_home_cache() {
         let _home = TestHome::new();
-        assert!(catalog_root_dir().ends_with(".cab/catalog"));
+        assert!(catalog_root_dir().ends_with("catalog"));
         assert_eq!(models_dev_catalog_url(), MODELS_DEV_CATALOG_URL);
         assert_eq!(artificial_analysis_models_url(), AA_MODELS_URL);
         assert_eq!(

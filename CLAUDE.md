@@ -17,10 +17,10 @@ Cargo workspace (`crates/*`, `src-tauri`) + Svelte/Tauri frontend (`src/`, `src-
 | `cab-services` | Catalog sync, route resolution, agent config switcher                                                          |
 | `cab-gateway`  | Gateway auth, protocol adapters (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`), upstream forwarding |
 | `cab-api`      | Management REST API (`/api/*`)                                                                                 |
-| `cab-srv`      | Headless daemon combining gateway + API + static UI (`crates/cab-server`)                                      |
+| `cab-srv`      | Headless daemon — **sole** HTTP server (gateway + API + static UI) (`crates/cab-server`)                       |
 | `cab`          | CLI binary `cab-cli`                                                                                           |
-| `src/`         | Svelte dashboard (consumed by both Tauri and `cab-srv`)                                                        |
-| `src-tauri/`   | Tauri shell                                                                                                    |
+| `src/`         | Svelte dashboard (served by `cab-srv`)                                                                         |
+| `src-tauri/`   | Thin Tauri shell — ensures `cab-srv` and opens its URL (does not embed a second gateway)                       |
 
 Runtime state lives at `~/.cab/cab.db` (SQLite). Agent configs (e.g. `~/.claude/settings.json`) are rewritten when switching modes (Native / Auto / Manual).
 
@@ -30,7 +30,7 @@ Runtime state lives at `~/.cab/cab.db` (SQLite). Agent configs (e.g. `~/.claude/
 
 - **Ports are globally unique on the host** — backend **3125**, frontend **5173**, both `strictPort`. Never change them; never run a second instance.
 - **Only allowed dev commands:** `npm run dev` (frontend, terminal B) + `npm run dev:server` (backend watch, terminal A). Two processes total.
-- **Forbidden:** `cargo run -p cab-srv`, `npm run dev:server:once`, `npm run tauri:dev`, manually running `target/**/cab-srv.exe`, stacking a second Vite/cargo-watch, or changing ports to dodge a conflict.
+- **Forbidden:** stacking a second gateway on 3125 (`npm run tauri:dev` is a thin client over `cab-srv` / `dev:server` — do not also run a separate release `cab-srv` on the same port), `npm run dev:server:once` for daily work, or changing ports to dodge a conflict.
 - **Port occupied → kill first.** PowerShell: `scripts/kill-dev-ports.ps1` (both) or `-Backend` (3125 only). Then verify with `netstat -ano | findstr "5173 3125"`.
 - `gateway_port` stays 3125. Agent CLIs must set `ANTHROPIC_BASE_URL=http://localhost:3125`.
 
@@ -102,4 +102,4 @@ Port priority chain: SQLite `settings` `gateway_port` (runtime) → `cab.toml [g
 
 ## Release / version
 
-`Cargo.toml` `[workspace.package]` `version` and `package.json` `version` move together (currently **0.7.1**). Releases via GitHub Releases; `CHANGELOG.md` is maintained per release. PRs target `main`. See `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md`.
+`Cargo.toml` `[workspace.package]` `version` and `package.json` `version` move together (currently **0.8.0**). Releases via GitHub Releases; `CHANGELOG.md` is maintained per release. PRs target `main`. See `CONTRIBUTING.md` and `.github/PULL_REQUEST_TEMPLATE.md`.

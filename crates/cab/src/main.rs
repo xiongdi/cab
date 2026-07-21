@@ -1,8 +1,12 @@
 use clap::{Parser, Subcommand};
-
 use serde::Deserialize;
-use std::path::PathBuf;
-use std::process::Command;
+
+mod service;
+
+use service::{
+    ScopeArg, apply_installed_cab_home, install_service, is_service_active, show_logs,
+    start_daemon, stop_daemon, uninstall_service,
+};
 
 #[derive(Parser)]
 #[command(name = "cab-cli", about = "Coding Agents Bridge CLI", version)]
@@ -23,24 +27,20 @@ enum Commands {
     Status,
     /// Show cab-srv daemon logs
     Logs {
-        /// Follow log output
         #[arg(short, long)]
         follow: bool,
-        /// Number of journal lines to show
         #[arg(short, long, default_value = "50")]
         lines: u32,
     },
-    /// Manage coding agent configurations
     Agent {
         #[command(subcommand)]
         command: AgentCommands,
     },
-    /// Manage LLM providers
     Provider {
         #[command(subcommand)]
         command: ProviderCommands,
     },
-    /// Manage systemd service installation
+    /// Manage cab-srv background service installation
     Service {
         #[command(subcommand)]
         command: ServiceCommands,
@@ -49,22 +49,15 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum AgentCommands {
-    /// List all supported coding agents and their configurations
     List,
-    /// Configure a specific coding agent
     Set {
-        /// Agent ID (e.g. claude-code, codex, opencode)
         id: String,
-        /// Agent mode (native, auto, manual)
         #[arg(long)]
         mode: Option<String>,
-        /// Primary model strategy/ID (e.g. auto, cheapest, intelligent)
         #[arg(long)]
         model: Option<String>,
-        /// API key override for the agent
         #[arg(long)]
         api_key: Option<String>,
-        /// Endpoint override URL for the agent
         #[arg(long)]
         endpoint: Option<String>,
     },
@@ -72,36 +65,24 @@ enum AgentCommands {
 
 #[derive(Subcommand)]
 enum ProviderCommands {
-    /// List all configured LLM providers and their API key status
     List,
-    /// Enable an LLM provider
-    Enable {
-        /// Provider ID (e.g. openai, anthropic, deepseek)
-        id: String,
-    },
-    /// Disable an LLM provider
-    Disable {
-        /// Provider ID (e.g. openai, anthropic, deepseek)
-        id: String,
-    },
-    /// Set the API key for an LLM provider
-    SetKey {
-        /// Provider ID (e.g. openai, anthropic, deepseek)
-        id: String,
-        /// Upstream API key
-        key: String,
-    },
+    Enable { id: String },
+    Disable { id: String },
+    SetKey { id: String, key: String },
 }
 
 #[derive(Subcommand)]
 enum ServiceCommands {
-    /// Install the cab-srv systemd user service
-    Install,
-    /// Uninstall the cab-srv systemd user service
+    /// Install cab-srv as a user or system service
+    Install {
+        /// Service scope: user (default) or system (requires admin/root)
+        #[arg(long, value_enum, default_value_t = ScopeArg::User)]
+        scope: ScopeArg,
+    },
+    /// Uninstall the installed cab-srv service
     Uninstall,
 }
 
-// Structs matching the API response for deserialization
 #[allow(dead_code)]
 #[derive(Deserialize, Debug)]
 struct Agent {
@@ -134,10 +115,16 @@ struct Provider {
     endpoints: Vec<ProviderEndpoint>,
 }
 
+fn restart_daemon() -> Result<(), String> {
+    stop_daemon()?;
+    start_daemon()
+}
+
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
+    apply_installed_cab_home();
 
+    let cli = Cli::parse();
     let result = match cli.command {
         Commands::Start => start_daemon(),
         Commands::Stop => stop_daemon(),
@@ -161,7 +148,7 @@ async fn main() {
             ProviderCommands::SetKey { id, key } => set_provider_key(id, key).await,
         },
         Commands::Service { command } => match command {
-            ServiceCommands::Install => install_service(),
+            ServiceCommands::Install { scope } => install_service(scope.into()),
             ServiceCommands::Uninstall => uninstall_service(),
         },
     };
@@ -172,7 +159,6 @@ async fn main() {
     }
 }
 
-// Load settings from SQLite db directly
 fn load_settings_from_db() -> Result<cab_core::types::Settings, String> {
     let path = cab_db::sqlite::db_path();
     if !path.exists() {
@@ -192,214 +178,19 @@ fn load_settings_from_db() -> Result<cab_core::types::Settings, String> {
             row.get(0)
         });
     match row {
-        Ok(data) => {
-            let settings = serde_json::from_str::<cab_core::types::Settings>(&data)
-                .map_err(|e| format!("Failed to parse settings JSON: {e}"))?;
-            Ok(settings)
-        }
+        Ok(data) => serde_json::from_str::<cab_core::types::Settings>(&data)
+            .map_err(|e| format!("Failed to parse settings JSON: {e}")),
         Err(e) => Err(format!("Failed to load settings from DB: {e}")),
     }
 }
 
 fn api_client() -> Result<(reqwest::Client, String, u16), String> {
     let settings = load_settings_from_db()?;
-    let client = reqwest::Client::new();
-    Ok((client, settings.gateway_key, settings.gateway_port as u16))
-}
-
-fn start_daemon() -> Result<(), String> {
-    #[cfg(target_os = "linux")]
-    {
-        println!("Starting cab-srv service...");
-        run_cmd("systemctl", &["--user", "start", "cab-srv"])
-    }
-    #[cfg(target_os = "macos")]
-    {
-        println!("Starting cab-srv service...");
-        let plist = get_launchd_plist_path()?;
-        let plist_str = plist.to_string_lossy().to_string();
-        run_cmd("launchctl", &["load", &plist_str])?;
-        run_cmd("launchctl", &["start", "com.cab.cab-srv"])
-    }
-    #[cfg(target_os = "windows")]
-    {
-        println!("Starting cab-srv background process...");
-        let executable_path = get_cab_srv_executable_path()?;
-        let working_dir = get_working_dir()?;
-
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-        Command::new(&executable_path)
-            .current_dir(&working_dir)
-            .creation_flags(DETACHED_PROCESS)
-            .spawn()
-            .map_err(|e| format!("Failed to spawn cab-srv background process: {e}"))?;
-
-        println!("cab-srv process started in the background.");
-        Ok(())
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        Err("Unsupported operating system for daemon control".to_string())
-    }
-}
-
-fn stop_daemon() -> Result<(), String> {
-    #[cfg(target_os = "linux")]
-    {
-        println!("Stopping cab-srv service...");
-        run_cmd("systemctl", &["--user", "stop", "cab-srv"])
-    }
-    #[cfg(target_os = "macos")]
-    {
-        println!("Stopping cab-srv service...");
-        let plist = get_launchd_plist_path()?;
-        let plist_str = plist.to_string_lossy().to_string();
-        let _ = run_cmd("launchctl", &["stop", "com.cab.cab-srv"]);
-        run_cmd("launchctl", &["unload", &plist_str])
-    }
-    #[cfg(target_os = "windows")]
-    {
-        println!("Stopping cab-srv process...");
-        run_cmd("taskkill", &["/F", "/IM", "cab-srv.exe"])
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        Err("Unsupported operating system for daemon control".to_string())
-    }
-}
-
-fn restart_daemon() -> Result<(), String> {
-    stop_daemon()?;
-    start_daemon()
-}
-
-fn show_logs(follow: bool, lines: u32) -> Result<(), String> {
-    #[cfg(target_os = "linux")]
-    {
-        let lines_str = lines.to_string();
-        let mut args = vec!["--user", "-u", "cab-srv", "-n", &lines_str];
-        if follow {
-            args.push("-f");
-        }
-        let mut child = Command::new("journalctl")
-            .args(&args)
-            .spawn()
-            .map_err(|e| format!("Failed to spawn journalctl: {e}"))?;
-        let _ = child.wait();
-        Ok(())
-    }
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
-    {
-        let log_file = get_log_file_path()?;
-        if !log_file.exists() {
-            println!("No logs found at {}", log_file.display());
-            return Ok(());
-        }
-        print_log_file(&log_file, lines, follow)
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        Err("Unsupported operating system for logs".to_string())
-    }
-}
-
-#[allow(dead_code)]
-fn print_log_file(log_file: &std::path::Path, lines: u32, follow: bool) -> Result<(), String> {
-    use std::fs::File;
-    use std::io::{BufRead, BufReader, Seek, SeekFrom};
-
-    let file = File::open(log_file).map_err(|e| format!("Failed to open log file: {e}"))?;
-    let reader = BufReader::new(file);
-
-    let all_lines: Vec<String> = reader.lines().map_while(Result::ok).collect();
-    let start_idx = all_lines.len().saturating_sub(lines as usize);
-    for line in &all_lines[start_idx..] {
-        println!("{}", line);
-    }
-
-    if follow {
-        println!("\n--- Following logs (Press Ctrl+C to stop) ---");
-        let mut file =
-            File::open(log_file).map_err(|e| format!("Failed to open log file for follow: {e}"))?;
-        let _ = file.seek(SeekFrom::End(0));
-        let mut reader = BufReader::new(file);
-        loop {
-            let mut line = String::new();
-            match reader.read_line(&mut line) {
-                Ok(0) => {
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
-                Ok(_) => {
-                    print!("{}", line);
-                }
-                Err(e) => {
-                    return Err(format!("Error reading logs: {e}"));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn run_cmd(cmd: &str, args: &[&str]) -> Result<(), String> {
-    let status = Command::new(cmd)
-        .args(args)
-        .status()
-        .map_err(|e| format!("Failed to execute command '{cmd}': {e}"))?;
-
-    if status.success() {
-        Ok(())
-    } else {
-        Err(format!(
-            "Command '{cmd} {}' exited with non-zero status: {status}",
-            args.join(" ")
-        ))
-    }
-}
-
-fn is_service_active() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        let output = Command::new("systemctl")
-            .args(["--user", "is-active", "cab-srv"])
-            .output();
-        match output {
-            Ok(out) => {
-                let status = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                status == "active"
-            }
-            Err(_) => false,
-        }
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let output = Command::new("launchctl").args(["list"]).output();
-        match output {
-            Ok(out) => {
-                let list = String::from_utf8_lossy(&out.stdout);
-                list.contains("com.cab.cab-srv")
-            }
-            Err(_) => false,
-        }
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let output = Command::new("tasklist")
-            .args(["/FI", "IMAGENAME eq cab-srv.exe"])
-            .output();
-        match output {
-            Ok(out) => {
-                let list = String::from_utf8_lossy(&out.stdout);
-                list.contains("cab-srv.exe")
-            }
-            Err(_) => false,
-        }
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        false
-    }
+    Ok((
+        reqwest::Client::new(),
+        settings.gateway_key,
+        settings.gateway_port as u16,
+    ))
 }
 
 async fn check_api_alive(port: u16) -> bool {
@@ -421,22 +212,23 @@ async fn check_api_alive(port: u16) -> bool {
 async fn show_status() -> Result<(), String> {
     let db_settings = load_settings_from_db()?;
     let port = db_settings.gateway_port as u16;
-
     let service_active = is_service_active();
     let api_alive = check_api_alive(port).await;
+    let scope = service::load_service_config()
+        .map(|c| c.scope.as_str().to_string())
+        .unwrap_or_else(|| "user (default)".into());
 
     println!(
-        "CAB Daemon (cab-srv.service): {}",
+        "CAB Daemon (scope={scope}): {}",
         if service_active { "Active" } else { "Inactive" }
     );
     println!("HTTP Gateway Port: {}", port);
+    println!(
+        "Data directory (CAB_HOME): {}",
+        cab_core::paths::cab_home().display()
+    );
     println!("Gateway Key (Auth Token): {}", db_settings.gateway_key);
     println!("Auth Enabled: {}", db_settings.auth_enabled);
-    println!("Cache Affinity: {}", db_settings.cache_affinity_enabled);
-    println!(
-        "Cache Request Shaping: {}",
-        db_settings.cache_request_shaping_enabled
-    );
 
     if api_alive {
         println!("\n=== Agent Configs ===");
@@ -466,54 +258,11 @@ async fn show_status() -> Result<(), String> {
                 agent.endpoint
             );
         }
-
-        println!("\n=== Upstream Providers ===");
-        let providers_url = format!("http://127.0.0.1:{}/api/providers", port);
-        let providers: Vec<Provider> = client
-            .get(&providers_url)
-            .header("Authorization", format!("Bearer {key}"))
-            .send()
-            .await
-            .map_err(|e| format!("Failed to get providers: {e}"))?
-            .json()
-            .await
-            .map_err(|e| format!("Failed to parse providers: {e}"))?;
-
-        println!(
-            "{:<15} {:<10} {:<25} {:<30}",
-            "Provider ID", "Status", "API Key Setup", "Primary Endpoint"
-        );
-        println!("{}", "-".repeat(80));
-        for p in providers {
-            let key_setup = if !p.api_key.trim().is_empty() {
-                "Yes (legacy)"
-            } else {
-                let enabled_keys = p
-                    .api_keys
-                    .iter()
-                    .filter(|k| k.enabled && !k.key.trim().is_empty())
-                    .count();
-                if enabled_keys > 0 {
-                    &format!("Yes ({enabled_keys} keys)")
-                } else {
-                    "No"
-                }
-            };
-            let endpoint_url = p.endpoints.first().map(|e| e.url.as_str()).unwrap_or("-");
-            println!(
-                "{:<15} {:<10} {:<25} {:<30}",
-                p.id,
-                if p.enabled { "Enabled" } else { "Disabled" },
-                key_setup,
-                endpoint_url
-            );
-        }
     } else {
         println!(
-            "\n(HTTP API is currently unreachable. Start the daemon to inspect active configurations.)"
+            "\n(HTTP API is currently unreachable. Start the daemon to inspect configurations.)"
         );
     }
-
     Ok(())
 }
 
@@ -729,263 +478,4 @@ async fn set_provider_key(id: String, key_value: String) -> Result<(), String> {
             status, err_body
         ))
     }
-}
-
-// Service install/uninstall logic
-#[cfg(target_os = "linux")]
-fn get_systemd_service_path() -> Result<PathBuf, String> {
-    let home =
-        std::env::var("HOME").map_err(|_| "HOME environment variable not set".to_string())?;
-    let path = PathBuf::from(home)
-        .join(".config")
-        .join("systemd")
-        .join("user");
-    Ok(path)
-}
-
-#[cfg(target_os = "macos")]
-fn get_launchd_plist_path() -> Result<PathBuf, String> {
-    let home =
-        std::env::var("HOME").map_err(|_| "HOME environment variable not set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join("Library")
-        .join("LaunchAgents")
-        .join("com.cab.cab-srv.plist"))
-}
-
-fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
-    let current_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to determine current executable path: {e}"))?;
-    let current_dir = current_exe.parent().unwrap();
-
-    let srv_target_name = if cfg!(target_os = "windows") {
-        "cab-srv.exe"
-    } else {
-        "cab-srv"
-    };
-    let srv_target_path = current_dir.join(srv_target_name);
-    if srv_target_path.exists() {
-        return Ok(srv_target_path);
-    }
-
-    // Default fallback
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Home directory not set".to_string())?;
-    let fallback_bin = PathBuf::from(home)
-        .join(".local")
-        .join("bin")
-        .join(srv_target_name);
-    Ok(fallback_bin)
-}
-
-fn get_working_dir() -> Result<String, String> {
-    let workspace = "/home/xiongdi/workspace/cab";
-    if std::path::Path::new(workspace).exists() {
-        return Ok(workspace.to_string());
-    }
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Home directory not set".to_string())?;
-    Ok(home)
-}
-
-#[cfg(any(target_os = "macos", target_os = "windows"))]
-fn get_log_file_path() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Home directory not set".to_string())?;
-    Ok(PathBuf::from(home)
-        .join(".cab")
-        .join("logs")
-        .join("cab-srv.stdout.log"))
-}
-
-fn install_service() -> Result<(), String> {
-    let executable_path = get_cab_srv_executable_path()?;
-    let working_dir = get_working_dir()?;
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Home directory not set".to_string())?;
-    let _ = home;
-
-    #[cfg(target_os = "linux")]
-    {
-        let service_dir = get_systemd_service_path()?;
-        std::fs::create_dir_all(&service_dir)
-            .map_err(|e| format!("Failed to create service dir: {e}"))?;
-        let service_file = service_dir.join("cab-srv.service");
-
-        let service_content = format!(
-            "[Unit]\n\
-             Description=CAB (Coding Agents Bridge) Daemon\n\
-             After=network.target\n\n\
-             [Service]\n\
-             Type=simple\n\
-             ExecStart={}\n\
-             Restart=always\n\
-             RestartSec=5\n\
-             WorkingDirectory={}\n\
-             StandardOutput=journal\n\
-             StandardError=journal\n\n\
-             [Install]\n\
-             WantedBy=default.target\n",
-            executable_path.display(),
-            working_dir
-        );
-        std::fs::write(&service_file, service_content)
-            .map_err(|e| format!("Failed to write service file: {e}"))?;
-        println!("Wrote systemd service unit to {}", service_file.display());
-        run_cmd("systemctl", &["--user", "daemon-reload"])?;
-        run_cmd("systemctl", &["--user", "enable", "cab-srv"])?;
-        println!("cab-srv service installed and enabled successfully.");
-        println!("To start it: cab start");
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let plist_path = get_launchd_plist_path()?;
-        let plist_dir = plist_path.parent().unwrap();
-        std::fs::create_dir_all(plist_dir)
-            .map_err(|e| format!("Failed to create launchd agent directory: {e}"))?;
-
-        let log_dir = PathBuf::from(&home).join(".cab").join("logs");
-        std::fs::create_dir_all(&log_dir).map_err(|e| format!("Failed to create log dir: {e}"))?;
-        let stdout_log = log_dir.join("cab-srv.stdout.log");
-        let stderr_log = log_dir.join("cab-srv.stderr.log");
-
-        let plist_content = format!(
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-             <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
-             <plist version=\"1.0\">\n\
-             <dict>\n\
-             \t<key>Label</key>\n\
-             \t<string>com.cab.cab-srv</string>\n\
-             \t<key>ProgramArguments</key>\n\
-             \t<array>\n\
-             \t\t<string>{}</string>\n\
-             \t</array>\n\
-             \t<key>RunAtLoad</key>\n\
-             \t<true/>\n\
-             \t<key>KeepAlive</key>\n\
-             \t<true/>\n\
-             \t<key>WorkingDirectory</key>\n\
-             \t<string>{}</string>\n\
-             \t<key>StandardOutPath</key>\n\
-             \t<string>{}</string>\n\
-             \t<key>StandardErrorPath</key>\n\
-             \t<string>{}</string>\n\
-             </dict>\n\
-             </plist>\n",
-            executable_path.display(),
-            working_dir,
-            stdout_log.display(),
-            stderr_log.display()
-        );
-        std::fs::write(&plist_path, plist_content)
-            .map_err(|e| format!("Failed to write plist file: {e}"))?;
-        println!("Wrote launchd agent plist to {}", plist_path.display());
-        let plist_str = plist_path.to_string_lossy().to_string();
-        run_cmd("launchctl", &["load", &plist_str])?;
-        println!("cab-srv launchd agent installed and loaded successfully.");
-        println!("To start it: cab start");
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let startup_dir = PathBuf::from(&home)
-            .join("AppData")
-            .join("Roaming")
-            .join("Microsoft")
-            .join("Windows")
-            .join("Start Menu")
-            .join("Programs")
-            .join("Startup");
-
-        if !startup_dir.exists() {
-            return Err(format!(
-                "Windows Startup directory not found at {}",
-                startup_dir.display()
-            ));
-        }
-
-        let startup_bat = startup_dir.join("cabd_startup.bat");
-        let bat_content = format!(
-            "@echo off\n\
-             cd /d \"{}\"\n\
-             start /b \"cab-srv\" \"{}\" > NUL 2>&1\n",
-            working_dir,
-            executable_path.display()
-        );
-        std::fs::write(&startup_bat, bat_content)
-            .map_err(|e| format!("Failed to write startup batch script: {e}"))?;
-        println!("Wrote startup script to {}", startup_bat.display());
-        println!("cab-srv shortcut added to startup folder successfully.");
-        println!("To start it now: cab-cli start");
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        return Err("Service installation is not supported on this OS".to_string());
-    }
-    Ok(())
-}
-
-fn uninstall_service() -> Result<(), String> {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Home not set".to_string())?;
-    let _ = home;
-
-    #[cfg(target_os = "linux")]
-    {
-        let service_dir = get_systemd_service_path()?;
-        let service_file = service_dir.join("cab-srv.service");
-        if !service_file.exists() {
-            println!("Service is not installed.");
-            return Ok(());
-        }
-        println!("Disabling and stopping cab-srv service...");
-        let _ = run_cmd("systemctl", &["--user", "disable", "cab-srv"]);
-        let _ = run_cmd("systemctl", &["--user", "stop", "cab-srv"]);
-        std::fs::remove_file(&service_file)
-            .map_err(|e| format!("Failed to remove service file: {e}"))?;
-        run_cmd("systemctl", &["--user", "daemon-reload"])?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        let plist_path = get_launchd_plist_path()?;
-        if !plist_path.exists() {
-            println!("Service is not installed.");
-            return Ok(());
-        }
-        println!("Unloading and stopping cab-srv service...");
-        let plist_str = plist_path.to_string_lossy().to_string();
-        let _ = run_cmd("launchctl", &["unload", &plist_str]);
-        std::fs::remove_file(&plist_path)
-            .map_err(|e| format!("Failed to remove plist file: {e}"))?;
-    }
-    #[cfg(target_os = "windows")]
-    {
-        let startup_dir = PathBuf::from(&home)
-            .join("AppData")
-            .join("Roaming")
-            .join("Microsoft")
-            .join("Windows")
-            .join("Start Menu")
-            .join("Programs")
-            .join("Startup");
-        let startup_bat = startup_dir.join("cab-srv_startup.bat");
-        if !startup_bat.exists() {
-            println!("Service shortcut is not installed.");
-            return Ok(());
-        }
-        println!("Stopping cab-srv process...");
-        let _ = run_cmd("taskkill", &["/F", "/IM", "cab-srv.exe"]);
-        std::fs::remove_file(&startup_bat)
-            .map_err(|e| format!("Failed to remove startup script: {e}"))?;
-    }
-    #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-    {
-        return Err("Service uninstallation is not supported on this OS".to_string());
-    }
-    println!("cab-srv service uninstalled successfully.");
-    Ok(())
 }

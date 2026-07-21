@@ -1,6 +1,6 @@
 {
   "productName": "cab-gui",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",
@@ -28,12 +28,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": ["../resources/bin/*"],
+    "resources": ["../resources/bin/*", "../resources/ui"],
     "linux": {
       "deb": {
         "files": {
           "/usr/bin/cab-cli": "../target/release/cab-cli",
-          "/usr/bin/cab-srv": "../target/release/cab-srv"
+          "/usr/bin/cab-srv": "../target/release/cab-srv",
+          "/usr/share/cab/ui": "../resources/ui"
         }
       }
     },
@@ -50,7 +51,8 @@
       },
       "nsis": {
         "languages": ["English", "SimpChinese"],
-        "displayLanguageSelector": true
+        "displayLanguageSelector": true,
+        "installerHooks": "./windows/hooks.nsh"
       }
     },
     "icon": [

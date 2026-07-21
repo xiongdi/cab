@@ -46,10 +46,29 @@ async function getApiBase(): Promise<string> {
     return `http://127.0.0.1:${resolvedPort}/api`;
   }
 
-  // UI served on gateway port — same origin, no Tauri invoke needed.
-  if (typeof window !== 'undefined' && window.location.port === '3125') {
-    resolvedPort = 3125;
-    return 'http://127.0.0.1:3125/api';
+  // UI served by cab-srv — same origin (any configured gateway port).
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const port = window.location.port;
+    const protocol = window.location.protocol;
+    if (
+      (host === '127.0.0.1' || host === 'localhost') &&
+      (protocol === 'http:' || protocol === 'https:') &&
+      port
+    ) {
+      resolvedPort = Number(port);
+      return `${protocol}//${host}:${port}/api`;
+    }
+    // Default HTTP port 80 / HTTPS 443 with no explicit port in location.port
+    if (
+      (host === '127.0.0.1' || host === 'localhost') &&
+      (protocol === 'http:' || protocol === 'https:') &&
+      !port
+    ) {
+      const implied = protocol === 'https:' ? 443 : 80;
+      resolvedPort = implied;
+      return `${protocol}//${host}/api`;
+    }
   }
 
   // Tauri asset protocol: ask Rust for the gateway port.

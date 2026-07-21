@@ -17,7 +17,7 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 
 ## 选择安装包
 
-将 `VERSION` 替换为发布号（不含 `v` 前缀，如 `0.7.1`）。
+将 `VERSION` 替换为发布号（不含 `v` 前缀，如 `0.8.0`）。
 
 ### Windows
 
@@ -45,8 +45,21 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 ## 安装后
 
 1. 从启动器打开 **CAB**。
-2. 继续阅读 [快速开始](../quick-start/)。
-3. Windows 窗口空白请安装 [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)；macOS 被拦截请右键 → 打开。
+2. 若弹出提示，选择**服务范围**：
+   - **当前用户**（默认）— 数据在 `~/.cab`；登录后运行。
+   - **系统级** — 数据在 `/var/lib/cab`、`/Library/Application Support/cab` 或 `%ProgramData%\cab`；需管理员；开机自启。
+3. 继续阅读 [快速开始](../quick-start/)。
+4. Windows 窗口空白请安装 [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)；macOS 被拦截请右键 → 打开。
+
+命令行等价：
+
+```bash
+cab-cli service install --scope user   # 或：--scope system（需提权）
+cab-cli start
+cab-cli status
+```
+
+Windows NSIS 安装结束时会询问 scope；MSI 则留给首次启动 GUI（或自行运行 `cab-cli service install`）。
 
 ## 常见问题
 

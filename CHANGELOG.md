@@ -5,6 +5,27 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-07-21
+
+### Added
+
+- **Dual-scope `cab-srv` service install (`user` | `system`)**. Choose at install / first GUI launch:
+  - **user** (default): data in `~/.cab`; Linux `systemd --user` + linger; macOS LaunchAgent; Windows Task Scheduler (ONLOGON, restart-on-failure).
+  - **system**: data in `/var/lib/cab`, `/Library/Application Support/cab`, or `%ProgramData%\cab`; requires elevation. Linux systemd as user `cab` with hardening; macOS LaunchDaemon as `_cab` when creatable; Windows SCM service as `LocalService` with service-scoped `Environment` (not machine-wide `setx`).
+- **`CAB_HOME` data-directory override**. Runtime data root follows `CAB_HOME`, then scope defaults.
+- **Windows SCM entry** (`cab-srv --service`) for system-scope installs via the `windows-service` crate.
+- **NSIS installer scope prompt** and **cab-gui first-run scope dialog** (system path self-elevates via UAC / `pkexec` / `osascript`).
+
+### Changed
+
+- **`cab-gui` is a thin client**. The desktop shell no longer embeds the gateway; it ensures `cab-srv` is running and opens `http://127.0.0.1:{port}/`. Closing the GUI leaves the daemon running.
+- **`cab-srv` serves the static dashboard** (`CAB_FRONTEND_DIR`, bundled `ui/`, or `/usr/share/cab/ui`).
+- **Removed Windows Startup `.bat`** approach in favor of Task Scheduler / SCM.
+
+### Documentation
+
+- Install, gateway-auth, and architecture guides (EN/ZH) document scopes, paths, elevation, and platform mechanisms.
+
 ## [0.7.1] - 2026-07-17
 
 ### Fixed

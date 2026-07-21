@@ -26,6 +26,9 @@ tower-http = { workspace = true }
 axum = { workspace = true }
 axum-server = { workspace = true }
 
+[target.'cfg(windows)'.dependencies]
+windows-service = "0.8"
+
 [dev-dependencies]
 cab-api = { path = "../cab-api" }
 http-body-util = "0.1.3"

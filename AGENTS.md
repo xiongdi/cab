@@ -16,7 +16,7 @@
 含义：
 
 - **不论**开几个终端、几个 Cursor 会话、几个仓库目录——5173 与 3125 上**各只能有一个**监听进程。
-- **禁止** Tauri、`cab-srv.exe`、release/debug 二进制与 `npm run dev:server` **同时**占用 3125。
+- **禁止** Tauri 与另一个占用同一 `gateway_port` 的 `cab-srv` **叠跑**（`cab-gui` 为薄客户端，应确保唯一 `cab-srv`/`dev:server`；不要再手动起第二个网关）。
 - **禁止** 第二个 `npm run dev`、第二个 Vite 实例占用 5173。
 - **禁止** 换端口绕过占用；**禁止** 不 kill 旧进程直接再起第二个实例。
 

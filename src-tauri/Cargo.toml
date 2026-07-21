@@ -12,16 +12,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri = { version = "2", features = ["devtools"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-axum = "0.8"
-tower-http = { version = "0.6", features = ["cors", "trace", "fs"] }
+reqwest = { workspace = true, features = ["blocking", "json"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 cab-core = { path = "../crates/cab-core" }
 cab-db = { path = "../crates/cab-db" }
-cab-gateway = { path = "../crates/cab-gateway" }
-cab-api = { path = "../crates/cab-api" }
-cab-services = { path = "../crates/cab-services" }
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

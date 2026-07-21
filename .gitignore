@@ -38,3 +38,7 @@ scratch/
 # Generated package manifests
 dist/
 .omo/
+
+# Packaged UI copy (filled by scripts/pre-build.js)
+resources/ui/**
+!resources/ui/.gitkeep

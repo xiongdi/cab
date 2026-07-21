@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod health;
 pub mod model_scores;
+pub mod paths;
 pub mod provider_defaults;
 pub mod routing;
 pub mod subscription_quota;
@@ -31,6 +32,7 @@ pub use model_scores::{
     ModelIntelligenceIndices, capability_indices_missing, infer_intelligence_indices,
     normalize_legacy_missing_indices,
 };
+pub use paths::{cab_home, default_system_cab_home, default_user_cab_home};
 pub use provider_defaults::{
     ProviderDefaultsCatalog, load_provider_defaults, resolve_provider_default_protocol,
     resolve_provider_endpoints,

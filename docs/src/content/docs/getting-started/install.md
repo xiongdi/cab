@@ -17,7 +17,7 @@ Download pre-built desktop installers from [GitHub Releases](https://github.com/
 
 ## Choose the right package
 
-Replace `VERSION` with the release number without the `v` prefix (e.g. `0.7.1`).
+Replace `VERSION` with the release number without the `v` prefix (e.g. `0.8.0`).
 
 ### Windows
 
@@ -45,8 +45,21 @@ Replace `VERSION` with the release number without the `v` prefix (e.g. `0.7.1`).
 ## After install
 
 1. Launch **CAB** from your app launcher.
-2. Continue with the [Quick Start](../quick-start/) guide.
-3. If the window is blank on Windows, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/). On macOS, use Right-click → Open if Gatekeeper blocks the app.
+2. If prompted, choose **service scope**:
+   - **Current user** (default) — data in `~/.cab`; starts after login.
+   - **System** — data in `/var/lib/cab`, `/Library/Application Support/cab`, or `%ProgramData%\cab`; needs admin/root; starts at boot.
+3. Continue with the [Quick Start](../quick-start/) guide.
+4. If the window is blank on Windows, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/). On macOS, use Right-click → Open if Gatekeeper blocks the app.
+
+CLI equivalent:
+
+```bash
+cab-cli service install --scope user   # or: --scope system (elevated)
+cab-cli start
+cab-cli status
+```
+
+Windows NSIS setup asks for scope at the end of install. MSI leaves scope to first GUI launch (or run `cab-cli service install` yourself).
 
 ## Troubleshooting
 
