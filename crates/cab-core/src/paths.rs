@@ -47,14 +47,24 @@ pub fn default_system_cab_home() -> PathBuf {
 }
 
 #[cfg(test)]
+pub(crate) fn test_env_lock() -> std::sync::MutexGuard<'static, ()> {
+    use std::sync::Mutex;
+    static ENV_TEST_LOCK: Mutex<()> = Mutex::new(());
+    ENV_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn cab_home_respects_env() {
+        let _lock = test_env_lock();
         let tmp = tempfile::tempdir().unwrap();
         let custom = tmp.path().join("custom-cab");
-        // SAFETY: test-only; serialised by tempfile uniqueness
+        // SAFETY: test-only; serialized by ENV_TEST_LOCK
         unsafe {
             std::env::set_var("CAB_HOME", &custom);
         }

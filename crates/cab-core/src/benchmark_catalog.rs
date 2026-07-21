@@ -662,8 +662,7 @@ fn urlencoding_encode_slug(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    static HOME_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    use crate::paths::test_env_lock;
 
     struct TestHome {
         _dir: tempfile::TempDir,
@@ -672,13 +671,12 @@ mod tests {
 
     impl TestHome {
         fn new() -> Self {
-            let lock = HOME_LOCK
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            let lock = test_env_lock();
             let dir = tempfile::tempdir().unwrap();
             unsafe {
                 std::env::set_var("HOME", dir.path());
                 std::env::remove_var("USERPROFILE");
+                std::env::remove_var("CAB_HOME");
             }
             Self {
                 _dir: dir,
