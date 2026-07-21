@@ -7,24 +7,21 @@ order: 3
 
 ## Gateway 对外契约
 
-| 方法 | 路径                   | Handler                           | 协议               |
-| ---- | ---------------------- | --------------------------------- | ------------------ |
-| POST | `/v1/chat/completions` | `openai::handle_chat_completions` | OpenAI Chat        |
-| POST | `/v1/responses`        | `openai::handle_responses`        | OpenAI Responses   |
-| POST | `/v1/messages`         | `anthropic::handle_messages`      | Anthropic Messages |
-| GET  | `/v1/models`           | `openai::handle_list_models`      | OpenAI Models      |
+| 方法 | 路径                   | 协议               |
+| ---- | ---------------------- | ------------------ |
+| POST | `/v1/chat/completions` | OpenAI Chat        |
+| POST | `/v1/responses`        | OpenAI Responses   |
+| GET  | `/v1/responses`        | Responses WebSocket |
+| POST | `/v1/messages`         | Anthropic Messages |
+| GET  | `/v1/models`           | OpenAI Models      |
 
-**认证**：见 [`security-model.md`](security-model.md)。`auth_enabled == true` 时全部 `/v1/*` 与 `/api/*` 须 `Authorization: Bearer {gateway_key}`。
+**认证**：见 [`security-model.md`](security-model.md)。`auth_enabled == true` 时 `/v1/*` 须 `Authorization: Bearer {gateway_key}`（亦接受 `x-api-key`）。`/api/*` 同理，本机仪表盘 Origin/Referer 可绕过。
 
-**路由解析**：`cab_services::route_resolver::resolve_route(catalog, agent, model, body)` → `ResolvedRoute`。
+**路由解析**：`cab_services::route_resolver::resolve_route(...)` → `ResolvedRoute`。
 
 ## 管理 API 契约（`/api`）
 
-完整路由见 `cab-api/src/lib.rs`。新增：
-
-| 方法 | 路径                   | 说明         |
-| ---- | ---------------------- | ------------ |
-| POST | `/api/routing/explain` | 路由决策解释 |
+完整路由见 `cab-api/src/lib.rs`（含 providers、models、routes、agents、logs、usage、settings、routing/explain、routing/strategy-board、diagnostics、dashboard、update 等）。
 
 统一响应：
 
@@ -35,20 +32,16 @@ order: 3
 
 CORS：`CorsLayer` 允许任意 Origin（本地管理 UI）；鉴权由 Bearer 保障。
 
-## state.json 契约
+## SQLite 存储契约
 
-路径：`~/.cab/state.json`
+路径：`~/.cab/cab.db`。表结构见 [`database-tables.md`](../modules/database-tables.md) 与 `crates/cab-db/src/sqlite.rs`。
 
-```json
-{
-  "version": 1,
-  "agents": { "<id>": { "id", "name", "mode", "model_id", "api_key", "endpoint", "updated_at" } },
-  "routes": { "<id>": { "id", "name", "agent_pattern", "routing_strategy", "model_id", "fallback_ids", "priority", "enabled", "created_at", "updated_at" } }
-}
-```
+- `settings`（`id=1` JSON）：端口、gateway_key、auth、providers/models 覆盖
+- `agents` / `routes`：Agent 模式与路由规则
+- `request_logs` / `usage_records`：观测数据
+- `catalog_*` / `model_endpoints` / `aa_benchmark_records`：目录与基准
 
-- Agent/route 变更后原子写盘
-- `init_store` 启动时加载并合并到 `StoreData`
+已废弃文件契约：`settings.json` / `state.json` / JSONL 日志。
 
 ## RouteCatalog trait
 
@@ -89,21 +82,11 @@ pub trait RouteCatalog: Send + Sync {
 
 ## cab-db 内部契约
 
-```rust
-pub struct StoreData {
-    providers: HashMap<String, Provider>,
-    models: HashMap<String, Model>,
-    routes: HashMap<String, Route>,
-    agents: HashMap<String, Agent>,
-    request_logs: Vec<RequestLog>,
-    settings: Settings,
-    model_endpoints: HashMap<String, ModelEndpoint>,
-}
-```
+内存侧 `InMemoryStore` / `StoreData` 持有 providers、models、routes、agents、request_logs、settings、model_endpoints 等；启动时从 SQLite 水合。
 
 - 读：`inner.read()`
-- 写：`inner.write()` + `settings::save_to_disk` 或 `state::save_from_store`
-- 日志：`log_store::append` → JSONL
+- 写：`inner.write()` + `settings` / `state` / catalog / logs 模块写入 SQLite
+- 日志：写入 `request_logs` 表（非 JSONL）
 
 ## 错误与 Fallback 契约
 

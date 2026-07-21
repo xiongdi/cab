@@ -3,7 +3,7 @@ title: Supported Agents
 description: Coding agents integrated with CAB and their configuration paths.
 ---
 
-CAB v0.2.x integrates with seven coding agent CLIs. Each agent is identified by its User-Agent string at the gateway.
+CAB integrates with eight coding agent CLIs. Each agent is identified by its User-Agent string at the gateway.
 
 | Agent       | User-Agent ID | Config path                                            |
 | ----------- | ------------- | ------------------------------------------------------ |
@@ -12,8 +12,9 @@ CAB v0.2.x integrates with seven coding agent CLIs. Each agent is identified by 
 | OpenCode    | `opencode`    | `~/.config/opencode/opencode.json`                     |
 | Hermes      | `hermes`      | `~/.hermes/config.yaml`                                |
 | Kilo Code   | `kilocode`    | `~/.config/kilo/opencode.json`                         |
-| OpenClaw    | `openclaw`    | `openclaw config` → `openclaw.json`                    |
+| OpenClaw    | `openclaw`    | via `openclaw config` CLI                              |
 | Pi          | `pi`          | `~/.pi/agent/models.json`, `~/.pi/agent/settings.json` |
+| Reasonix    | `reasonix`    | `~/.reasonix/config.toml`, `~/.reasonix/.env`          |
 
 ## Gateway endpoint
 

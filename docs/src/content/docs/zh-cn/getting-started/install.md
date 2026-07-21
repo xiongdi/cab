@@ -17,7 +17,7 @@ description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 
 ## 选择安装包
 
-将 `VERSION` 替换为发布号（不含 `v` 前缀，如 `0.2.3`）。
+将 `VERSION` 替换为发布号（不含 `v` 前缀，如 `0.7.1`）。
 
 ### Windows
 

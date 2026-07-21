@@ -18,7 +18,7 @@ Coding Agent ──HTTP──► CAB（网关 + 管理 UI）──HTTPS──►
 | --------------- | ------------------ | ---------------------------------------- |
 | cab-srv / Tauri | Axum               | HTTP gateway_port（默认 3125）           |
 | 管理前端        | SvelteKit `build/` | 由 `ServeDir` 托管                       |
-| 持久化          | `~/.cab/`          | settings.json、state.json、logs/\*.jsonl |
+| 持久化          | `~/.cab/cab.db`    | SQLite（settings、agents、routes、logs、catalog） |
 
 ## Rust Workspace 子系统
 

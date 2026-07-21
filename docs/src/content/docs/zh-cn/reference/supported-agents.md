@@ -3,7 +3,7 @@ title: 支持的 Agent
 description: CAB 集成的编码 Agent 及其配置文件路径。
 ---
 
-CAB v0.2.x 集成七个编码 Agent CLI。网关在 User-Agent 中识别各 Agent。
+CAB 集成八个编码 Agent CLI。网关在 User-Agent 中识别各 Agent。
 
 | Agent       | User-Agent ID | 配置路径                                               |
 | ----------- | ------------- | ------------------------------------------------------ |
@@ -12,8 +12,9 @@ CAB v0.2.x 集成七个编码 Agent CLI。网关在 User-Agent 中识别各 Agen
 | OpenCode    | `opencode`    | `~/.config/opencode/opencode.json`                     |
 | Hermes      | `hermes`      | `~/.hermes/config.yaml`                                |
 | Kilo Code   | `kilocode`    | `~/.config/kilo/opencode.json`                         |
-| OpenClaw    | `openclaw`    | `openclaw config` → `openclaw.json`                    |
+| OpenClaw    | `openclaw`    | 通过 `openclaw config` CLI                             |
 | Pi          | `pi`          | `~/.pi/agent/models.json`、`~/.pi/agent/settings.json` |
+| Reasonix    | `reasonix`    | `~/.reasonix/config.toml`、`~/.reasonix/.env`          |
 
 ## 网关端点
 

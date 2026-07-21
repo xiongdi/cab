@@ -17,7 +17,7 @@ CAB 面向**单用户本地部署**。默认绑定 `127.0.0.1`，假定同一主
 | 设置项         | 默认值    | 说明                                 |
 | -------------- | --------- | ------------------------------------ |
 | `auth_enabled` | `true`    | 关闭后跳过 Bearer 校验（仅建议调试） |
-| `gateway_key`  | 随机 UUID | 首次创建 `settings.json` 时生成      |
+| `gateway_key`  | 随机 UUID | 首次安装写入 SQLite `settings` 时生成 |
 
 ## 请求契约
 
@@ -36,7 +36,7 @@ Authorization: Bearer {gateway_key}
 
 ## 密钥存储
 
-- `gateway_key` 与上游 API Key 均明文存于 `~/.cab/settings.json`（本地信任模型）
+- `gateway_key` 与上游 API Key 均明文存于 `~/.cab/cab.db`（本地信任模型）
 - 不在日志或 OpenAPI 示例中输出真实密钥
 
 ## 网络绑定

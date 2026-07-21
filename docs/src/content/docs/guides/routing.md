@@ -27,13 +27,13 @@ blended_input = 0.9 × cache_read + 0.1 × input
 
 Otherwise `blended_input = input`.
 
-**Effective token cost** (10:1 input/output weighting for coding agents; USD per 1M tokens):
+**Effective token cost** (USD per 1M tokens). Default helpers use a **10:1** input/output ratio (`BALANCED_INPUT_OUTPUT_RATIO`). Balanced / Auto value scoring uses a **request-profile ratio** (`estimated_input / estimated_output`, clamped 0.5–50):
 
 ```
-effective_cost = blended_input × 10 + output
+effective_cost = blended_input × ratio + output
 ```
 
-**Value score** (`auto` / `balanced`):
+**Value score** (`auto` / `balanced` primary; also secondary for `intelligent` / `agentic`):
 
 ```
 If input and output are known and effective_cost > 0:
@@ -44,53 +44,33 @@ If input or output is missing:
   value = -∞ (sorted last)
 ```
 
-**Primary task capability** (`balanced` and `auto` fallback):
+**Primary task capability** (used by `balanced` / `auto` scoring and by auto filters):
 
-| Task    | Primary capability                           |
-| ------- | -------------------------------------------- |
-| coding  | `coding_index`, else `overall_intelligence`  |
-| math    | `math_index`, else `overall_intelligence`    |
-| agentic | `agentic_index`, else `overall_intelligence` |
-| general | `overall_intelligence`                       |
-
-**Composite capability** (`auto` only, when all four AA indices exist):
-
-| Task    | Weighted blend                                        |
-| ------- | ----------------------------------------------------- |
-| coding  | 0.55×coding + 0.22×overall + 0.13×agentic + 0.10×math |
-| math    | 0.58×math + 0.24×overall + 0.10×coding + 0.08×agentic |
-| agentic | 0.42×agentic + 0.28×overall + 0.22×coding + 0.08×math |
-| general | 0.45×overall + 0.22×coding + 0.18×math + 0.15×agentic |
+| Task    | Primary capability                          |
+| ------- | ------------------------------------------- |
+| coding  | `coding_index`, else `overall_intelligence` |
+| math    | `math_index`, else `overall_intelligence`   |
+| agentic | `agentic_index`, else `overall_intelligence`|
+| general | `overall_intelligence`                      |
 
 **Request profile** (`build_request_profile`): infers `task` and `complexity` (0.0–1.0) from message text, agent id, tools, etc.
 
-### Unified tie-break (except `cheapest`)
+### Sort keys (per strategy)
 
-After sorting by **value descending**, equal values break in order:
+Each strategy stores a positive semantic **primary** (`value`) and **secondary** (`capability`). Comparator direction is per-strategy. Ties then break on model name, then service provider id.
 
-1. **capability descending** (stronger model wins at the same value; at +∞ this puts M3 ahead of M2.7 when coding index is higher)
-2. **speed only**: time-to-first-token **ascending**
-3. **effective_cost ascending**
-4. **model id ascending**
-5. **service_provider_id ascending**
+| Strategy        | Primary (`value`)                                      | Secondary (`capability`)     | Primary dir | Secondary dir | Eligibility                         |
+| --------------- | ------------------------------------------------------ | ---------------------------- | ----------- | ------------- | ----------------------------------- |
+| **auto**        | capability / effective_cost                            | `overall_intelligence`       | DESC        | DESC          | task capability available           |
+| **balanced**    | capability / effective_cost                            | `overall_intelligence`       | DESC        | DESC          | task capability available           |
+| **cheapest**    | `effective_cost`                                       | `overall_intelligence`       | ASC         | DESC          | always (missing cost → sink)        |
+| **intelligent** | `coding_index`                                         | capability / effective_cost  | DESC        | DESC          | has `coding_index`                  |
+| **agentic**     | `agentic_index`                                        | capability / effective_cost  | DESC        | DESC          | has `agentic_index`                 |
+| **speed**       | `TTFT + 1000 / output_speed_tps` (seconds)             | `effective_cost`             | ASC         | ASC           | has AA speed data; else → cheapest  |
 
-`cheapest` sorts by value (= negative effective cost), i.e. lowest cost first, then model id, then provider id.
+**Auto filters** (before rank; if empty, fall back):
 
-### Per-strategy scoring
-
-| Strategy        | capability              | value                               | Eligibility                                 |
-| --------------- | ----------------------- | ----------------------------------- | ------------------------------------------- |
-| **balanced**    | primary task capability | capability / effective_cost (or +∞) | has primary capability                      |
-| **auto**        | composite or primary    | same as balanced                    | capability floor by complexity, see below   |
-| **cheapest**    | 0                       | `-effective_cost`                   | known input & output                        |
-| **intelligent** | `coding_index`          | same as capability                  | has `coding_index`                          |
-| **speed**       | `output_speed_tps`      | same as capability                  | has AA speed; else fallback to **cheapest** |
-
-**Auto capability floor** (filter before rank; if empty, rerank all):
-
-```
-min_required = floor + complexity × (ceiling - floor)
-```
+1. **Capability floor**: `min_required = floor + complexity × (ceiling - floor)`
 
 | Task    | floor | ceiling |
 | ------- | ----- | ------- |
@@ -99,7 +79,9 @@ min_required = floor + complexity × (ceiling - floor)
 | agentic | 42    | 95      |
 | general | 24    | 78      |
 
-Only candidates with `capability ≥ min_required` are ranked; harder prompts skew toward flagship models.
+Only candidates with primary capability ≥ `min_required` remain.
+
+2. **Cost ceiling** (when `complexity < 0.6`): drop candidates above a task-based max effective cost; if that empties the pool, revert to the capability-filtered set.
 
 ## Built-in strategies
 
@@ -107,31 +89,37 @@ Available as agent strategies and route targets:
 
 ### Auto
 
-Build request profile → score capability → apply complexity floor → rank by **value** and unified tie-breaks.
+Build request profile → apply capability floor (+ optional cost ceiling) → rank by **value** (capability / cost) with unified tie-breaks.
 
 Best for: mixed workloads where CAB should adapt per request.
 
 ### Balanced
 
-Rank by **primary task capability / effective cost** (10:1 weighting + cache-read blend). No complexity floor.
+Rank by **primary task capability / effective cost**. No complexity floor.
 
 Best for: everyday coding with sensible cost control. A good default.
 
 ### Intelligent
 
-Highest **AA coding index** first; ties → lower cost → model id → provider.
+Highest **AA coding index** first; ties → better cost-performance → model id → provider.
 
 Best for: hard debugging, complex refactors, architecture work.
 
+### Agentic
+
+Highest **AA agentic index** first; ties → better cost-performance → model id → provider.
+
+Best for: tool-heavy / multi-step agent workflows.
+
 ### Price (`cheapest`)
 
-Lowest **effective cost** first; ties → model id → provider.
+Lowest **effective cost** first; ties → higher overall intelligence → model id → provider.
 
 Best for: budget workflows and simple tasks.
 
 ### Speed
 
-Highest **AA output speed (tokens/s)** first; ties → lower TTFT → lower effective cost. Models without speed data sink; if none have data, fallback to **Price**.
+Lowest **total response time** for 1000 output tokens: `TTFT + 1000 / tps`. Ties → lower effective cost. Models without speed data are unroutable; if none have data, fallback to **Price**.
 
 Best for: interactive coding, quick completions, latency-sensitive workflows.
 

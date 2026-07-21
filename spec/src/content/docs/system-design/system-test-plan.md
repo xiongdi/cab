@@ -15,7 +15,7 @@ order: 5
 | -------- | --------------------------------------------- |
 | 启动方式 | `cargo run -p cab-srv` 或 `npm run tauri:dev` |
 | 端口     | 默认 HTTP `3125`（`settings.gateway_port`）   |
-| 数据     | `~/.cab/settings.json` 测试用副本             |
+| 数据     | `~/.cab/cab.db` 测试用副本                    |
 
 ## 系统测试用例
 

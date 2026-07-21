@@ -25,7 +25,7 @@ cargo run -p cab-srv
 # 或 npm run tauri:dev
 ```
 
-数据目录：测试用 `~/.cab/settings.json` 备份后恢复。
+数据目录：测试用 `~/.cab/cab.db` 备份后恢复。
 
 ## 执行记录模板
 

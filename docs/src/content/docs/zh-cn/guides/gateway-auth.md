@@ -18,32 +18,37 @@ http://127.0.0.1:3125/v1
 | `POST /v1/chat/completions` | OpenAI    | 对话补全（多数 Agent）     |
 | `POST /v1/messages`         | Anthropic | Anthropic Messages API     |
 | `POST /v1/responses`        | OpenAI    | Responses API              |
+| `GET /v1/responses`         | OpenAI    | Responses WebSocket        |
 | `GET /v1/models`            | OpenAI    | 列出可路由模型（手动模式） |
 
 CAB 从 User-Agent 识别调用 Agent 并应用对应路由或策略。
 
 ## 认证
 
-自 v0.2.0 起，默认 **开启网关认证**：
+默认 **开启网关认证**：
 
 ```
 Authorization: Bearer <gateway_key>
 ```
 
-- `gateway_key` 在首次安装时生成，保存在 `~/.cab/settings.json`。
+网关亦接受 `x-api-key: <gateway_key>`（两者同时存在时以 Bearer 为准）。
+
+- `gateway_key` 在首次安装时生成，保存在 SQLite `~/.cab/cab.db`（`settings` 表，`id = 1`）。
 - 在 **设置 → Gateway API Key** 查看或重新生成。
 - 通过 CAB 配置的 Agent 会自动获得该密钥。
 - 外部客户端需手动添加请求头。
 
 可在设置中关闭 `auth_enabled`，但建议保持开启以确保本地安全。
 
-## 配置文件
+## 配置存储
 
-| 文件                   | 内容                                    |
-| ---------------------- | --------------------------------------- |
-| `~/.cab/settings.json` | 端口、网关密钥、认证开关、目录 Key      |
-| `~/.cab/state.json`    | Agent 模式与路由绑定（v0.2.0 起持久化） |
-| `~/.cab/logs/*.jsonl`  | 请求审计日志（带保留策略）              |
+| 位置               | 内容                                                      |
+| ------------------ | --------------------------------------------------------- |
+| `~/.cab/cab.db`    | 设置（端口、网关密钥、认证）、Agent、路由、请求日志等     |
+| `cab.toml`         | 系统引导：host + 首次安装端口种子（不可通过 API 修改）    |
+| `~/.cab/catalog/`  | models.dev 等下载缓存                                     |
+
+已废弃（勿作运行时配置）：`~/.cab/settings.json`、`~/.cab/state.json`、`~/.cab/logs/*.jsonl`。
 
 ## 修改端口
 

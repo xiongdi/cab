@@ -1,102 +1,100 @@
 ---
 title: 数据库表设计
-description: CAB 内存存储与 settings.json 结构
+description: CAB SQLite 模式（~/.cab/cab.db）
 chapter: modules
 order: 3
 ---
 
-CAB **不使用关系型数据库**。本节将 `StoreData` 与 `settings.json` 映射为逻辑表，便于测试与追溯。
+CAB 以 **SQLite** 为唯一运行时配置与状态存储，路径为 `~/.cab/cab.db`（`SCHEMA_VERSION = 4`）。内存侧为 `InMemoryStore`，启动时从 SQLite 水合，写回经 `cab-db` 持久化。
 
-## 逻辑表：providers
+已废弃（勿作运行时配置）：`~/.cab/settings.json`、`~/.cab/state.json`、`~/.cab/logs/*.jsonl`。
 
-| 字段           | 类型               | 约束         |
-| -------------- | ------------------ | ------------ |
-| id             | string             | PK           |
-| name           | string             |              |
-| endpoints      | ProviderEndpoint[] |              |
-| api_keys       | ApiKeyConfig[]     |              |
-| api_key        | string             | 派生首选 Key |
-| enabled        | bool               |              |
-| catalog_models | string[]           |              |
+权威 DDL 见 `crates/cab-db/src/sqlite.rs`（`init_schema`）。
 
-索引：`HashMap<id, Provider>`
+## schema_version
 
-## 逻辑表：models
+| 字段    | 类型    | 说明        |
+| ------- | ------- | ----------- |
+| version | INTEGER | 当前 schema |
 
-| 字段                     | 类型   | 约束                                       |
-| ------------------------ | ------ | ------------------------------------------ |
-| id                       | string | PK（规范化 name）                          |
-| name                     | string | canonical slug                             |
-| provider_id              | string | FK → providers.id                          |
-| protocol                 | string | openai-chat / anthropic / openai-responses |
-| input_cost / output_cost | f64?   |                                            |
-| coding_index 等          | f64    | AA 或启发式                                |
-| enabled                  | bool   |                                            |
+## settings
 
-## 逻辑表：model_endpoints
+单行表（`id = 1`），`data` 为 JSON 文本：
 
-| 字段                     | 类型   | 说明                                |
-| ------------------------ | ------ | ----------------------------------- |
-| key                      | string | PK，通常为 `provider_id:model_name` |
-| provider_id              | string |                                     |
-| model_id                 | string |                                     |
-| input_cost / output_cost | f64?   | 端点级定价覆盖                      |
+| 字段 | 类型    | 约束              |
+| ---- | ------- | ----------------- |
+| id   | INTEGER | PK，`CHECK (id=1)` |
+| data | TEXT    | JSON blob         |
 
-## 逻辑表：routes
+典型 JSON 字段：`gateway_port`、`gateway_key`、`auth_enabled`、`log_retention_days`、`artificial_analysis_api_key`、`providers`、`models` 等。
 
-| 字段               | 类型     | 说明                               |
-| ------------------ | -------- | ---------------------------------- |
-| id                 | string   | PK                                 |
-| name               | string   |                                    |
-| agent_pattern      | string   | 匹配 Agent 标识                    |
-| routing_strategy   | string   | auto/balanced/cheapest/intelligent |
-| primary_model_id   | string?  |                                    |
-| fallback_model_ids | string[] |                                    |
+## agents
 
-## 逻辑表：agents
+| 字段       | 类型 | 说明                          |
+| ---------- | ---- | ----------------------------- |
+| id         | TEXT | PK（8 个内置 Agent ID）       |
+| name       | TEXT | 显示名                        |
+| mode       | TEXT | `native` / `auto` / `manual`  |
+| model_id   | TEXT | 可空                          |
+| api_key    | TEXT |                               |
+| endpoint   | TEXT |                               |
+| updated_at | TEXT | RFC3339                       |
 
-| 字段               | 类型    | 说明                   |
-| ------------------ | ------- | ---------------------- |
-| id                 | string  | PK，7 个内置           |
-| mode               | string  | native / auto / manual |
-| model_id           | string? | manual 模式            |
-| api_key / endpoint | string  | 透传配置               |
+内置 ID：`claude-code`、`codex`、`opencode`、`hermes`、`kilocode`、`openclaw`、`pi`、`reasonix`。
 
-## 逻辑表：request_logs
+## routes
 
-| 字段                         | 类型   | 说明    |
-| ---------------------------- | ------ | ------- |
-| id                           | uuid   |         |
-| agent / provider / model     | string |         |
-| input_tokens / output_tokens | i64    |         |
-| latency_ms                   | i64    |         |
-| status_code                  | i32    |         |
-| created_at                   | string | RFC3339 |
+| 字段            | 类型    | 说明                                      |
+| --------------- | ------- | ----------------------------------------- |
+| id              | TEXT    | PK                                        |
+| name            | TEXT    |                                           |
+| agent_pattern   | TEXT    | 匹配 Agent 标识（glob）                   |
+| routing_strategy| TEXT    | auto/balanced/cheapest/intelligent/speed/agentic 或模型 |
+| model_id        | TEXT    |                                           |
+| fallback_ids    | TEXT    | JSON 数组字符串，默认 `[]`                |
+| priority        | INTEGER | 默认 0                                    |
+| enabled         | INTEGER | 0/1，默认 1                               |
+| created_at      | TEXT    |                                           |
+| updated_at      | TEXT    |                                           |
 
-存储：JSONL 文件 `~/.cab/logs/requests-YYYY-MM-DD.jsonl`；内存缓存最近 500 条；保留天数 `settings.log_retention_days`（默认 30）。
+## request_logs
 
-## 持久化文件：~/.cab/settings.json
+| 字段                   | 类型    | 说明     |
+| ---------------------- | ------- | -------- |
+| id                     | TEXT    | PK       |
+| timestamp              | TEXT    |          |
+| agent / provider / model | TEXT  |          |
+| input_tokens / output_tokens / total_tokens | INTEGER | |
+| latency_ms             | INTEGER |          |
+| status                 | INTEGER | HTTP 状态 |
+| error                  | TEXT    | 可空     |
+| path                   | TEXT    |          |
+| stream                 | INTEGER | 0/1      |
+| cache_read_tokens      | INTEGER |          |
+| cache_creation_tokens  | INTEGER |          |
+| request_body / response_body | TEXT | 可空 |
 
-```json
-{
-  "gateway_port": 3125,
-  "log_retention_days": 30,
-  "gateway_key": "cab-token-<uuid>",
-  "auth_enabled": true,
-  "artificial_analysis_api_key": null,
-  "providers": { "<id>": { "enabled": true, "api_keys": [...] } },
-  "models": { "<id>": { "enabled": true } }
-}
-```
+索引：`timestamp`、`agent`、`provider`。保留天数由 `settings.log_retention_days`（默认 30）控制。
 
-## 持久化文件：~/.cab/state.json
+## usage_records
 
-```json
-{
-  "version": 1,
-  "agents": { "<id>": { "mode": "native", "model_id": null, "...": "..." } },
-  "routes": { "<id>": { "agent_pattern": "codex", "routing_strategy": "auto", "...": "..." } }
-}
-```
+用量明细（provider / model / service_provider / agent、token、cost_usd、subscription 等）。
 
-目录缓存：`~/.cab/catalog/`（models.dev、AA 快照）。
+## subscription_quotas
+
+按 `provider_id` + 周期记录 token 上限与已用量。
+
+## catalog_providers / catalog_models / model_endpoints
+
+models.dev 同步结果；`data` 列为 JSON。`model_endpoints` 存端点级定价与元数据。
+
+## aa_benchmark_records
+
+Artificial Analysis 基准记录（`slug` PK，`data` JSON，`synced_at`）。
+
+## 辅助磁盘路径（非主配置）
+
+| 路径              | 用途                    |
+| ----------------- | ----------------------- |
+| `~/.cab/catalog/` | models.dev 等下载缓存   |
+| `~/.cab/logos/`   | 提供商 logo 缓存        |

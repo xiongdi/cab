@@ -25,15 +25,16 @@ graph TD
 
 ## Crates
 
-| Crate          | Role                                                         |
-| -------------- | ------------------------------------------------------------ |
-| `cab-core`     | Types, request profiling, routing algorithm, ranking         |
-| `cab-db`       | Persistent store — `settings.json`, `state.json`, JSONL logs |
-| `cab-services` | Catalog sync, route resolution, agent config rewrites        |
-| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                 |
-| `cab-api`      | Management REST API (`/api/*`)                               |
-| `cab-srv`      | Headless daemon — gateway + API + static UI                  |
-| `src/`         | Svelte dashboard                                             |
+| Crate          | Role                                                                    |
+| -------------- | ----------------------------------------------------------------------- |
+| `cab-core`     | Types, request profiling, routing algorithm, ranking                    |
+| `cab-db`       | SQLite store at `~/.cab/cab.db` (settings, agents, routes, logs, …)     |
+| `cab-services` | Catalog sync, route resolution, agent config rewrites                   |
+| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                            |
+| `cab-api`      | Management REST API (`/api/*`)                                          |
+| `cab-srv`      | Headless daemon — gateway + API + static UI (`crates/cab-server`)       |
+| `cab`          | CLI binary `cab-cli`                                                    |
+| `src/`         | Svelte dashboard                                                        |
 
 ## Request flow
 
@@ -42,15 +43,17 @@ graph TD
 3. **cab-services** resolves the route — agent strategy, custom rules, or explicit model.
 4. **cab-core** ranks candidate models using benchmarks, pricing, and request profile.
 5. **cab-gateway** forwards to the upstream provider, with protocol conversion and fallbacks.
-6. Response returns to the agent; request metadata is logged to `~/.cab/logs/`.
+6. Response returns to the agent; request metadata is stored in SQLite `request_logs`.
 
 ## Data persistence
 
-| Store             | Path                   | Since  |
-| ----------------- | ---------------------- | ------ |
-| Settings          | `~/.cab/settings.json` | v0.1.0 |
-| Agent/route state | `~/.cab/state.json`    | v0.2.0 |
-| Request logs      | `~/.cab/logs/*.jsonl`  | v0.2.0 |
+| Store                    | Path                         | Notes                                      |
+| ------------------------ | ---------------------------- | ------------------------------------------ |
+| Runtime DB               | `~/.cab/cab.db`              | Settings, agents, routes, logs, catalog    |
+| Catalog cache (optional) | `~/.cab/catalog/`            | models.dev download cache                  |
+| Bootstrap                | `cab.toml`                   | Host + first-install port seed             |
+
+Deprecated (not used as runtime config): `~/.cab/settings.json`, `~/.cab/state.json`, `~/.cab/logs/*.jsonl`.
 
 ## Tech stack
 

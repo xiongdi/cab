@@ -22,7 +22,7 @@
 
 # 便捷的安装和使用体验
 
-1. 提供cab-gui采用Tarui 2.0 + Svelte，支持多种操作系统和平台
+1. 提供cab-gui采用Tauri 2.0 + Svelte，支持多种操作系统和平台
 2. 提供cab-srv后台常驻，开机启动
 3. 提供cab-cli可供自己或者llm直接操控
 

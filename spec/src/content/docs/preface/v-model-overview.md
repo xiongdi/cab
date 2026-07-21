@@ -84,7 +84,7 @@ V 底编码活动；维基未展开小节，本站记录实现顺序、规范、
 | 需求分析 | README、Issue、Agent 用例              |
 | 系统设计 | `types.rs`、路由策略、UI 信息架构      |
 | 架构设计 | 六 crate、`/v1` + `/api` 双平面        |
-| 模组设计 | 各 crate 模块、逻辑表、`settings.json` |
+| 模组设计 | 各 crate 模块、SQLite 表、settings JSON blob |
 | 代码实现 | `crates/*`、`src/`、`src-tauri/`       |
 
 完整小节映射见 [V 模型映射表](/docs/appendix/v-model-mapping)。

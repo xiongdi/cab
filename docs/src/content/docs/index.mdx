@@ -25,11 +25,11 @@ Coding agents each expect their own API keys, endpoints, and model lists. CAB si
 
 <CardGrid stagger>
   <Card title="One gateway, many agents" icon="rocket">
-    Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, and Pi — all point at the same local
+    Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, Pi, and Reasonix — all point at the same local
     CAB endpoint.
   </Card>
   <Card title="Smart routing" icon="setting">
-    Pick a strategy — auto, balanced, intelligent, or price — and CAB ranks models by capability,
+    Pick a strategy — auto, balanced, intelligent, price, speed, or agentic — and CAB ranks models by capability,
     benchmarks, and token cost.
   </Card>
   <Card title="Desktop control plane" icon="laptop">
@@ -59,9 +59,11 @@ graph LR
 | Strategy        | Best for                                                         |
 | --------------- | ---------------------------------------------------------------- |
 | **Auto**        | Dynamic selection by task type, complexity, capability, and cost |
-| **Balanced**    | Best value — capability vs. 3:1 weighted token cost              |
+| **Balanced**    | Best value — capability vs. 10:1 weighted token cost             |
 | **Intelligent** | Hardest coding tasks — highest AA coding index                   |
+| **Agentic**     | Tool-heavy / multi-step workflows — highest AA agentic index     |
 | **Price**       | Lowest cost — cheapest enabled model every time                  |
+| **Speed**       | Lowest total response time (`TTFT + 1000/tps`)                   |
 
 See [Routing strategies](guides/routing/) for details.
 
@@ -74,7 +76,7 @@ See [Routing strategies](guides/routing/) for details.
 | **Models**    | Model benchmarks, pricing, enable/disable    |
 | **Routes**    | Custom routing rules and decision preview    |
 | **Agents**    | Native / Auto / Manual mode per coding agent |
-| **Logs**      | JSONL request audit trail                    |
+| **Logs**      | Request audit trail (SQLite)                 |
 | **Settings**  | Port, gateway key, log retention             |
 
 ## Get started

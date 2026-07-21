@@ -17,7 +17,7 @@ order: 4
 | REQ-CAB-006 | 订阅优先与 429 fallback   | UAT-07、UAT-08 |
 | REQ-CAB-007 | Agent/Route 重启保留      | UAT-09         |
 | REQ-CAB-008 | Gateway/API 鉴权          | UAT-10         |
-| REQ-CAB-009 | 日志 JSONL 跨重启         | UAT-11         |
+| REQ-CAB-009 | 日志跨重启可查            | UAT-11         |
 | REQ-CAB-010 | 路由解释 API              | UAT-12         |
 
 ## 通过准则

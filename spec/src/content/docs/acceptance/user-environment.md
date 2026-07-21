@@ -18,7 +18,7 @@ order: 2
 
 - [ ] `curl http://127.0.0.1:3125/api/settings` 返回 JSON
 - [ ] 浏览器打开管理 UI（build 或 dev）
-- [ ] `~/.cab/settings.json` 随 UI 操作更新
+- [ ] `~/.cab/cab.db` 随 UI 操作更新
 - [ ] 目标 Agent 已安装且可配置 base URL
 
 ## 与实验室差异

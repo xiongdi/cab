@@ -53,7 +53,7 @@ order: 3
 
 **路径**：
 
-1. `init_store` 加载 `settings.json` + `state.json`
+1. `init_store` 从 SQLite `~/.cab/cab.db` 水合 settings / agents / routes / catalog
 2. agents/routes 合并到 `StoreData`
 3. Dashboard 与 Agents 页显示重启前配置
 

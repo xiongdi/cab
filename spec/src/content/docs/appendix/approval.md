@@ -14,7 +14,7 @@ order: 3
 | UAT 计划 | `requirements/uat-plan`                   |
 | 变更     | `appendix/changelog`                      |
 
-评审检查：每条 REQ 可测试；Gateway/API 路由表无遗漏；`settings.json` 字段变更保持 `serde(default)` 兼容。
+评审检查：每条 REQ 可测试；Gateway/API 路由表无遗漏；`settings` JSON 字段变更保持 `serde(default)` 兼容；密钥仅存本地 SQLite。
 
 ## 审批流程
 

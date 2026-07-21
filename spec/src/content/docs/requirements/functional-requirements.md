@@ -40,9 +40,9 @@ order: 3
 
 | 实体     | 文件            | 触发时机                               |
 | -------- | --------------- | -------------------------------------- |
-| Settings | `settings.json` | `update_settings`、provider/model 覆盖 |
-| Agents   | `state.json`    | `update_agent`                         |
-| Routes   | `state.json`    | route create/update/delete             |
+| Settings | SQLite `settings` | `update_settings`、provider/model 覆盖 |
+| Agents   | SQLite `agents`   | `update_agent`                         |
+| Routes   | SQLite `routes`   | route create/update/delete             |
 | Logs     | `logs/*.jsonl`  | 每次 proxy 完成或 stream 更新          |
 
 ## 路由解析优先级（`resolve_route`）

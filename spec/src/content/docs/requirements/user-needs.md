@@ -24,7 +24,7 @@ order: 1
 ## 约束
 
 - 本地运行，数据不出本机（除转发至上游 LLM）
-- 用户配置存于 `~/.cab/`（`settings.json`、`state.json`、`logs/`），不上传云端
+- 用户配置存于 `~/.cab/cab.db`（SQLite），不上传云端
 - 默认仅监听 `127.0.0.1`（`cab.toml` 可配置）
 
 ## 非功能需求（NFR）
@@ -33,7 +33,7 @@ order: 1
 | ------- | ------ | --------------------------------------------------------- |
 | NFR-001 | 可用性 | 进程重启后 Agent 模式、Route 规则、用户 Key 覆盖必须保留  |
 | NFR-002 | 安全   | Gateway 与管理 API 默认启用 Bearer 鉴权（`gateway_key`）  |
-| NFR-003 | 可观测 | 请求日志 JSONL 落盘，保留天数由 `log_retention_days` 控制 |
+| NFR-003 | 可观测 | 请求日志写入 SQLite `request_logs`，保留天数由 `log_retention_days` 控制 |
 | NFR-004 | 性能   | 单用户本地场景；路由决策 < 50ms（不含上游 LLM 延迟）      |
 | NFR-005 | 兼容性 | OpenAI / Anthropic SDK 协议 shim；7 种预置 Agent 无感接入 |
 

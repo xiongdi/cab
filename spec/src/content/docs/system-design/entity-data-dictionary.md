@@ -17,25 +17,24 @@ Route ──N──1── Model (primary_model_id)
 Route ──N──M── Model (fallback_model_ids)
 Agent ──0..1── Model|Route (model_id 依 mode)
 RequestLog ──引用── Provider, Model, Agent
-PersistedState ──包含── agents, routes（state.json）
+（持久化于 SQLite `~/.cab/cab.db`）
 ```
 
 ## Configuration vs Runtime
 
-| 分类          | 实体                   | 持久化文件                 |
+| 分类          | 实体                   | 持久化                     |
 | ------------- | ---------------------- | -------------------------- |
-| Configuration | Settings, Agent, Route | settings.json / state.json |
-| Catalog cache | Provider, Model        | 内存 + catalog/            |
-| Observability | RequestLog             | logs/\*.jsonl              |
-| Runtime       | quota_reset_at         | settings.json              |
+| Configuration | Settings, Agent, Route | SQLite `settings`/`agents`/`routes` |
+| Catalog       | Provider, Model        | SQLite catalog 表 + `catalog/` 缓存 |
+| Observability | RequestLog, Usage      | SQLite `request_logs` / `usage_records` |
+| Runtime       | subscription quotas    | SQLite `subscription_quotas` |
 
-## PersistedState（`state.rs`）
+## Agents / Routes（SQLite）
 
-| 字段    | 类型                     | 说明         |
-| ------- | ------------------------ | ------------ |
-| version | u32                      | 当前为 1     |
-| agents  | HashMap\<String, Agent\> | 7 内置 Agent |
-| routes  | HashMap\<String, Route\> | 用户路由规则 |
+| 字段    | 说明                          |
+| ------- | ----------------------------- |
+| agents  | 8 个内置 Agent（含 reasonix） |
+| routes  | 用户路由规则                  |
 
 ## RouteExplainResult
 

@@ -56,7 +56,7 @@ http://127.0.0.1:3125/v1
 
 ## 6. 调优路由（可选）
 
-- 在 **Agent** 页面更换策略（auto / balanced / intelligent / price）。
+- 在 **Agent** 页面更换策略（auto / balanced / intelligent / price / speed / agentic）。
 - 在 **路由** 页面创建自定义规则与降级链。
 - 使用 **路由 → 解释路由** 预览提示词如何被解析。
 

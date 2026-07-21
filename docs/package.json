@@ -2,7 +2,7 @@
   "name": "cab-docs",
   "private": true,
   "type": "module",
-  "version": "0.2.7",
+  "version": "0.7.1",
   "engines": {
     "node": ">=24"
   },

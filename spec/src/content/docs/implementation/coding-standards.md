@@ -35,7 +35,7 @@ order: 2
 
 ## 安全
 
-- API Key、gateway_key 仅存本地 `settings.json` 与内存
+- API Key、gateway_key 仅存本地 `~/.cab/cab.db` 与内存
 - 不向日志打印完整 Key（仅 debug 级别谨慎输出）
 
 ## 可测试性

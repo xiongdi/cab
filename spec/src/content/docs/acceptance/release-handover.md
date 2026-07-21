@@ -9,7 +9,7 @@ order: 5
 
 1. **构建**：`cargo build --release -p cab-srv` 或 `npm run tauri:build`
 2. **前端**：`npm run build` 将 `build/` 置于 server 工作目录
-3. **配置**：首次启动生成 `~/.cab/settings.json`
+3. **配置**：首次启动初始化 `~/.cab/cab.db`
 4. **同步**：Settings 页触发 catalog 同步
 5. **LLM 提供商**：在 Providers 页录入 API Key，标记订阅套餐
 6. **Agent**：Agents 页设 native/auto/manual，验证配置文件
@@ -21,7 +21,7 @@ order: 5
 | ---- | ------------------------------------------------------------ |
 | 进程 | 单进程 Axum，无独立 DB 服务                                  |
 | 日志 | `RUST_LOG=info`；请求 tracing                                |
-| 备份 | 定期备份 `~/.cab/settings.json`                              |
+| 备份 | 定期备份 `~/.cab/cab.db`                                     |
 | 升级 | 拉取新版本 → 重建 → 重启；settings 向前兼容（serde default） |
 
 ## 交付物清单

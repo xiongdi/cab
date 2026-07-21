@@ -154,37 +154,35 @@ RETURN api_keys 配置顺序中 enabled 且 NOT rate_limited 的 key
 
 ```
 SWITCH agent.id:
-  claude-code / codex / opencode / hermes / kilocode / openclaw / pi
+  claude-code / codex / opencode / hermes / kilocode / openclaw / pi / reasonix
     → 写入对应配置中的 CAB base URL + gateway_key
   mode ∈ {native, auto, manual}
   ...
 backup 原文件到 backups/*.cab-backup.{timestamp}
 ```
 
-## state.json 原子写（`save_from_store`）
+## SQLite 持久化（`state::save_from_store` / `settings`）
 
 ```
-data ← read StoreData.agents + StoreData.routes
-json ← serialize PersistedState { version: 1, agents, routes }
-write ~/.cab/state.json.tmp
-rename state.json.tmp → state.json
+agents/routes ← read StoreData
+UPSERT INTO agents / routes（~/.cab/cab.db）
+settings ← serialize Settings JSON → UPDATE settings SET data WHERE id=1
 ```
 
 ## Gateway 鉴权（`auth_middleware`）
 
 ```
 IF NOT settings.auth_enabled → next.run(req)
-token ← Authorization header Bearer value
+token ← Authorization Bearer 或 x-api-key
 IF token != settings.gateway_key → 401
 ELSE next.run(req)
 ```
 
-## JSONL 日志（`log_store::append`）
+## 请求日志（`log` → SQLite `request_logs`）
 
 ```
-path ← ~/.cab/logs/requests-{today}.jsonl
-append one JSON line per RequestLog
-update in-memory ring buffer (max 500)
+INSERT INTO request_logs (...)
+enforce_retention(log_retention_days)
 ```
 
 ## 路由解释（`route_explainer::explain`）

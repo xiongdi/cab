@@ -17,7 +17,7 @@ Download pre-built desktop installers from [GitHub Releases](https://github.com/
 
 ## Choose the right package
 
-Replace `VERSION` with the release number without the `v` prefix (e.g. `0.2.3`).
+Replace `VERSION` with the release number without the `v` prefix (e.g. `0.7.1`).
 
 ### Windows
 

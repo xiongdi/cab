@@ -26,14 +26,13 @@ Agent SDK → HTTP :{gateway_port}（默认 3125）→ cab-gateway
 ### 路由引擎（`cab-core`）
 
 - 输入：`RequestProfile`（任务类型 + 复杂度 + 估计 token）
-- 成本公式：`effective_token_cost = input×3 + output`（`BALANCED_INPUT_OUTPUT_RATIO`）
-- 订阅提供商：`effective_routing_cost = MIN_COST_EPSILON`
-- Auto 策略按复杂度动态提高最低能力门槛（`min_required_capability`）
+- 成本公式：`effective_token_cost = blended_input×ratio + output`（默认 `BALANCED_INPUT_OUTPUT_RATIO = 10`；balanced/auto 可用请求画像比例）
+- Auto 策略按复杂度动态提高最低能力门槛（`min_required_capability`），低复杂度时另有成本上限
 
 ### 数据持久化
 
 - 运行时：`InMemoryStore`（`providers`、`models`、`routes`、`agents`、`request_logs`、`model_endpoints`、`settings`）
-- 磁盘：仅 `~/.cab/settings.json` 与各 catalog 缓存
+- 磁盘：`~/.cab/cab.db`（SQLite）与可选 `~/.cab/catalog/` 缓存
 
 ### 目录三源合并（Models 页）
 

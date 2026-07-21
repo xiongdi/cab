@@ -12,7 +12,7 @@ CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed fo
 - **Ability & cost-aware routing**: Ranks models using Intelligence / Coding / Agentic indices, token pricing, and context window.
 - **Real-time catalog sync**: Pulls models, pricing, and benchmark data from `models.dev`.
 - **Desktop dashboard**: Tauri + Svelte UI for providers, keys, routing strategies, agent config, and request logs.
-- **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, and Pi.
+- **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, Pi, and Reasonix.
 
 ---
 
@@ -28,7 +28,7 @@ graph TD
         API[cab-api: Management API]
         Gateway[cab-gateway: HTTP Gateway]
         Services[cab-services: Application Layer]
-        DB[(cab-db: settings + state + logs)]
+        DB[(cab-db: SQLite cab.db)]
         Core[cab-core: Routing Logic]
     end
 
@@ -41,17 +41,18 @@ graph TD
     API --> Services
 ```
 
-| Crate          | Role                                             |
-| -------------- | ------------------------------------------------ |
-| `cab-core`     | Types, request profiling, routing algorithm      |
-| `cab-db`       | Store, `settings.json`, `state.json`, JSONL logs |
-| `cab-services` | Catalog sync, route resolution, agent config     |
-| `cab-gateway`  | Auth, protocol adapters, upstream forwarding     |
-| `cab-api`      | Management REST API (`/api/*`)                   |
-| `cab-srv`      | Headless daemon (gateway + API + static UI)      |
-| `src`          | Svelte dashboard                                 |
+| Crate          | Role                                                          |
+| -------------- | ------------------------------------------------------------- |
+| `cab-core`     | Types, request profiling, routing algorithm                   |
+| `cab-db`       | SQLite store (`~/.cab/cab.db`: settings, agents, routes, logs) |
+| `cab-services` | Catalog sync, route resolution, agent config                  |
+| `cab-gateway`  | Auth, protocol adapters, upstream forwarding                  |
+| `cab-api`      | Management REST API (`/api/*`)                                |
+| `cab-srv`      | Headless daemon (gateway + API + static UI)                   |
+| `cab`          | CLI (`cab-cli`) for management API operations                 |
+| `src`          | Svelte dashboard                                              |
 
-> **v0.2.0** adds persistent agent/route config, Gateway auth, JSONL logs, and routing explain API. See [CHANGELOG](CHANGELOG.md).
+> Current version tracks `Cargo.toml` / `package.json` together. See [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -100,17 +101,18 @@ cargo run -p cab-srv
 
 ---
 
-## Supported coding agents (v0.1.0)
+## Supported coding agents
 
-| Agent       | Integration                        |
-| ----------- | ---------------------------------- |
-| Claude Code | `~/.claude/settings.json`          |
-| Codex       | `~/.codex/config.toml`             |
-| OpenCode    | `~/.config/opencode/opencode.json` |
-| Hermes      | `~/.hermes/config.yaml`            |
-| Kilo Code   | `~/.config/kilo/opencode.json`     |
-| OpenClaw    | `openclaw config`                  |
-| Pi          | `~/.pi/agent/models.json`          |
+| Agent       | Integration                                            |
+| ----------- | ------------------------------------------------------ |
+| Claude Code | `~/.claude/settings.json`                              |
+| Codex       | `~/.codex/config.toml`                                 |
+| OpenCode    | `~/.config/opencode/opencode.json`                     |
+| Hermes      | `~/.hermes/config.yaml`                                |
+| Kilo Code   | `~/.config/kilo/opencode.json`                         |
+| OpenClaw    | `openclaw config`                                      |
+| Pi          | `~/.pi/agent/models.json`                              |
+| Reasonix    | `~/.reasonix/config.toml`, `~/.reasonix/.env`          |
 
 Configure modes in the **Agents** page: **Native** (bypass CAB), **Auto** (routing strategy), **Manual** (expose all enabled models).
 

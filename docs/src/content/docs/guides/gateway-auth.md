@@ -18,32 +18,37 @@ http://127.0.0.1:3125/v1
 | `POST /v1/chat/completions` | OpenAI    | Chat completions (most agents)     |
 | `POST /v1/messages`         | Anthropic | Anthropic Messages API             |
 | `POST /v1/responses`        | OpenAI    | Responses API                      |
+| `GET /v1/responses`         | OpenAI    | Responses over WebSocket           |
 | `GET /v1/models`            | OpenAI    | List routable models (Manual mode) |
 
 CAB identifies the calling agent from the User-Agent header and applies the matching route or strategy.
 
 ## Authentication
 
-Since v0.2.0, gateway auth is **enabled by default**:
+Gateway auth is **enabled by default**:
 
 ```
 Authorization: Bearer <gateway_key>
 ```
 
-- `gateway_key` is generated on first install and stored in `~/.cab/settings.json`.
+The gateway also accepts `x-api-key: <gateway_key>` (Bearer wins if both are present).
+
+- `gateway_key` is generated on first install and stored in SQLite `~/.cab/cab.db` (`settings` row, `id = 1`).
 - View or regenerate it in **Settings → Gateway API Key**.
 - Agents configured through CAB in Auto/Manual mode receive the key automatically.
 - External clients must send the header manually.
 
 `auth_enabled` can be toggled in settings, but keeping it on is recommended for local security.
 
-## Configuration files
+## Configuration storage
 
-| File                   | Contents                                              |
-| ---------------------- | ----------------------------------------------------- |
-| `~/.cab/settings.json` | Port, gateway key, auth flag, catalog keys            |
-| `~/.cab/state.json`    | Agent modes, route bindings (persistent since v0.2.0) |
-| `~/.cab/logs/*.jsonl`  | Request audit logs with retention policy              |
+| Location                 | Contents                                                              |
+| ------------------------ | --------------------------------------------------------------------- |
+| `~/.cab/cab.db`          | Settings (port, gateway key, auth), agents, routes, request logs, …   |
+| `cab.toml`               | Bootstrap host + first-install port seed (not API-editable)           |
+| `~/.cab/catalog/`        | models.dev / related download cache                                   |
+
+Deprecated (not runtime config): `~/.cab/settings.json`, `~/.cab/state.json`, `~/.cab/logs/*.jsonl`.
 
 ## Port changes
 

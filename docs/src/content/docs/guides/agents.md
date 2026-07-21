@@ -28,8 +28,9 @@ The **Agents** page is CAB's control center for coding agent integrations. Each 
 | **OpenCode**    | `~/.config/opencode/opencode.json`          | Registers `cab/auto` strategy aliases                       | Writes all enabled models under cab provider          |
 | **Hermes**      | `~/.hermes/config.yaml`                     | OpenAI-compatible mode + custom headers for agent ID        | Same gateway, model chosen in Hermes                  |
 | **Kilo Code**   | `~/.config/kilo/opencode.json`              | OpenCode-format cab provider + strategy                     | All enabled models registered                         |
-| **OpenClaw**    | `openclaw config` → `openclaw.json`         | CAB as OpenAI-compatible provider, default `cab/auto`       | Default model set to chosen strategy or model         |
+| **OpenClaw**    | `openclaw config` CLI                       | CAB as OpenAI-compatible provider, default `cab/auto`       | Default model set to chosen strategy or model         |
 | **Pi**          | `~/.pi/agent/models.json` + `settings.json` | CAB provider + default strategy                             | Full model list in Ctrl+P picker                      |
+| **Reasonix**    | `~/.reasonix/config.toml` + `.env`          | CAB provider entry + strategy as default model              | All enabled models listed                             |
 
 CAB **backs up** existing agent configs before rewriting and **restores** them when you switch back to Native mode.
 

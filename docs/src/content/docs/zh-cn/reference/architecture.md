@@ -25,15 +25,16 @@ graph TD
 
 ## Crate 分工
 
-| Crate          | 职责                                                  |
-| -------------- | ----------------------------------------------------- |
-| `cab-core`     | 类型、请求画像、路由算法、排序                        |
-| `cab-db`       | 持久化存储——`settings.json`、`state.json`、JSONL 日志 |
-| `cab-services` | 目录同步、路由解析、Agent 配置改写                    |
-| `cab-gateway`  | 认证、协议适配、上游转发                              |
-| `cab-api`      | 管理 REST API（`/api/*`）                             |
-| `cab-srv`      | 无头守护进程——网关 + API + 静态 UI                    |
-| `src/`         | Svelte 仪表盘                                         |
+| Crate          | 职责                                                              |
+| -------------- | ----------------------------------------------------------------- |
+| `cab-core`     | 类型、请求画像、路由算法、排序                                    |
+| `cab-db`       | SQLite 存储 `~/.cab/cab.db`（设置、Agent、路由、日志等）          |
+| `cab-services` | 目录同步、路由解析、Agent 配置改写                                |
+| `cab-gateway`  | 认证、协议适配、上游转发                                          |
+| `cab-api`      | 管理 REST API（`/api/*`）                                         |
+| `cab-srv`      | 无头守护进程——网关 + API + 静态 UI（`crates/cab-server`）         |
+| `cab`          | CLI 二进制 `cab-cli`                                              |
+| `src/`         | Svelte 仪表盘                                                     |
 
 ## 请求流程
 
@@ -42,15 +43,17 @@ graph TD
 3. **cab-services** 解析路由——Agent 策略、自定义规则或显式模型。
 4. **cab-core** 按基准、定价和请求画像排序候选模型。
 5. **cab-gateway** 转发到上游提供商，含协议转换与降级。
-6. 响应返回 Agent；请求元数据写入 `~/.cab/logs/`。
+6. 响应返回 Agent；请求元数据写入 SQLite `request_logs`。
 
 ## 数据持久化
 
-| 存储           | 路径                   | 起始版本 |
-| -------------- | ---------------------- | -------- |
-| 设置           | `~/.cab/settings.json` | v0.1.0   |
-| Agent/路由状态 | `~/.cab/state.json`    | v0.2.0   |
-| 请求日志       | `~/.cab/logs/*.jsonl`  | v0.2.0   |
+| 存储             | 路径                  | 说明                               |
+| ---------------- | --------------------- | ---------------------------------- |
+| 运行时数据库     | `~/.cab/cab.db`       | 设置、Agent、路由、日志、目录      |
+| 目录缓存（可选） | `~/.cab/catalog/`     | models.dev 下载缓存                |
+| 系统引导         | `cab.toml`            | Host + 首次安装端口种子            |
+
+已废弃（勿作运行时配置）：`~/.cab/settings.json`、`~/.cab/state.json`、`~/.cab/logs/*.jsonl`。
 
 ## 技术栈
 

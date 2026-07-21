@@ -125,7 +125,7 @@ powershell -File scripts/test-cc-headless.ps1
    | -------- | ------------------------------------------------------------------------- | --------------------------------- |
    | Provider | `GET /api/providers`                                                      | 目标 provider `enabled` 且有 key  |
    | 路由     | `POST /api/routing/explain` body `{"agent":"claude-code","model":"auto"}` | `resolved` 非空                   |
-   | 网关     | `POST /v1/messages`（`x-api-key: <gateway_key>`）                         | HTTP 200                          |
+   | 网关     | `POST /v1/messages`（`Authorization: Bearer <gateway_key>`；亦接受 `x-api-key`） | HTTP 200                    |
    | 前端     | `GET http://127.0.0.1:5173`                                               | HTTP 200                          |
    | CC 无头  | 见下方                                                                    | 输出含 `CAB ok`，进程在超时内退出 |
    | 配置     | 查询 SQLite `settings` 表                                                 | `providers` 未被清空              |
@@ -154,7 +154,7 @@ powershell -File scripts/test-cc-headless.ps1
 
 ### 禁止
 
-- 修改 `settings.json` 相关逻辑后不验证 provider key 是否仍在
+- 修改 settings / provider key 持久化逻辑后不验证 SQLite 中 key 是否仍在
 - 把超时的 CC 测试丢后台不 kill
 - 多次 `npm run dev:server` 不 kill 旧进程
 - 仅用 curl 跳过 CC 无头（网关 curl 只是清单其中一步，不能替代 CC）

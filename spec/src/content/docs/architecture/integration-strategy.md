@@ -51,7 +51,7 @@ cargo run -p cab-srv   # 合并 gateway + api + 静态前端
 | 风险                              | 缓解                                      |
 | --------------------------------- | ----------------------------------------- |
 | 内存 store 与磁盘 settings 不一致 | `update_settings` 同步写盘                |
-| agents/routes 重启丢失            | `state.json` 原子写 + init 加载           |
+| agents/routes 重启丢失            | SQLite `agents` / `routes` 表持久化 + 启动水合 |
 | 协议转换错误                      | `protocol.rs` 单元测试 + Gateway 集成用例 |
 | 端口配置错误                      | 启动日志明确监听地址                      |
 | 未鉴权 Gateway 被滥用             | 默认 `auth_enabled` + localhost 绑定      |
