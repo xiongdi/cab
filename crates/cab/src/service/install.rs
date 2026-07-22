@@ -4,6 +4,7 @@ use super::scope::{
     resolve_frontend_dir_for_install, run_cmd, save_service_config,
 };
 use std::fs;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::path::PathBuf;
 
 /// Dedicated OS account for system-scoped cab-srv (least privilege).
@@ -141,9 +142,12 @@ pub fn launchd_plist_content(
 }
 
 /// Windows user-scope Task Scheduler XML (UTF-16 body without BOM).
+///
+/// Runs `wscript.exe` with a `.vbs` launcher so the console `cab-srv` does not
+/// flash a visible CMD window (VBS `Run ..., 0` starts the `.cmd` hidden).
 #[cfg(any(test, target_os = "windows"))]
-pub fn windows_user_task_xml(launcher: &str) -> String {
-    let launcher_xml = launcher.replace('&', "&amp;");
+pub fn windows_user_task_xml(vbs_launcher: &str) -> String {
+    let args_xml = format!("\"{vbs_launcher}\"").replace('&', "&amp;");
     format!(
         r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -186,7 +190,8 @@ pub fn windows_user_task_xml(launcher: &str) -> String {
   </Settings>
   <Actions Context="Author">
     <Exec>
-      <Command>{launcher_xml}</Command>
+      <Command>wscript.exe</Command>
+      <Arguments>{args_xml}</Arguments>
     </Exec>
   </Actions>
 </Task>
@@ -790,11 +795,18 @@ fn install_user(
     _working_dir: &str,
     cfg: &ServiceConfig,
 ) -> Result<(), String> {
-    // Task Scheduler ONLOGON via XML: restart-on-failure, no time limit, ignore duplicate.
+    // Task Scheduler ONLOGON via hidden VBS → .cmd: no visible console for cab-srv.
     let launcher = cfg.cab_home.join("start-cab-srv.cmd");
-    let mut bat = format!("@echo off\r\nset CAB_HOME={}\r\n", cfg.cab_home.display());
+    let vbs = cfg.cab_home.join("start-cab-srv.vbs");
+    let mut bat = format!(
+        "@echo off\r\nset \"CAB_HOME={}\"\r\n",
+        cfg.cab_home.display()
+    );
     if let Some(fe) = &cfg.frontend_dir {
-        bat.push_str(&format!("set CAB_FRONTEND_DIR={}\r\n", fe.display()));
+        bat.push_str(&format!(
+            "set \"CAB_FRONTEND_DIR={}\"\r\n",
+            fe.display()
+        ));
     }
     bat.push_str(&format!(
         "\"{}\" >> \"%CAB_HOME%\\logs\\cab-srv.stdout.log\" 2>> \"%CAB_HOME%\\logs\\cab-srv.stderr.log\"\r\n",
@@ -803,8 +815,16 @@ fn install_user(
     fs::create_dir_all(cfg.cab_home.join("logs")).map_err(|e| e.to_string())?;
     fs::write(&launcher, bat).map_err(|e| e.to_string())?;
 
+    // WindowStyle 0 = hidden; keeps console cab-srv attached to an invisible cmd.
+    let vbs_body = format!(
+        "Set sh = CreateObject(\"WScript.Shell\")\r\n\
+         sh.Run \"cmd /c \"\"{}\"\"\", 0, False\r\n",
+        launcher.display()
+    );
+    fs::write(&vbs, vbs_body).map_err(|e| e.to_string())?;
+
     let xml_path = cfg.cab_home.join("cab-srv.task.xml");
-    let xml = windows_user_task_xml(&launcher.display().to_string());
+    let xml = windows_user_task_xml(&vbs.display().to_string());
     // Task Scheduler expects UTF-16 LE XML when /XML is used with encoding declaration.
     let utf16: Vec<u8> = {
         let mut bytes = Vec::with_capacity(2 + xml.len() * 2);
@@ -816,7 +836,7 @@ fn install_user(
     };
     fs::write(&xml_path, utf16).map_err(|e| e.to_string())?;
 
-    run_cmd(
+    let xml_err = match run_cmd(
         "schtasks",
         &[
             "/Create",
@@ -826,7 +846,29 @@ fn install_user(
             &xml_path.display().to_string(),
             "/F",
         ],
-    )?;
+    ) {
+        Ok(()) => return Ok(()),
+        Err(e) => e,
+    };
+
+    // Fallback when /XML is denied (e.g. prior elevated task ACLs): plain /TR create.
+    let tr = format!("wscript.exe \"{}\"", vbs.display());
+    run_cmd(
+        "schtasks",
+        &[
+            "/Create",
+            "/TN",
+            "CAB\\cab-srv",
+            "/TR",
+            &tr,
+            "/SC",
+            "ONLOGON",
+            "/RL",
+            "LIMITED",
+            "/F",
+        ],
+    )
+    .map_err(|e| format!("Failed to register scheduled task (XML: {xml_err}; /TR: {e})"))?;
     Ok(())
 }
 
@@ -1059,21 +1101,22 @@ mod tests {
 
     #[test]
     fn windows_task_xml_has_logon_trigger_and_restart() {
-        let xml = windows_user_task_xml(r"C:\Users\me\.cab\start-cab-srv.cmd");
+        let xml = windows_user_task_xml(r"C:\Users\me\.cab\start-cab-srv.vbs");
         assert!(xml.contains("<LogonTrigger>"));
         assert!(xml.contains("<RunLevel>LeastPrivilege</RunLevel>"));
         assert!(xml.contains("<RestartOnFailure>"));
         assert!(xml.contains("<Interval>PT1M</Interval>"));
         assert!(xml.contains("<Count>5</Count>"));
         assert!(xml.contains("<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>"));
-        assert!(xml.contains(r"C:\Users\me\.cab\start-cab-srv.cmd"));
+        assert!(xml.contains("<Command>wscript.exe</Command>"));
+        assert!(xml.contains(r#"<Arguments>"C:\Users\me\.cab\start-cab-srv.vbs"</Arguments>"#));
         assert!(xml.contains("&amp;") || !xml.contains(" & "));
     }
 
     #[test]
     fn windows_task_xml_escapes_ampersand_in_path() {
-        let xml = windows_user_task_xml(r"C:\foo&bar\start.cmd");
-        assert!(xml.contains(r"C:\foo&amp;bar\start.cmd"));
-        assert!(!xml.contains(r"C:\foo&bar\start.cmd"));
+        let xml = windows_user_task_xml(r"C:\foo&bar\start.vbs");
+        assert!(xml.contains(r#"<Arguments>"C:\foo&amp;bar\start.vbs"</Arguments>"#));
+        assert!(!xml.contains(r"C:\foo&bar\start.vbs"));
     }
 }

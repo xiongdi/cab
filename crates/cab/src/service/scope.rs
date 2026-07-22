@@ -114,7 +114,15 @@ pub fn looks_like_frontend(dir: &Path) -> bool {
 
 pub fn resolve_frontend_dir_for_install(srv_exe: &Path) -> Option<PathBuf> {
     if let Some(exe_dir) = srv_exe.parent() {
-        for candidate in [exe_dir.join("ui"), exe_dir.join("../ui")] {
+        // NSIS/MSI layouts: next to cab-srv, sibling ui/ under resources/, or Tauri `_up_`.
+        let candidates = [
+            exe_dir.join("ui"),
+            exe_dir.join("../ui"),
+            exe_dir.join("resources/ui"),
+            exe_dir.join("../resources/ui"),
+            exe_dir.join("_up_/resources/ui"),
+        ];
+        for candidate in candidates {
             if looks_like_frontend(&candidate) {
                 return Some(candidate.canonicalize().unwrap_or(candidate));
             }
@@ -139,9 +147,20 @@ pub fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
     } else {
         "cab-srv"
     };
-    let srv_target_path = current_dir.join(srv_target_name);
-    if srv_target_path.exists() {
-        return Ok(srv_target_path);
+    let relative_candidates = [
+        current_dir.join(srv_target_name),
+        current_dir.join("resources").join("bin").join(srv_target_name),
+        current_dir
+            .join("_up_")
+            .join("resources")
+            .join("bin")
+            .join(srv_target_name),
+        current_dir.join("bin").join(srv_target_name),
+    ];
+    for candidate in relative_candidates {
+        if candidate.exists() {
+            return Ok(candidate);
+        }
     }
 
     let home = std::env::var("HOME")

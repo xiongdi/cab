@@ -8,8 +8,9 @@ struct PortState(std::sync::Mutex<u16>);
 
 /// Find the cab-cli binary bundled with the app, searching:
 /// 1. Next to the current executable (Windows, AppImage)
-/// 2. In the Tauri resource directory (macOS bundle)
-/// 3. Falls back to the bare name (let OS search $PATH — Linux DEB)
+/// 2. Common install layouts (`resources/bin`, Tauri MSI `_up_/resources/bin`)
+/// 3. In the Tauri resource directory (macOS bundle / Windows resources)
+/// 4. Falls back to the bare name (let OS search $PATH — Linux DEB)
 fn find_cab_cli(app: &tauri::AppHandle) -> PathBuf {
     let bin_name = if cfg!(target_os = "windows") {
         "cab-cli.exe"
@@ -20,9 +21,19 @@ fn find_cab_cli(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(exe) = std::env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        let candidate = dir.join(bin_name);
-        if candidate.exists() {
-            return candidate;
+        let candidates = [
+            dir.join(bin_name),
+            dir.join("resources").join("bin").join(bin_name),
+            dir.join("_up_")
+                .join("resources")
+                .join("bin")
+                .join(bin_name),
+            dir.join("bin").join(bin_name),
+        ];
+        for candidate in candidates {
+            if candidate.exists() {
+                return candidate;
+            }
         }
     }
 
@@ -158,9 +169,10 @@ fn prompt_service_scope() -> &'static str {
 
     #[cfg(target_os = "windows")]
     {
+        // Default button = No (current user). Yes = system (requires elevation).
         let ps = format!(
             "Add-Type -AssemblyName PresentationFramework; \
-             $r = [System.Windows.MessageBox]::Show('{body}','{title}','YesNo','Question'); \
+             $r = [System.Windows.MessageBox]::Show('{body}','{title}','YesNo','Question','No'); \
              if ($r -eq 'Yes') {{ exit 0 }} else {{ exit 1 }}"
         );
         if Command::new("powershell")
