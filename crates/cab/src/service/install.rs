@@ -803,10 +803,7 @@ fn install_user(
         cfg.cab_home.display()
     );
     if let Some(fe) = &cfg.frontend_dir {
-        bat.push_str(&format!(
-            "set \"CAB_FRONTEND_DIR={}\"\r\n",
-            fe.display()
-        ));
+        bat.push_str(&format!("set \"CAB_FRONTEND_DIR={}\"\r\n", fe.display()));
     }
     bat.push_str(&format!(
         "\"{}\" >> \"%CAB_HOME%\\logs\\cab-srv.stdout.log\" 2>> \"%CAB_HOME%\\logs\\cab-srv.stderr.log\"\r\n",

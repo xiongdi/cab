@@ -149,7 +149,10 @@ pub fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
     };
     let relative_candidates = [
         current_dir.join(srv_target_name),
-        current_dir.join("resources").join("bin").join(srv_target_name),
+        current_dir
+            .join("resources")
+            .join("bin")
+            .join(srv_target_name),
         current_dir
             .join("_up_")
             .join("resources")
