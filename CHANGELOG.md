@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-07-27
+
+### Fixed
+
+- **Windows user-scope scheduled task no longer flashes a CMD window**. Switched the Task Scheduler `ONLOGON` launcher to a hidden VBS wrapper (`wscript.exe` → `.vbs` → `.cmd`), so console `cab-srv` starts invisibly. Also hardened `cab-cli`/`cab-srv` path discovery across NSIS/MSI/`_up_`/resources layouts, defaulted the service-scope prompt to the current user, and added a plain `/TR` fallback when the `/XML` task-create path is denied by prior elevated-task ACLs.
+- **CI race between `cab-core` env tests**. `paths::cab_home_respects_env` and the benchmark catalog cache test both mutate `HOME`/`CAB_HOME` and now share a single `ENV_TEST_LOCK`, preventing intermittent failures when cargo runs lib tests in parallel.
+
 ## [0.8.2] - 2026-07-21
 
 ### Fixed
