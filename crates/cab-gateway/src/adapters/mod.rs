@@ -230,6 +230,19 @@ pub async fn handle_proxied_request(
                 }
                 final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
 
+                // Anthropic-style APIs report input_tokens excluding cached tokens,
+                // so total_tokens must include cache_read/creation_tokens.
+                // OpenAI-style APIs include cached tokens within input_tokens already.
+                let is_anthropic_style = usage_json.as_ref().is_some_and(|u| {
+                    u.get("cache_read_input_tokens").is_some()
+                        || u.get("cache_creation_input_tokens").is_some()
+                });
+                let total_tokens = if is_anthropic_style {
+                    input_tokens + cache_read_tokens + cache_creation_tokens + output_tokens
+                } else {
+                    input_tokens + output_tokens
+                };
+
                 let log = RequestLog {
                     id: log_id,
                     timestamp: Utc::now().to_rfc3339(),
@@ -238,7 +251,7 @@ pub async fn handle_proxied_request(
                     model: model_name.clone(),
                     input_tokens,
                     output_tokens,
-                    total_tokens: input_tokens + output_tokens,
+                    total_tokens,
                     cache_read_tokens,
                     cache_creation_tokens,
                     latency_ms,

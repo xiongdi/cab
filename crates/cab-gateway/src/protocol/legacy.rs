@@ -776,6 +776,12 @@ pub struct TokenTrackingStream<S> {
     log: RequestLog,
     buffer: Vec<u8>,
     accumulated_response: Vec<u8>,
+    /// True when cache tokens were reported via Anthropic-style keys
+    /// (cache_read_input_tokens / cache_creation_input_tokens), meaning
+    /// input_tokens *excludes* cached tokens and they must be added to
+    /// total_tokens. False for OpenAI convention where input_tokens already
+    /// includes cached tokens.
+    is_anthropic_cache: bool,
 }
 
 impl<S> TokenTrackingStream<S> {
@@ -786,6 +792,7 @@ impl<S> TokenTrackingStream<S> {
             log,
             buffer: Vec::new(),
             accumulated_response: Vec::new(),
+            is_anthropic_cache: false,
         }
     }
 
@@ -840,6 +847,12 @@ impl<S> TokenTrackingStream<S> {
 
 impl<S> TokenTrackingStream<S> {
     fn track_cache_tokens(&mut self, usage: &serde_json::Value) {
+        // Anthropic-style: cache_read_input_tokens / cache_creation_input_tokens
+        let has_anthropic_keys = usage.get("cache_read_input_tokens").is_some()
+            || usage.get("cache_creation_input_tokens").is_some();
+        if has_anthropic_keys {
+            self.is_anthropic_cache = true;
+        }
         if let Some(cr) = usage
             .get("cache_read_input_tokens")
             .or_else(|| usage.get("cache_read_tokens"))
@@ -885,7 +898,15 @@ where
 
 impl<S> Drop for TokenTrackingStream<S> {
     fn drop(&mut self) {
-        self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
+        // Anthropic-style APIs report input_tokens excluding cached tokens,
+        // so total_tokens must include cache_read_tokens + cache_creation_tokens.
+        // OpenAI-style APIs include cached tokens within input_tokens already.
+        if self.is_anthropic_cache {
+            self.log.total_tokens =
+                self.log.input_tokens + self.log.cache_read_tokens + self.log.cache_creation_tokens + self.log.output_tokens;
+        } else {
+            self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
+        }
         if let Ok(resp_str) = String::from_utf8(self.accumulated_response.clone()) {
             self.log.response_body = Some(resp_str);
         }
@@ -1366,7 +1387,9 @@ data: [DONE]
             .unwrap();
         assert_eq!(log.input_tokens, 7);
         assert_eq!(log.output_tokens, 11);
-        assert_eq!(log.total_tokens, 18);
+        // cache_read_input_tokens (42) + cache_creation_input_tokens (9) are
+        // Anthropic-style — added to total because input_tokens excludes them.
+        assert_eq!(log.total_tokens, 69);
         assert_eq!(log.cache_read_tokens, 42);
         assert_eq!(log.cache_creation_tokens, 9);
         assert_eq!(log.latency_ms, 42);
