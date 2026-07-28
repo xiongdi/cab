@@ -170,7 +170,7 @@ pub async fn handle_list_models(
         && let Some(agent) = cab_db::agent::get_by_id(&state.pool, "claude-code")
             .await
             .map_err(CabError::Database)?
-            && agent.mode == "auto"
+        && agent.mode == "auto"
     {
         let model_list = vec![codex_compatible_model(
             "claude-cab-auto",
