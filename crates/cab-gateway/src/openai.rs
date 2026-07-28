@@ -166,24 +166,23 @@ pub async fn handle_list_models(
     let agent_id = crate::agent_id::extract_agent_id(&headers);
 
     // Claude Code in auto mode: return a single placeholder model.
-    if agent_id == "claude-code" {
-        if let Some(agent) = cab_db::agent::get_by_id(&state.pool, "claude-code")
+    if agent_id == "claude-code"
+        && let Some(agent) = cab_db::agent::get_by_id(&state.pool, "claude-code")
             .await
             .map_err(CabError::Database)?
             && agent.mode == "auto"
-        {
-            let model_list = vec![codex_compatible_model(
-                "claude-cab-auto",
-                "CAB Auto",
-                "cab · CAB auto-routes requests in auto mode",
-            )];
-            return Ok(Json(serde_json::json!({
-                "object": "list",
-                "data": model_list,
-                "models": model_list,
-                "has_more": false,
-            })));
-        }
+    {
+        let model_list = vec![codex_compatible_model(
+            "claude-cab-auto",
+            "CAB Auto",
+            "cab · CAB auto-routes requests in auto mode",
+        )];
+        return Ok(Json(serde_json::json!({
+            "object": "list",
+            "data": model_list,
+            "models": model_list,
+            "has_more": false,
+        })));
     }
 
     let mut models = cab_db::model::list(&state.pool)
