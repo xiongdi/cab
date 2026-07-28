@@ -153,10 +153,39 @@ pub async fn handle_responses(
     handle_proxied_request(&OPENAI_RESPONSES, state, headers, body).await
 }
 
-/// GET /v1/models — list all enabled models in OpenAI format.
+/// GET /v1/models — list models in OpenAI format.
+///
+/// Agent-aware: when the caller is Claude Code in auto mode, return a single
+/// `claude-cab-auto` stub so the in-CLI model picker shows one entry (CAB
+/// auto-routes the request regardless of the chosen model). For every other
+/// agent/mode, return the de-duplicated list of available models.
 pub async fn handle_list_models(
     State(state): State<Arc<GatewayState>>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, CabError> {
+    let agent_id = crate::agent_id::extract_agent_id(&headers);
+
+    // Claude Code in auto mode: return a single placeholder model.
+    if agent_id == "claude-code" {
+        if let Some(agent) = cab_db::agent::get_by_id(&state.pool, "claude-code")
+            .await
+            .map_err(CabError::Database)?
+            && agent.mode == "auto"
+        {
+            let model_list = vec![codex_compatible_model(
+                "claude-cab-auto",
+                "CAB Auto",
+                "cab · CAB auto-routes requests in auto mode",
+            )];
+            return Ok(Json(serde_json::json!({
+                "object": "list",
+                "data": model_list,
+                "models": model_list,
+                "has_more": false,
+            })));
+        }
+    }
+
     let mut models = cab_db::model::list(&state.pool)
         .await
         .map_err(CabError::Database)?;
@@ -228,31 +257,14 @@ pub async fn handle_list_models(
 
         let formatted_owned_by = owned_by_parts.join(" · ");
 
+        // Return each model once under its primary name. The discovery-alias
+        // and short-suffix duplicates are intentionally dropped — they exist
+        // only to work around Claude Code/Codex discovery quirks and are not
+        // needed for agents that consume the list as-is.
         model_list.push(codex_compatible_model(
             &model.name,
             &model.display_name,
             &formatted_owned_by,
-        ));
-        model_list.push(codex_compatible_model(
-            &claude_code_discovery_alias(&model.name),
-            &model.display_name,
-            &formatted_owned_by,
-        ));
-        if let Some(pos) = model.name.find('/') {
-            let suffix = &model.name[pos + 1..];
-            model_list.push(codex_compatible_model(
-                suffix,
-                &model.display_name,
-                &formatted_owned_by,
-            ));
-        }
-    }
-
-    for (id, display_name) in claude_code_gateway_model_stubs() {
-        model_list.push(codex_compatible_model(
-            id,
-            display_name,
-            "cab · CAB auto-routes requests in auto mode",
         ));
     }
 
@@ -281,25 +293,6 @@ fn format_cost(cost: Option<f64>) -> String {
         }
         None => "-".to_string(),
     }
-}
-
-fn claude_code_discovery_alias(model_name: &str) -> String {
-    format!("claude/cab/{model_name}")
-}
-
-/// Native Claude Code model IDs accepted for gateway validation (requests auto-route in CAB).
-fn claude_code_gateway_model_stubs() -> &'static [(&'static str, &'static str)] {
-    &[
-        ("claude-opus-4-8", "Opus 4.8 (CAB auto)"),
-        ("claude-opus-4-8[1m]", "Opus 4.8 1M (CAB auto)"),
-        ("claude-opus-4-7", "Opus 4.7 (CAB auto)"),
-        ("claude-opus-4-6", "Opus 4.6 (CAB auto)"),
-        ("claude-opus-4-5", "Opus 4.5 (CAB auto)"),
-        ("claude-sonnet-4-6", "Sonnet 4.6 (CAB auto)"),
-        ("claude-sonnet-4-5", "Sonnet 4.5 (CAB auto)"),
-        ("claude-haiku-4-5", "Haiku 4.5 (CAB auto)"),
-        ("claude/cab/auto", "CAB Auto strategy"),
-    ]
 }
 
 fn codex_compatible_model(id: &str, display_name: &str, owned_by: &str) -> serde_json::Value {
@@ -344,7 +337,7 @@ mod tests {
     use axum::body::to_bytes;
     use axum::http::{HeaderMap, StatusCode};
     use axum::routing::post;
-    use cab_core::types::{ApiKeyConfig, Model, Provider, ProviderEndpoint};
+    use cab_core::types::{Agent, ApiKeyConfig, Model, Provider, ProviderEndpoint};
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;
 
@@ -724,7 +717,7 @@ data: [DONE]\n",
     }
 
     #[tokio::test]
-    async fn list_models_returns_enabled_models_aliases_and_codex_fields() {
+    async fn list_models_returns_enabled_models_and_codex_fields() {
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
@@ -809,7 +802,8 @@ data: [DONE]\n",
             client: reqwest::Client::new(),
         });
 
-        let response = handle_list_models(State(state))
+        // Empty headers → agent "unknown" → manual branch (de-duplicated list).
+        let response = handle_list_models(State(state), HeaderMap::new())
             .await
             .unwrap()
             .into_response();
@@ -823,19 +817,9 @@ data: [DONE]\n",
             .map(|item| item["id"].as_str().unwrap())
             .collect::<Vec<_>>();
 
-        assert_eq!(
-            ids[..6],
-            [
-                "p1/high-model",
-                "claude/cab/p1/high-model",
-                "high-model",
-                "p1/low-model",
-                "claude/cab/p1/low-model",
-                "low-model"
-            ]
-        );
-        assert!(ids.contains(&"claude-opus-4-8[1m]"));
-        assert!(ids.contains(&"claude/cab/auto"));
+        // Each model appears once under its primary name — no discovery-alias
+        // or short-suffix duplicates.
+        assert_eq!(ids, ["p1/high-model", "p1/low-model"]);
         assert_eq!(json["models"], json["data"]);
         assert_eq!(json["has_more"], false);
         assert_eq!(data[0]["slug"], "p1/high-model");
@@ -851,6 +835,61 @@ data: [DONE]\n",
         assert_eq!(data[0]["web_search_tool_type"], "disabled");
     }
 
+    #[tokio::test]
+    async fn list_models_claude_code_auto_returns_single_stub() {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            // Seed a claude-code agent in auto mode so the handler short-circuits
+            // to the single stub model.
+            data.agents.insert(
+                "claude-code".into(),
+                Agent {
+                    id: "claude-code".into(),
+                    name: "Claude Code".into(),
+                    mode: "auto".into(),
+                    model_id: None,
+                    api_key: String::new(),
+                    endpoint: String::new(),
+                    updated_at: String::new(),
+                },
+            );
+            data.providers
+                .insert("p1".into(), provider("p1", true, "key"));
+            data.models.insert(
+                "m".into(),
+                model("m", "p1/m", "p1", true, 50.0, None, None, None),
+            );
+            data.model_endpoints
+                .insert("m-ep".into(), endpoint("m-ep", "p1/m", true));
+        }
+        let state = Arc::new(GatewayState {
+            pool,
+            client: reqwest::Client::new(),
+        });
+
+        // X-CAB-Agent: claude-code → auto mode → single "claude-cab-auto" stub.
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::HeaderName::from_static("x-cab-agent"),
+            axum::http::HeaderValue::from_static("claude-code"),
+        );
+        let response = handle_list_models(State(state), headers)
+            .await
+            .unwrap()
+            .into_response();
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let data = json["data"].as_array().unwrap();
+
+        assert_eq!(data.len(), 1);
+        assert_eq!(data[0]["id"], "claude-cab-auto");
+        assert_eq!(data[0]["display_name"], "CAB Auto");
+        assert_eq!(json["has_more"], false);
+    }
+
     #[test]
     fn format_cost_covers_integer_decimal_zero_and_missing() {
         assert_eq!(format_cost(Some(0.0)), "0");
@@ -862,12 +901,7 @@ data: [DONE]\n",
     }
 
     #[test]
-    fn discovery_alias_and_codex_model_shape_are_stable() {
-        assert_eq!(
-            claude_code_discovery_alias("provider/model"),
-            "claude/cab/provider/model"
-        );
-
+    fn codex_model_shape_is_stable() {
         let item = codex_compatible_model("id", "Display", "owner");
         assert_eq!(item["id"], "id");
         assert_eq!(item["name"], "Display");
