@@ -5,6 +5,16 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2026-07-28
+
+### Added
+
+- **Agent-aware model listing**. `GET /v1/models` now returns a single `claude-cab-auto` stub when called by Claude Code in `auto` mode — the in-CLI model picker shows one entry instead of hundreds, and CAB auto-routes the request regardless of the chosen model. For all other agents/modes, returns the de-duplicated list of available models (no more discovery-alias or short-suffix duplicates).
+
+### Config
+
+- **AA model map updated**. Added `opus-5` and `sonnet-5` entries for catalog sync.
+
 ## [0.8.3] - 2026-07-27
 
 ### Fixed
