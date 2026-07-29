@@ -22,17 +22,7 @@ impl AgentIntegration for Integration {
         let gateway_key = ctx.gateway_key;
         let home = &ctx.home;
 
-        let app_name = if agent_id == "kilocode" {
-            "Kilo Code"
-        } else {
-            "OpenCode"
-        };
-        let config_dir_name = if agent_id == "kilocode" {
-            "kilo"
-        } else {
-            "opencode"
-        };
-        let config_dir = StdPath::new(&home).join(".config").join(config_dir_name);
+        let config_dir = StdPath::new(&home).join(".config").join("opencode");
         let config_path = config_dir.join("opencode.json");
 
         if !config_dir.exists() {
@@ -125,8 +115,7 @@ impl AgentIntegration for Integration {
             backup_agent_config(&config_path);
             fs::write(&config_path, pretty)?;
             tracing::info!(
-                "Dynamic Config Switcher: Updated {} opencode.json at {} for mode {}",
-                app_name,
+                "Dynamic Config Switcher: Updated OpenCode opencode.json at {} for mode {}",
                 config_path.display(),
                 mode
             );

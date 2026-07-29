@@ -1,6 +1,6 @@
 {
   "productName": "cab-gui",
-  "version": "0.8.3",
+  "version": "0.8.6",
   "identifier": "com.cab.gateway",
   "build": {
     "frontendDist": "../build",

@@ -38,7 +38,7 @@ order: 2
 
 ### REQ-CAB-006 智能体集成
 
-支持 8 种预置 Agent 的配置写入与 `native`/`auto`/`manual` 模式（含 `reasonix`）。
+支持 4 种预置 Agent 的配置写入与 `native`/`auto`/`manual` 模式（Claude Code、Codex、OpenCode、Grok Build）。
 
 ### REQ-CAB-007 配置持久化
 

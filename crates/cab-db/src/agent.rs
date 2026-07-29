@@ -76,27 +76,20 @@ mod tests {
         }
     }
 
-    const SUPPORTED_AGENT_IDS: &[&str] = &[
-        "claude-code",
-        "codex",
-        "opencode",
-        "hermes",
-        "kilocode",
-        "openclaw",
-        "pi",
-        "reasonix",
-    ];
+    const SUPPORTED_AGENT_IDS: &[&str] = &["claude-code", "codex", "opencode", "grok-build"];
 
     #[tokio::test]
-    async fn default_store_lists_eight_supported_agents() {
+    async fn default_store_lists_four_supported_agents() {
         let store = InMemoryStore::new();
         let agents = list(&store).await.expect("list agents");
-        assert_eq!(agents.len(), 8);
+        assert_eq!(agents.len(), 4);
         for id in SUPPORTED_AGENT_IDS {
             assert!(agents.iter().any(|a| a.id == *id), "missing agent {id}");
         }
         assert!(!agents.iter().any(|a| a.id == "cursor"));
         assert!(!agents.iter().any(|a| a.id == "antigravity"));
+        assert!(!agents.iter().any(|a| a.id == "hermes"));
+        assert!(!agents.iter().any(|a| a.id == "reasonix"));
     }
 
     #[tokio::test]

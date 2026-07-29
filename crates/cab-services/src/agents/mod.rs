@@ -2,12 +2,8 @@
 
 mod claude_code;
 mod codex;
-mod hermes;
-mod kilocode;
-mod openclaw;
+mod grok_build;
 mod opencode;
-mod pi;
-mod reasonix;
 pub mod shared;
 
 #[cfg(test)]
@@ -16,10 +12,7 @@ mod tests;
 use cab_core::types::{Agent, Model};
 use cab_db::InMemoryStore;
 
-pub use shared::{
-    backup_agent_config, build_hermes_model_block, cab_identifying_headers, opencode_model_config,
-    replace_top_level_yaml_block, run_openclaw_config, yaml_quote,
-};
+pub use shared::{backup_agent_config, cab_identifying_headers, opencode_model_config, yaml_quote};
 
 /// Shared inputs for writing an agent's on-disk configuration.
 pub struct AgentConfigContext<'a> {
@@ -46,24 +39,11 @@ static INTEGRATIONS: &[&dyn AgentIntegration] = &[
     &claude_code::Integration,
     &codex::Integration,
     &opencode::Integration,
-    &kilocode::Integration,
-    &hermes::Integration,
-    &openclaw::Integration,
-    &pi::Integration,
-    &reasonix::Integration,
+    &grok_build::Integration,
 ];
 
 /// Canonical list of CAB-managed agent IDs (single source of truth).
-pub const SUPPORTED_AGENT_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "opencode",
-    "hermes",
-    "kilocode",
-    "openclaw",
-    "pi",
-    "reasonix",
-];
+pub const SUPPORTED_AGENT_IDS: &[&str] = &["claude-code", "codex", "opencode", "grok-build"];
 
 pub fn supported_agent_ids() -> &'static [&'static str] {
     SUPPORTED_AGENT_IDS

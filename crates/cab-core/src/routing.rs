@@ -966,8 +966,7 @@ fn classify_request(
     let agent_is_coding = matches_agent_kind(
         &agent_lower,
         &[
-            "claude", "codex", "copilot", "aider", "cline", "continue", "hermes", "kilo",
-            "openclaw", "claw", "pi", "code", "reasonix",
+            "claude", "codex", "copilot", "aider", "cline", "continue", "opencode", "grok", "code",
         ],
     );
 

@@ -5,6 +5,17 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] - 2026-07-29
+
+### Changed
+
+- **Supported coding agents narrowed to four**: Claude Code, Codex, OpenCode, and Grok Build. Hermes, Kilo Code, OpenClaw, Pi, and Reasonix integrations are removed; existing installs drop those agents on upgrade and pick up Grok Build via seed merge.
+- **Grok Build integration**: Auto/Manual modes rewrite `~/.grok/config.toml` with `cab-*` OpenAI chat-completions models pointing at the local gateway; Native mode restores the previous default.
+
+### Fixed
+
+- **TOML config parsing for Codex / Grok Build**. Prefer `toml::from_str` over `str::parse` so existing `config.toml` tables are not silently discarded under toml 1.x.
+
 ## [0.8.5] - 2026-07-28
 
 ### Fixed

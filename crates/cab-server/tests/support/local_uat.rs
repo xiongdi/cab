@@ -338,10 +338,7 @@ pub fn agent_user_agent(agent_id: &str) -> &'static str {
         "claude-code" => "claude-cli/2.1.165",
         "codex" => "codex_exec/0.134.0",
         "opencode" => "opencode/1.14.48 ai-sdk/5",
-        "hermes" => "HermesAgent/0.16.0",
-        "kilocode" => "Kilo-Code/7.3.40 ai-sdk/provider-utils/4.0.23",
-        "openclaw" => "OpenClaw/2026.6.1 (cab-probe)",
-        "pi" => "pi-coding-agent/0.79.0",
+        "grok-build" => "GrokBuild/CAB",
         other => panic!("unknown agent id: {other}"),
     }
 }

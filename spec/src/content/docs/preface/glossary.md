@@ -40,4 +40,4 @@ order: 3
 
 ## Agent 内置 ID
 
-`cab-db/src/lib.rs` 预置：`claude-code`、`codex`、`opencode`、`hermes`、`kilocode`、`openclaw`、`pi`。
+`cab-db/src/lib.rs` 预置：`claude-code`、`codex`、`opencode`、`grok-build`。

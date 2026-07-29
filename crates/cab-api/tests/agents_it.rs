@@ -30,16 +30,7 @@ impl TestHome {
     }
 }
 
-const SUPPORTED_AGENT_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "opencode",
-    "hermes",
-    "kilocode",
-    "openclaw",
-    "pi",
-    "reasonix",
-];
+const SUPPORTED_AGENT_IDS: &[&str] = &["claude-code", "codex", "opencode", "grok-build"];
 
 async fn json_body(response: axum::response::Response) -> Value {
     let bytes = response
@@ -59,7 +50,7 @@ fn auth_header(store: &InMemoryStore) -> String {
 }
 
 #[tokio::test]
-async fn it_list_agents_returns_eight_supported_agents() {
+async fn it_list_agents_returns_four_supported_agents() {
     let store = InMemoryStore::new();
     let app = api_router(store.clone());
     let response = app
@@ -76,7 +67,7 @@ async fn it_list_agents_returns_eight_supported_agents() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     let agents = body.as_array().expect("agents array");
-    assert_eq!(agents.len(), 8);
+    assert_eq!(agents.len(), 4);
 
     let ids: Vec<&str> = agents
         .iter()

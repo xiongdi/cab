@@ -21,16 +21,12 @@ description: 以原生、自动、手动三种模式将编码 Agent 接入 CAB�
 
 ## 各 Agent 对接方式
 
-| Agent           | 配置位置                                    | 自动模式                                           | 手动模式                                  |
-| --------------- | ------------------------------------------- | -------------------------------------------------- | ----------------------------------------- |
-| **Claude Code** | `~/.claude/settings.json`                   | 改写网关 URL + Bearer；策略驱动路由                | Gateway discovery + `claude/cab/...` 别名 |
-| **Codex**       | `~/.codex/config.toml`                      | 配置 CAB 提供商与策略；通过 `auth.json` 管理 OAuth | 通过 `/v1/models` 列出所有已启用模型      |
-| **OpenCode**    | `~/.config/opencode/opencode.json`          | 注册 `cab/auto` 等策略别名                         | 将所有已启用模型写入 cab provider         |
-| **Hermes**      | `~/.hermes/config.yaml`                     | OpenAI 兼容模式 + 自定义请求头                     | 同一网关，在 Hermes 内选模型              |
-| **Kilo Code**   | `~/.config/kilo/opencode.json`              | OpenCode 格式 cab provider + 策略                  | 注册全部已启用模型                        |
-| **OpenClaw**    | `openclaw config` CLI                       | CAB 作为 OpenAI 兼容提供商，默认 `cab/auto`        | 默认模型设为所选策略或模型                |
-| **Pi**          | `~/.pi/agent/models.json` + `settings.json` | CAB provider + 默认策略                            | Ctrl+P 模型选择器中的完整列表             |
-| **Reasonix**    | `~/.reasonix/config.toml` + `.env`          | 写入 CAB provider，默认模型为策略                  | 列出全部已启用模型                        |
+| Agent           | 配置位置                           | 自动模式                                           | 手动模式                                  |
+| --------------- | ---------------------------------- | -------------------------------------------------- | ----------------------------------------- |
+| **Claude Code** | `~/.claude/settings.json`          | 改写网关 URL + Bearer；策略驱动路由                | Gateway discovery + `claude/cab/...` 别名 |
+| **Codex**       | `~/.codex/config.toml`             | 配置 CAB 提供商与策略；通过 `auth.json` 管理 OAuth | 通过 `/v1/models` 列出所有已启用模型      |
+| **OpenCode**    | `~/.config/opencode/opencode.json` | 注册 `cab/auto` 等策略别名                         | 将所有已启用模型写入 cab provider         |
+| **Grok Build**  | `~/.grok/config.toml`              | 注入 `cab-*` 模型并设默认策略                      | 为每个已启用模型写入条目                  |
 
 CAB 在改写前 **备份** 现有配置，切回原生模式时 **恢复**。
 

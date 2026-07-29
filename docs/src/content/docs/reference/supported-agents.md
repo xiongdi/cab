@@ -3,18 +3,14 @@ title: Supported Agents
 description: Coding agents integrated with CAB and their configuration paths.
 ---
 
-CAB integrates with eight coding agent CLIs. Each agent is identified by its User-Agent string at the gateway.
+CAB integrates with four coding agent CLIs. Each agent is identified by its User-Agent string at the gateway.
 
-| Agent       | User-Agent ID | Config path                                            |
-| ----------- | ------------- | ------------------------------------------------------ |
-| Claude Code | `claude-code` | `~/.claude/settings.json`                              |
-| Codex       | `codex`       | `~/.codex/config.toml`                                 |
-| OpenCode    | `opencode`    | `~/.config/opencode/opencode.json`                     |
-| Hermes      | `hermes`      | `~/.hermes/config.yaml`                                |
-| Kilo Code   | `kilocode`    | `~/.config/kilo/opencode.json`                         |
-| OpenClaw    | `openclaw`    | via `openclaw config` CLI                              |
-| Pi          | `pi`          | `~/.pi/agent/models.json`, `~/.pi/agent/settings.json` |
-| Reasonix    | `reasonix`    | `~/.reasonix/config.toml`, `~/.reasonix/.env`          |
+| Agent       | User-Agent ID | Config path                        |
+| ----------- | ------------- | ---------------------------------- |
+| Claude Code | `claude-code` | `~/.claude/settings.json`          |
+| Codex       | `codex`       | `~/.codex/config.toml`             |
+| OpenCode    | `opencode`    | `~/.config/opencode/opencode.json` |
+| Grok Build  | `grok-build`  | `~/.grok/config.toml`              |
 
 ## Gateway endpoint
 

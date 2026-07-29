@@ -22,7 +22,7 @@
   let previewResult = $state<RouteExplainResult | null>(null);
   let strategyBoard = $state<StrategyBoardResult | null>(null);
 
-  const PREVIEW_AGENTS = ['codex', 'claude-code', 'opencode', 'kilocode', 'hermes', 'openclaw', 'pi'];
+  const PREVIEW_AGENTS = ['codex', 'claude-code', 'opencode', 'grok-build'];
 
   // Strategy metadata
   const STRATEGIES = [

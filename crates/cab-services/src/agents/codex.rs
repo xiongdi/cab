@@ -35,7 +35,7 @@ impl AgentIntegration for Integration {
         let mut toml_val: toml::Value = if config_path.exists() {
             fs::read_to_string(&config_path)
                 .ok()
-                .and_then(|c| c.parse::<toml::Value>().ok())
+                .and_then(|c| toml::from_str(&c).ok())
                 .unwrap_or_else(|| toml::Value::Table(toml::Table::new()))
         } else {
             toml::Value::Table(toml::Table::new())

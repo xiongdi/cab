@@ -154,7 +154,7 @@ RETURN api_keys 配置顺序中 enabled 且 NOT rate_limited 的 key
 
 ```
 SWITCH agent.id:
-  claude-code / codex / opencode / hermes / kilocode / openclaw / pi / reasonix
+  claude-code / codex / opencode / grok-build
     → 写入对应配置中的 CAB base URL + gateway_key
   mode ∈ {native, auto, manual}
   ...

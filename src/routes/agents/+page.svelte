@@ -335,39 +335,11 @@
             </div>
           </div>
           <div class="guide-item">
-            <h4>4. Hermes Agent</h4>
-            <p class="guide-desc">{i18n.t('agents.guide_hermes')}</p>
+            <h4>4. Grok Build</h4>
+            <p class="guide-desc">{i18n.t('agents.guide_grok_build')}</p>
             <div class="terminal-block">
-              <span class="mono text-xs">export HERMES_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export HERMES_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="guide-item">
-            <h4>5. Kilo Code</h4>
-            <p class="guide-desc">{i18n.t('agents.guide_kilocode')}</p>
-          </div>
-          <div class="guide-item">
-            <h4>6. OpenClaw</h4>
-            <p class="guide-desc">{i18n.t('agents.guide_openclaw')}</p>
-            <div class="terminal-block">
-              <span class="mono text-xs">export OPENCLAW_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export OPENCLAW_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-              </button>
-            </div>
-          </div>
-          <div class="guide-item">
-            <h4>7. Pi</h4>
-            <p class="guide-desc">{i18n.t('agents.guide_pi')}</p>
-          </div>
-          <div class="guide-item">
-            <h4>8. Reasonix</h4>
-            <p class="guide-desc">{i18n.t('agents.guide_reasonix')}</p>
-            <div class="terminal-block">
-              <span class="mono text-xs">export REASONIX_API_BASE="http://localhost:3125/v1"</span>
-              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('export REASONIX_API_BASE="http://localhost:3125/v1"')} title={i18n.t('common.copy_command')}>
+              <span class="mono text-xs">curl -fsSL https://x.ai/cli/install.sh | bash</span>
+              <button type="button" class="terminal-copy-btn" onclick={() => handleCopyText('curl -fsSL https://x.ai/cli/install.sh | bash')} title={i18n.t('common.copy_command')}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
               </button>
             </div>

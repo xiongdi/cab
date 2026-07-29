@@ -25,7 +25,7 @@ order: 1
 | REQ-CAB-003 提供商管理 | `cab-services/catalog.rs`                         | 已有 |
 | REQ-CAB-004 订阅与 429 | `subscription_quota.rs`, `fallback.rs`            | 已有 |
 | REQ-CAB-005 可观测性   | `cab-db/log.rs`, `dashboard.rs`, usage 表         | 已有 |
-| REQ-CAB-006 Agent 接入 | `cab-services/agents/`（含 reasonix，共 8 个）    | 已有 |
+| REQ-CAB-006 Agent 接入 | `cab-services/agents/`（共 4 个）                 | 已有 |
 | REQ-CAB-007 配置持久化 | `cab-db/sqlite.rs` + `settings`/`state`/`agents`… | 已有 |
 | REQ-CAB-008 鉴权       | `cab-gateway` / `cab-db/auth.rs`                  | 已有 |
 | REQ-CAB-009 日志持久化 | SQLite `request_logs`                             | 已有 |

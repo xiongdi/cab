@@ -34,25 +34,12 @@ pub fn merge_into_store(store: &InMemoryStore, state: PersistedState) {
 
 pub fn seed_agents() -> HashMap<String, Agent> {
     let mut agents = HashMap::new();
-    for id in &[
-        "claude-code",
-        "codex",
-        "opencode",
-        "hermes",
-        "kilocode",
-        "openclaw",
-        "pi",
-        "reasonix",
-    ] {
+    for id in &["claude-code", "codex", "opencode", "grok-build"] {
         let name = match *id {
             "claude-code" => "Claude Code",
             "codex" => "Codex",
             "opencode" => "OpenCode",
-            "hermes" => "Hermes Agent",
-            "kilocode" => "Kilo Code",
-            "openclaw" => "OpenClaw",
-            "pi" => "Pi",
-            "reasonix" => "Reasonix",
+            "grok-build" => "Grok Build",
             _ => "",
         };
         agents.insert(

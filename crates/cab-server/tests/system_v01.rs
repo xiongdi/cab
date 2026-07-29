@@ -116,7 +116,7 @@ async fn st_inprocess_cloudcode_route_removed() {
 }
 
 #[tokio::test]
-async fn st_inprocess_agent_catalog_has_eight_entries() {
+async fn st_inprocess_agent_catalog_has_four_entries() {
     let store = InMemoryStore::new();
     let app = build_combined_router(store.clone());
     let response = app
@@ -133,7 +133,7 @@ async fn st_inprocess_agent_catalog_has_eight_entries() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = json_body(response).await;
     let agents = body.as_array().expect("agents");
-    assert_eq!(agents.len(), 8);
+    assert_eq!(agents.len(), 4);
     let modes: Vec<&str> = agents
         .iter()
         .map(|a| a.get("mode").and_then(|v| v.as_str()).expect("mode"))
@@ -341,7 +341,7 @@ async fn st_routing_explain_returns_decision_trace() {
 }
 
 #[tokio::test]
-async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
+async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
     // CAB price route → Cheapest strategy should rank models by cost ascending.
     // When pi sends model="price", the cheapest enabled model wins.
     let store = InMemoryStore::new();
@@ -550,7 +550,7 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
-                        "agent": "pi",
+                        "agent": "grok-build",
                         "model": "price",
                         "body": {"messages": [{"role": "user", "content": "Write a Rust function"}]}
                     })
@@ -616,7 +616,7 @@ async fn st_price_route_ranks_cheapest_model_for_pi_agent() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     serde_json::json!({
-                        "agent": "pi",
+                        "agent": "grok-build",
                         "model": "price",
                         "body": {"messages": [{"role": "user", "content": "hello"}]}
                     })

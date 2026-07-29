@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-**CAB (Coding Agents Bridge)** — a local, cost-aware LLM gateway router for coding agent CLIs. Agents point at `http://localhost:3125/v1`; CAB ranks providers/models (Intelligence / Coding / Agentic indices + token pricing + context window) and forwards requests upstream to OpenAI / Anthropic. Syncs model/pricing/benchmark data from `models.dev` in real time. Ships a Tauri + Svelte desktop dashboard for managing providers, keys, routing strategies, and per-agent config (Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, Pi, Reasonix).
+**CAB (Coding Agents Bridge)** — a local, cost-aware LLM gateway router for coding agent CLIs. Agents point at `http://localhost:3125/v1`; CAB ranks providers/models (Intelligence / Coding / Agentic indices + token pricing + context window) and forwards requests upstream to OpenAI / Anthropic. Syncs model/pricing/benchmark data from `models.dev` in real time. Ships a Tauri + Svelte desktop dashboard for managing providers, keys, routing strategies, and per-agent config (Claude Code, Codex, OpenCode, Grok Build).
 
 ## Workspace layout
 
@@ -92,7 +92,7 @@ After **any** code or config change, before reporting back:
 - **`cab.toml`** (system bootstrap, NOT API-editable): `gateway.host` (default `127.0.0.1`), `gateway.port` (default `3125`, seeds database on first install)
 - **`~/.cab/cab.db`** (SQLite database, user runtime, API-editable): settings (`gateway_port`, `gateway_key`, `auth_enabled`, `log_retention_days`, providers, models, …), plus tables for agents, routes, `request_logs`, usage, catalog, and AA benchmarks
 - **`~/.cab/catalog/`**: models.dev / related cache files (not the primary config store)
-- Agent configs rewritten by CAB: `~/.claude/settings.json`, `~/.codex/config.toml`, `~/.config/opencode/opencode.json`, `~/.hermes/config.yaml`, `~/.config/kilo/opencode.json`, `~/.pi/agent/models.json`, `~/.reasonix/config.toml` (+ `~/.reasonix/.env`); OpenClaw via `openclaw config`
+- Agent configs rewritten by CAB: `~/.claude/settings.json`, `~/.codex/config.toml`, `~/.config/opencode/opencode.json`, `~/.grok/config.toml`
 - Docs source: `docs/` (published to GitHub Pages)
 - Specs: `spec/` (API/protocol design notes)
 

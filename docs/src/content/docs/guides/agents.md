@@ -21,16 +21,12 @@ The **Agents** page is CAB's control center for coding agent integrations. Each 
 
 ## Per-agent integration
 
-| Agent           | Config location                             | Auto mode                                                   | Manual mode                                           |
-| --------------- | ------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
-| **Claude Code** | `~/.claude/settings.json`                   | Rewrites gateway URL + Bearer key; strategy-driven routing  | Gateway discovery with `claude/cab/...` model aliases |
-| **Codex**       | `~/.codex/config.toml`                      | Sets CAB provider + strategy; manages OAuth via `auth.json` | Lists all enabled models via `/v1/models`             |
-| **OpenCode**    | `~/.config/opencode/opencode.json`          | Registers `cab/auto` strategy aliases                       | Writes all enabled models under cab provider          |
-| **Hermes**      | `~/.hermes/config.yaml`                     | OpenAI-compatible mode + custom headers for agent ID        | Same gateway, model chosen in Hermes                  |
-| **Kilo Code**   | `~/.config/kilo/opencode.json`              | OpenCode-format cab provider + strategy                     | All enabled models registered                         |
-| **OpenClaw**    | `openclaw config` CLI                       | CAB as OpenAI-compatible provider, default `cab/auto`       | Default model set to chosen strategy or model         |
-| **Pi**          | `~/.pi/agent/models.json` + `settings.json` | CAB provider + default strategy                             | Full model list in Ctrl+P picker                      |
-| **Reasonix**    | `~/.reasonix/config.toml` + `.env`          | CAB provider entry + strategy as default model              | All enabled models listed                             |
+| Agent           | Config location                    | Auto mode                                                   | Manual mode                                           |
+| --------------- | ---------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------- |
+| **Claude Code** | `~/.claude/settings.json`          | Rewrites gateway URL + Bearer key; strategy-driven routing  | Gateway discovery with `claude/cab/...` model aliases |
+| **Codex**       | `~/.codex/config.toml`             | Sets CAB provider + strategy; manages OAuth via `auth.json` | Lists all enabled models via `/v1/models`             |
+| **OpenCode**    | `~/.config/opencode/opencode.json` | Registers `cab/auto` strategy aliases                       | Writes all enabled models under cab provider          |
+| **Grok Build**  | `~/.grok/config.toml`              | Injects `cab-*` models + default strategy                   | One model entry per enabled model                     |
 
 CAB **backs up** existing agent configs before rewriting and **restores** them when you switch back to Native mode.
 

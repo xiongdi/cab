@@ -233,7 +233,7 @@ mod tests {
     fn new_store_seeds_supported_agents_and_defaults() {
         let store = InMemoryStore::new();
         let data = store.inner.read().unwrap();
-        assert_eq!(data.agents.len(), 8);
+        assert_eq!(data.agents.len(), 4);
         assert!(data.agents.contains_key("claude-code"));
         assert_eq!(data.settings.gateway_port, 3125);
         assert!(data.providers.is_empty());

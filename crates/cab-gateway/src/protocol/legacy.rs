@@ -902,8 +902,10 @@ impl<S> Drop for TokenTrackingStream<S> {
         // so total_tokens must include cache_read_tokens + cache_creation_tokens.
         // OpenAI-style APIs include cached tokens within input_tokens already.
         if self.is_anthropic_cache {
-            self.log.total_tokens =
-                self.log.input_tokens + self.log.cache_read_tokens + self.log.cache_creation_tokens + self.log.output_tokens;
+            self.log.total_tokens = self.log.input_tokens
+                + self.log.cache_read_tokens
+                + self.log.cache_creation_tokens
+                + self.log.output_tokens;
         } else {
             self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
         }

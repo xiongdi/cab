@@ -43,7 +43,7 @@ fn normalize_agent_id(value: &str) -> Option<String> {
 
     match lower.as_str() {
         "claude" => Some("claude-code".to_string()),
-        "kilo" | "kilo-code" => Some("kilocode".to_string()),
+        "grok" | "grokbuild" => Some("grok-build".to_string()),
         _ => None,
     }
 }
@@ -59,20 +59,12 @@ fn map_originator(originator: &str) -> Option<String> {
 fn map_user_agent(ua: &str) -> Option<String> {
     let lower = ua.to_ascii_lowercase();
 
-    if lower.contains("kilo-code") || lower.contains("kilocode") {
-        return Some("kilocode".to_string());
-    }
-    if lower.contains("openclaw") {
-        return Some("openclaw".to_string());
-    }
-    if lower.contains("pi-coding-agent") || lower.contains("pi-coding") {
-        return Some("pi".to_string());
-    }
-    if lower.contains("hermesagent") || lower.contains("hermes/") {
-        return Some("hermes".to_string());
-    }
-    if lower.contains("reasonix/") || lower.contains("reasonix-agent") {
-        return Some("reasonix".to_string());
+    if lower.contains("grokbuild")
+        || lower.contains("grok-build")
+        || lower.contains("xai-grok")
+        || lower.starts_with("grok/")
+    {
+        return Some("grok-build".to_string());
     }
     if lower.contains("opencode/") || lower.starts_with("opencode") {
         return Some("opencode".to_string());
@@ -101,17 +93,6 @@ fn map_user_agent(ua: &str) -> Option<String> {
         return Some("aider".to_string());
     }
 
-    // Reasonix (DeepSeek-Reasonix) is a Go agent that sets no identifying
-    // headers on LLM requests and no custom User-Agent, so Go's net/http default
-    // (`Go-http-client/1.1`) leaks through. Its OpenAI-compatible providers can't
-    // carry custom headers either (upstream esengine/DeepSeek-Reasonix#3824), so
-    // this bare UA is the only available signal. Reasonix is the only Go-based
-    // CAB agent, and this is the last fallback (every named UA above wins first),
-    // so attribute a bare Go UA to Reasonix instead of leaving it "unknown".
-    if lower.starts_with("go-http-client") {
-        return Some("reasonix".to_string());
-    }
-
     None
 }
 
@@ -133,8 +114,11 @@ mod tests {
 
     #[test]
     fn prefers_x_cab_agent_header() {
-        let headers = headers_with(&[("user-agent", "OpenAI/JS 6.0"), ("x-cab-agent", "openclaw")]);
-        assert_eq!(extract_agent_id(&headers), "openclaw");
+        let headers = headers_with(&[
+            ("user-agent", "OpenAI/JS 6.0"),
+            ("x-cab-agent", "grok-build"),
+        ]);
+        assert_eq!(extract_agent_id(&headers), "grok-build");
     }
 
     #[test]
@@ -152,39 +136,13 @@ mod tests {
             (("user-agent", "claude-cli/2.1.165"), "claude-code"),
             (("user-agent", "codex_exec/0.134.0"), "codex"),
             (("user-agent", "opencode/1.14.48 ai-sdk/5"), "opencode"),
-            (("user-agent", "HermesAgent/0.16.0"), "hermes"),
-            (
-                (
-                    "user-agent",
-                    "Kilo-Code/7.3.40 ai-sdk/provider-utils/4.0.23",
-                ),
-                "kilocode",
-            ),
-            (("user-agent", "OpenClaw/2026.6.1 (cab-probe)"), "openclaw"),
-            (("user-agent", "pi-coding-agent/0.79.0"), "pi"),
-            (("user-agent", "reasonix/1.8.1"), "reasonix"),
+            (("user-agent", "GrokBuild/CAB"), "grok-build"),
+            (("user-agent", "grok/0.1.0"), "grok-build"),
         ];
         for ((name, value), expected) in cases {
             let headers = headers_with(&[(name, value)]);
             assert_eq!(extract_agent_id(&headers), expected, "ua={value}");
         }
-    }
-
-    #[test]
-    fn bare_go_user_agent_maps_to_reasonix() {
-        // Reasonix sends no identifying headers and no custom UA on LLM requests,
-        // so Go's default `Go-http-client/1.1` is the only signal.
-        let headers = headers_with(&[("user-agent", "Go-http-client/1.1")]);
-        assert_eq!(extract_agent_id(&headers), "reasonix");
-    }
-
-    #[test]
-    fn explicit_reasonix_header_still_wins_over_go_fallback() {
-        let headers = headers_with(&[
-            ("user-agent", "Go-http-client/1.1"),
-            ("x-cab-agent", "reasonix"),
-        ]);
-        assert_eq!(extract_agent_id(&headers), "reasonix");
     }
 
     #[test]

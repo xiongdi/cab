@@ -31,10 +31,10 @@ RequestLog ──引用── Provider, Model, Agent
 
 ## Agents / Routes（SQLite）
 
-| 字段   | 说明                          |
-| ------ | ----------------------------- |
-| agents | 8 个内置 Agent（含 reasonix） |
-| routes | 用户路由规则                  |
+| 字段   | 说明                                                       |
+| ------ | ---------------------------------------------------------- |
+| agents | 4 个内置 Agent（Claude Code、Codex、OpenCode、Grok Build） |
+| routes | 用户路由规则                                               |
 
 ## RouteExplainResult
 

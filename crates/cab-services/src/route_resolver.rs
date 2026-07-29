@@ -891,7 +891,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn built_in_balanced_strategy_ranks_by_value_for_pi() {
+    async fn built_in_balanced_strategy_ranks_by_value_for_grok_build() {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
@@ -904,7 +904,7 @@ mod tests {
 
         let resolved = resolve_route(
             &store,
-            "pi",
+            "grok-build",
             Some("balanced"),
             Some(&serde_json::json!({
                 "messages": [{"role": "user", "content": "Write a Rust web server"}]
@@ -955,7 +955,7 @@ mod tests {
         // Simulate pi sending model="balanced" with PAYG providers
         let resolved = resolve_route(
             &store,
-            "pi",
+            "grok-build",
             Some("balanced"),
             Some(&serde_json::json!({
                 "messages": [{"role": "user", "content": "Write a Rust web server"}]

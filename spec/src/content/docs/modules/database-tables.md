@@ -32,7 +32,7 @@ CAB 以 **SQLite** 为唯一运行时配置与状态存储，路径为 `~/.cab/c
 
 | 字段       | 类型 | 说明                         |
 | ---------- | ---- | ---------------------------- |
-| id         | TEXT | PK（8 个内置 Agent ID）      |
+| id         | TEXT | PK（4 个内置 Agent ID）      |
 | name       | TEXT | 显示名                       |
 | mode       | TEXT | `native` / `auto` / `manual` |
 | model_id   | TEXT | 可空                         |
@@ -40,7 +40,7 @@ CAB 以 **SQLite** 为唯一运行时配置与状态存储，路径为 `~/.cab/c
 | endpoint   | TEXT |                              |
 | updated_at | TEXT | RFC3339                      |
 
-内置 ID：`claude-code`、`codex`、`opencode`、`hermes`、`kilocode`、`openclaw`、`pi`、`reasonix`。
+内置 ID：`claude-code`、`codex`、`opencode`、`grok-build`。
 
 ## routes
 

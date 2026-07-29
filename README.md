@@ -12,7 +12,7 @@ CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed fo
 - **Ability & cost-aware routing**: Ranks models using Intelligence / Coding / Agentic indices, token pricing, and context window.
 - **Real-time catalog sync**: Pulls models, pricing, and benchmark data from `models.dev`.
 - **Desktop dashboard**: Tauri + Svelte UI for providers, keys, routing strategies, agent config, and request logs.
-- **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, Hermes, Kilo Code, OpenClaw, Pi, and Reasonix.
+- **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, and Grok Build.
 
 ---
 
@@ -114,16 +114,12 @@ See [Gateway & Auth](https://xiongdi.github.io/cab/guides/gateway-auth/) for sco
 
 ## Supported coding agents
 
-| Agent       | Integration                                   |
-| ----------- | --------------------------------------------- |
-| Claude Code | `~/.claude/settings.json`                     |
-| Codex       | `~/.codex/config.toml`                        |
-| OpenCode    | `~/.config/opencode/opencode.json`            |
-| Hermes      | `~/.hermes/config.yaml`                       |
-| Kilo Code   | `~/.config/kilo/opencode.json`                |
-| OpenClaw    | `openclaw config`                             |
-| Pi          | `~/.pi/agent/models.json`                     |
-| Reasonix    | `~/.reasonix/config.toml`, `~/.reasonix/.env` |
+| Agent       | Integration                        |
+| ----------- | ---------------------------------- |
+| Claude Code | `~/.claude/settings.json`          |
+| Codex       | `~/.codex/config.toml`             |
+| OpenCode    | `~/.config/opencode/opencode.json` |
+| Grok Build  | `~/.grok/config.toml`              |
 
 Configure modes in the **Agents** page: **Native** (bypass CAB), **Auto** (routing strategy), **Manual** (expose all enabled models).
 

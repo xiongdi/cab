@@ -12,16 +12,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 
-pub const SUPPORTED_AGENT_IDS: &[&str] = &[
-    "claude-code",
-    "codex",
-    "opencode",
-    "hermes",
-    "kilocode",
-    "openclaw",
-    "pi",
-    "reasonix",
-];
+pub const SUPPORTED_AGENT_IDS: &[&str] = &["claude-code", "codex", "opencode", "grok-build"];
 
 static HOME_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

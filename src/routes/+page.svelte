@@ -72,8 +72,9 @@
           const lower = (v || '').toLowerCase();
           let cls = 'badge-agent-generic';
           if (lower.includes('claude')) cls = 'badge-agent-claude';
-          else if (lower.includes('code')) cls = 'badge-agent-code';
-          else if (lower.includes('pi')) cls = 'badge-agent-pi';
+          else if (lower.includes('codex') || lower.includes('code')) cls = 'badge-agent-code';
+          else if (lower.includes('grok')) cls = 'badge-agent-grok';
+          else if (lower.includes('opencode')) cls = 'badge-agent-opencode';
           return `<span class="badge-agent ${cls}">${v || i18n.t('common.unknown')}</span>`;
         },
       },
@@ -1041,10 +1042,16 @@
     border: 1px solid rgba(139, 92, 246, 0.15);
   }
 
-  :global(.badge-agent-pi) {
+  :global(.badge-agent-grok) {
     background: rgba(16, 185, 129, 0.1);
     color: var(--success-text);
     border: 1px solid rgba(16, 185, 129, 0.15);
+  }
+
+  :global(.badge-agent-opencode) {
+    background: rgba(59, 130, 246, 0.1);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.15);
   }
 
   :global(.badge-agent-generic) {

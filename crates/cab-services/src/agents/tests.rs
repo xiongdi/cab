@@ -20,6 +20,7 @@ impl TestHome {
         unsafe {
             std::env::set_var("HOME", dir.path());
             std::env::remove_var("USERPROFILE");
+            std::env::remove_var("GROK_HOME");
         }
         Self { dir, _lock: lock }
     }
@@ -123,14 +124,14 @@ fn pool_with_models() -> cab_db::InMemoryStore {
 
 #[test]
 fn opencode_model_config_includes_identifying_headers() {
-    let model = opencode_model_config("CAB auto", "kilocode");
+    let model = opencode_model_config("CAB auto", "opencode");
     let headers = model
         .get("headers")
         .and_then(|v| v.as_object())
         .expect("headers");
     assert_eq!(
         headers.get("X-CAB-Agent").and_then(|v| v.as_str()),
-        Some("kilocode")
+        Some("opencode")
     );
 }
 
@@ -177,20 +178,34 @@ async fn codex_auto_manual_and_native_modes_update_toml_config() {
 }
 
 #[tokio::test]
-async fn openclaw_branch_reports_missing_cli_for_managed_mode() {
+async fn grok_build_auto_and_native_modes_update_toml_config() {
     let home = TestHome::new();
     let pool = pool_with_models();
-    let old_path = std::env::var("PATH").unwrap_or_default();
-    unsafe {
-        std::env::set_var("PATH", home.path("empty-bin"));
-    }
+    let config_path = home.path(".grok/config.toml");
+    fs::create_dir_all(config_path.parent().unwrap()).unwrap();
+    fs::write(
+        &config_path,
+        "[models]\ndefault = \"grok-build\"\n\n[model.grok-build]\nmodel = \"grok-4.5\"\nname = \"Grok 4.5\"\n",
+    )
+    .unwrap();
 
-    let err = apply_agent_config(&pool, &agent("openclaw", "auto"), 3125, "gw-key")
+    apply_agent_config(&pool, &agent("grok-build", "auto"), 3125, "gw-key")
         .await
-        .unwrap_err();
-    assert!(err.to_string().contains("Failed to run `openclaw"));
+        .unwrap();
+    let auto = fs::read_to_string(&config_path).unwrap();
+    assert!(auto.contains("default = \"cab-balanced\""));
+    assert!(auto.contains("api_backend = \"chat_completions\""));
+    assert!(auto.contains("X-CAB-Agent"));
+    assert!(auto.contains("gw-key"));
+    assert!(auto.contains("cab_backup_default_model = \"grok-build\""));
+    assert!(auto.contains("[model.grok-build]"));
 
-    unsafe {
-        std::env::set_var("PATH", old_path);
-    }
+    apply_agent_config(&pool, &agent("grok-build", "native"), 3125, "gw-key")
+        .await
+        .unwrap();
+    let native = fs::read_to_string(&config_path).unwrap();
+    assert!(native.contains("default = \"grok-build\""));
+    assert!(!native.contains("cab-auto"));
+    assert!(!native.contains("cab_backup_default_model"));
+    assert!(native.contains("[model.grok-build]"));
 }

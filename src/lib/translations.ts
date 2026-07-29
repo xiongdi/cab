@@ -562,16 +562,8 @@ export const translations = {
         '「自动挡」在 `~/.codex/config.toml` 中配置 CAB 网关与路由策略；「手动挡」通过 `/v1/models` 列出全部已启用模型供 Codex 选择。',
       guide_opencode:
         '「自动挡」注册 cab/auto 等策略别名；「手动挡」将所有已启用模型写入 `opencode.json` 的 cab provider。',
-      guide_hermes:
-        '「自动挡」将 `~/.hermes/config.yaml` 以 OpenAI 兼容模式（`api_mode: chat_completions`）指向 CAB 网关，并写入识别用 `default_headers`（Hermes 仅在此模式下支持自定义请求头）。若上游模型只有 Anthropic 协议，CAB 会自动做协议转换转发；新建 Hermes 会话后生效。',
-      guide_kilocode:
-        'Kilo CLI 基于 OpenCode 配置格式。「自动挡」写入 `~/.config/kilo/opencode.json` 的 cab provider 与策略别名；「手动挡」写入全部已启用模型。',
-      guide_openclaw:
-        'OpenClaw 通过官方 `openclaw config` 写入 `openclaw.json`：注册 CAB OpenAI-compatible provider，并把默认模型设为 `cab/auto` 或当前路由策略。',
-      guide_pi:
-        'Pi 通过 `~/.pi/agent/models.json` 注册 CAB OpenAI-compatible provider，并在 `~/.pi/agent/settings.json` 中设置默认 provider/model 与 Ctrl+P 模型范围。',
-      guide_reasonix:
-        'Reasonix 通过 `~/.reasonix/config.toml` 注册 CAB provider（`[[providers]]`），API Key 写入 `~/.reasonix/.env`。「自动挡」Model 设为路由策略；「手动挡」列出全部已启用模型。',
+      guide_grok_build:
+        '「自动挡」在 `~/.grok/config.toml` 注入 cab-* 模型（OpenAI chat-completions）并设默认策略；「手动挡」为每个已启用模型写入条目。切换模式后可用 `grok -m cab-auto` 或在 TUI 中选择。',
       system_routes: {
         auto: '🤖 自动 (根据提示词自动选择)',
         balanced: '⚖️ 平衡 (能力与价格均衡)',
@@ -1154,16 +1146,8 @@ export const translations = {
         'Auto mode sets CAB gateway + strategy in `~/.codex/config.toml`. Manual mode lists all enabled models via `/v1/models` for Codex to choose.',
       guide_opencode:
         'Auto mode registers cab/auto strategy aliases. Manual mode writes every enabled model into `opencode.json` under the cab provider.',
-      guide_hermes:
-        'Auto mode points `~/.hermes/config.yaml` at CAB via OpenAI-compatible `api_mode: chat_completions` and adds identifying `default_headers` (Hermes only supports custom headers on this wire). When upstream models are Anthropic-only, CAB translates protocols automatically. Applies to new Hermes sessions.',
-      guide_kilocode:
-        'Kilo CLI uses the OpenCode config shape. Auto mode writes the cab provider and strategy aliases to `~/.config/kilo/opencode.json`; Manual mode writes every enabled model.',
-      guide_openclaw:
-        'OpenClaw is configured through the official `openclaw config` command. CAB is registered as an OpenAI-compatible provider and the default model is set to `cab/auto` or the selected routing strategy.',
-      guide_pi:
-        'Pi is configured through `~/.pi/agent/models.json` and `~/.pi/agent/settings.json`: CAB is registered as an OpenAI-compatible provider, then selected as the default provider/model and Ctrl+P model scope.',
-      guide_reasonix:
-        'Reasonix registers CAB as a provider entry (`[[providers]]`) in `~/.reasonix/config.toml`; the API key is written to `~/.reasonix/.env`. Auto mode sets the model to the routing strategy; Manual mode exposes every enabled model.',
+      guide_grok_build:
+        'Auto mode injects cab-* models into `~/.grok/config.toml` (OpenAI chat-completions) and sets the default strategy. Manual mode adds one entry per enabled model. After switching, use `grok -m cab-auto` or pick the model in the TUI.',
       system_routes: {
         auto: '🤖 Auto (Intelligent Prompt Selection)',
         balanced: '⚖️ Balanced (Performance & Cost)',
