@@ -322,10 +322,10 @@ fn codex_compatible_model(id: &str, display_name: &str, owned_by: &str) -> serde
         "used_fallback_model_metadata": false,
         "supports_search_tool": false,
         "truncation_policy": {
-            "type": "bytes",
+            "mode": "bytes",
             "limit": 10000000
         },
-        "web_search_tool_type": "disabled",
+        "web_search_tool_type": "text",
     })
 }
 
@@ -830,8 +830,8 @@ data: [DONE]\n",
                 .contains("$1.25/$2 per Mtok")
         );
         assert_eq!(data[0]["supported_in_api"], true);
-        assert_eq!(data[0]["truncation_policy"]["type"], "bytes");
-        assert_eq!(data[0]["web_search_tool_type"], "disabled");
+        assert_eq!(data[0]["truncation_policy"]["mode"], "bytes");
+        assert_eq!(data[0]["web_search_tool_type"], "text");
     }
 
     #[tokio::test]
