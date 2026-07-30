@@ -101,7 +101,7 @@ pub fn apply_installed_cab_home() {
         return;
     }
     if let Some(cfg) = load_service_config() {
-        // SAFETY: process-local override before any other threads spawn in cab-cli.
+        // SAFETY: process-local override before any other threads spawn in cab.
         unsafe {
             std::env::set_var("CAB_HOME", &cfg.cab_home);
         }
@@ -114,13 +114,12 @@ pub fn looks_like_frontend(dir: &Path) -> bool {
 
 pub fn resolve_frontend_dir_for_install(srv_exe: &Path) -> Option<PathBuf> {
     if let Some(exe_dir) = srv_exe.parent() {
-        // NSIS/MSI layouts: next to cab-srv, sibling ui/ under resources/, or Tauri `_up_`.
+        // Curl-install / package layouts: next to cab, sibling ui/, or resources/ui.
         let candidates = [
             exe_dir.join("ui"),
             exe_dir.join("../ui"),
             exe_dir.join("resources/ui"),
             exe_dir.join("../resources/ui"),
-            exe_dir.join("_up_/resources/ui"),
         ];
         for candidate in candidates {
             if looks_like_frontend(&candidate) {
@@ -135,30 +134,37 @@ pub fn resolve_frontend_dir_for_install(srv_exe: &Path) -> Option<PathBuf> {
     None
 }
 
-pub fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
+pub fn get_cab_executable_path() -> Result<PathBuf, String> {
     let current_exe = std::env::current_exe()
         .map_err(|e| format!("Failed to determine current executable path: {e}"))?;
     let current_dir = current_exe
         .parent()
-        .ok_or_else(|| "cab-cli has no parent directory".to_string())?;
+        .ok_or_else(|| "cab has no parent directory".to_string())?;
 
-    let srv_target_name = if cfg!(target_os = "windows") {
-        "cab-srv.exe"
+    let target_name = if cfg!(target_os = "windows") {
+        "cab.exe"
     } else {
-        "cab-srv"
+        "cab"
     };
+
+    // Prefer the running binary when it is already named `cab`.
+    if current_exe
+        .file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|n| n.eq_ignore_ascii_case(target_name))
+    {
+        return Ok(current_exe);
+    }
+
     let relative_candidates = [
-        current_dir.join(srv_target_name),
-        current_dir
-            .join("resources")
-            .join("bin")
-            .join(srv_target_name),
+        current_dir.join(target_name),
+        current_dir.join("resources").join("bin").join(target_name),
         current_dir
             .join("_up_")
             .join("resources")
             .join("bin")
-            .join(srv_target_name),
-        current_dir.join("bin").join(srv_target_name),
+            .join(target_name),
+        current_dir.join("bin").join(target_name),
     ];
     for candidate in relative_candidates {
         if candidate.exists() {
@@ -172,34 +178,39 @@ pub fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
     let cab_bin = PathBuf::from(&home)
         .join(".cab")
         .join("bin")
-        .join(srv_target_name);
+        .join(target_name);
     if cab_bin.exists() {
         return Ok(cab_bin);
     }
     let fallback_bin = PathBuf::from(home)
         .join(".local")
         .join("bin")
-        .join(srv_target_name);
+        .join(target_name);
     if fallback_bin.exists() {
         return Ok(fallback_bin);
     }
 
     #[cfg(target_os = "linux")]
     {
-        let usr = PathBuf::from("/usr/bin").join(srv_target_name);
+        let usr = PathBuf::from("/usr/bin").join(target_name);
         if usr.exists() {
             return Ok(usr);
         }
     }
 
+    // Last resort: current executable (dev builds may be named differently).
+    if current_exe.exists() {
+        return Ok(current_exe);
+    }
+
     Ok(fallback_bin)
 }
 
-pub fn get_working_dir(srv_exe: &Path) -> Result<String, String> {
-    srv_exe
+pub fn get_working_dir(cab_exe: &Path) -> Result<String, String> {
+    cab_exe
         .parent()
         .map(|p| p.to_string_lossy().into_owned())
-        .ok_or_else(|| "cab-srv executable has no parent directory".to_string())
+        .ok_or_else(|| "cab executable has no parent directory".to_string())
 }
 
 pub fn require_admin_for_system(scope: ServiceScope) -> Result<(), String> {

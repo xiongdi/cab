@@ -1,96 +1,77 @@
 ---
 title: 安装
-description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
+description: 在 Windows、macOS 与 Linux 上下载并安装 CAB。
 ---
 
-## CLI（无头 / 服务器推荐）
+## 一键安装
 
-从 GitHub Releases 一键安装 `cab-cli` + `cab-srv`（含仪表盘 UI）：
+从 GitHub Releases 安装单一 `cab` 二进制（含仪表盘 UI）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
-# 镜像：curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+# 镜像: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
 ```
 
-默认安装到 `~/.cab/bin`，写入 shell `PATH`，并执行 `cab-cli service install --scope user`。
+默认安装到 `~/.cab/bin`，写入 shell `PATH`，并执行 `cab service install --scope user`。
 
 ```bash
-cab-cli status
-cab-cli update              # 升级到最新版
-cab-cli update --check      # 仅检查是否有新版本
-cab-cli update --version 0.8.6
+cab status
+cab gui                     # 在浏览器中打开仪表盘
+cab update                  # 升级到最新版
+cab update --check          # 仅检查是否有新版本
+cab update --version 0.9.0
 ```
 
-安装脚本可选参数：
+安装器选项：
 
 ```bash
-curl -fsSL …/install.sh | bash -s -- --version 0.8.6
+curl -fsSL …/install.sh | bash -s -- --version 0.9.0
 curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
 ```
 
-桌面安装包见下方（以及 [GitHub Releases](https://github.com/xiongdi/cab/releases)）。从源码构建请参阅 [仓库 README](https://github.com/xiongdi/cab#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)。
+自 **0.9** 起不再提供桌面 `.dmg` / `.msi` / AppImage。请用 CLI，并通过 `cab gui` 打开 UI。从源码构建见 [仓库 README](https://github.com/xiongdi/cab#getting-started)。
 
 ## 系统要求
 
-| 平台        | 最低版本                    | 架构                                    | 说明                                                                                        |
-| ----------- | --------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Windows** | Windows 7+                  | x64、ARM64                              | 需要 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)（Tauri 2） |
-| **macOS**   | 10.15 Catalina+             | Intel（x86_64）、Apple Silicon（arm64） | 按架构分别提供 `.dmg`（Tauri 2）                                                            |
-| **Linux**   | WebKitGTK 4.1 + glibc 2.35+ | x64、ARM64                              | 在 Ubuntu 22.04 构建；如 Ubuntu 22.04+、Debian 12+（Tauri 2）                               |
+| 平台        | 最低版本        | 架构                                  | 说明                         |
+| ----------- | --------------- | ------------------------------------- | ---------------------------- |
+| **Windows** | Windows 7+      | x64、ARM64                            | 无需 WebView；仪表盘在浏览器 |
+| **macOS**   | 10.15 Catalina+ | Intel (x86_64)、Apple Silicon (arm64) | 按架构提供独立归档           |
+| **Linux**   | glibc 2.35+     | x64、ARM64                            | 在 Ubuntu 22.04 构建         |
 
-**无头服务**（`cab-srv`）可在相同操作系统上运行，无需 WebView。从源码构建请用 `cargo run -p cab-srv`（用于发布测试），或使用 GitHub Releases 的预编译二进制。日常开发请遵循 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) 中的双终端工作流。
+发布测试可用 `cargo run -p cab --bin cab -- serve`，或使用 GitHub Releases 预编译包。日常开发请遵循 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) 双终端流程。
 
-## 选择安装包
+## 发布归档
 
-将 `VERSION` 替换为发布号（不含 `v` 前缀，如 `0.8.0`）。
+将 `VERSION` 换成不含 `v` 的版本号（如 `0.9.0`）。每个 Release 提供：
 
-### Windows
+| 平台                        | 文件                                                |
+| --------------------------- | --------------------------------------------------- |
+| Linux x64 / ARM64           | `cab-linux-x64.tar.gz` / `cab-linux-arm64.tar.gz`   |
+| macOS Intel / Apple Silicon | `cab-darwin-x64.tar.gz` / `cab-darwin-arm64.tar.gz` |
+| Windows x64 / ARM64         | `cab-windows-x64.zip` / `cab-windows-arm64.zip`     |
 
-| 设备           | 文件                                                           | 说明           |
-| -------------- | -------------------------------------------------------------- | -------------- |
-| 普通 PC（x64） | `CAB_VERSION_x64_zh-CN.msi` 或 `CAB_VERSION_x64_en-US.msi`     | MSI 安装包     |
-| 普通 PC（x64） | `CAB_VERSION_x64-setup.exe`                                    | NSIS，可选语言 |
-| ARM 电脑       | `CAB_VERSION_arm64_zh-CN.msi` 或 `CAB_VERSION_arm64-setup.exe` | ARM64 版本     |
+归档内容为 `cab`（或 `cab.exe`）与 `ui/` 目录。
 
-### macOS
+## 安装之后
 
-| 芯片          | 文件                    | 说明             |
-| ------------- | ----------------------- | ---------------- |
-| Intel         | `CAB_VERSION_x64.dmg`   | 拖入「应用程序」 |
-| Apple Silicon | `CAB_VERSION_arm64.dmg` | 拖入「应用程序」 |
-
-### Linux
-
-| 发行版          | 文件                         | 安装              |
-| --------------- | ---------------------------- | ----------------- |
-| Debian / Ubuntu | `CAB_VERSION_amd64.deb`      | `sudo dpkg -i …`  |
-| Fedora / RHEL   | `CAB-VERSION-1.x86_64.rpm`   | `sudo rpm -i …`   |
-| 便携版          | `CAB_VERSION_amd64.AppImage` | `chmod +x` 后执行 |
-
-## 安装后
-
-1. 从启动器打开 **CAB**。
-2. 若弹出提示，选择**服务范围**：
-   - **当前用户**（默认）— 数据在 `~/.cab`；登录后运行。
-   - **系统级** — 数据在 `/var/lib/cab`、`/Library/Application Support/cab` 或 `%ProgramData%\cab`；需管理员；开机自启。
+1. 运行 `cab gui`（必要时启动服务并打开仪表盘）。
+2. 若跳过了服务安装，可选择 **service scope**：
+   - **当前用户**（默认）— 数据在 `~/.cab`；登录后启动。
+   - **系统** — 数据在 `/var/lib/cab`、`/Library/Application Support/cab` 或 `%ProgramData%\cab`；需管理员；开机启动。
 3. 继续阅读 [快速开始](../quick-start/)。
-4. Windows 窗口空白请安装 [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)；macOS 被拦截请右键 → 打开。
-
-命令行等价：
 
 ```bash
-cab-cli service install --scope user   # 或：--scope system（需提权）
-cab-cli start
-cab-cli status
+cab service install --scope user   # 或：--scope system（需提权）
+cab start
+cab status
+cab gui
 ```
 
-Windows NSIS 安装结束时会询问 scope；MSI 则留给首次启动 GUI（或自行运行 `cab-cli service install`）。
+## 故障排除
 
-## 常见问题
-
-| 现象             | 处理                                  |
-| ---------------- | ------------------------------------- |
-| Windows 窗口空白 | 安装 WebView2 运行时                  |
-| macOS 无法打开   | 右键 → 打开，或在系统设置中允许       |
-| Linux 安装失败   | 升级到 WebKitGTK 4.1，或改用 AppImage |
-| Agent 无法连接   | 确认 CAB 已运行，端口 `3125` 未被占用 |
+| 现象         | 处理                                                    |
+| ------------ | ------------------------------------------------------- |
+| 浏览器未打开 | 手动访问 `http://127.0.0.1:3125/`                       |
+| Agent 连不上 | 确认 CAB 在跑且端口 `3125` 空闲                         |
+| 从 0.8 升级  | 先卸载旧 `cab-cli`/`cab-srv` 服务，再用 curl 安装器重装 |

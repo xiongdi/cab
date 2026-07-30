@@ -1,6 +1,6 @@
 use super::scope::{
     ServiceConfig, ServiceScope, clear_service_config, default_cab_home_for_scope,
-    get_cab_srv_executable_path, get_working_dir, require_admin_for_system,
+    get_cab_executable_path, get_working_dir, require_admin_for_system,
     resolve_frontend_dir_for_install, run_cmd, save_service_config,
 };
 use std::fs;
@@ -14,7 +14,7 @@ const SYSTEM_SERVICE_USER: &str = "cab";
 pub fn install_service(scope: ServiceScope) -> Result<(), String> {
     require_admin_for_system(scope)?;
 
-    let executable_path = get_cab_srv_executable_path()?;
+    let executable_path = get_cab_executable_path()?;
     let working_dir = get_working_dir(&executable_path)?;
     let frontend_dir = resolve_frontend_dir_for_install(&executable_path);
     let cab_home = default_cab_home_for_scope(scope);
@@ -34,7 +34,7 @@ pub fn install_service(scope: ServiceScope) -> Result<(), String> {
 
     save_service_config(&cfg)?;
     println!(
-        "Installed cab-srv as {} service (data: {}).",
+        "Installed cab as {} service (data: {}).",
         scope.as_str(),
         cab_home.display()
     );
@@ -46,7 +46,7 @@ pub fn install_service(scope: ServiceScope) -> Result<(), String> {
             Err(e) => println!("Warning: installed but failed to start: {e}"),
         }
     } else {
-        println!("Start with: cab-cli start");
+        println!("Start with: cab start");
     }
     Ok(())
 }
@@ -62,7 +62,7 @@ pub fn uninstall_service() -> Result<(), String> {
         ServiceScope::System => uninstall_system()?,
     }
     clear_service_config(scope);
-    println!("Uninstalled cab-srv {} service.", scope.as_str());
+    println!("Uninstalled cab {} service.", scope.as_str());
     Ok(())
 }
 
@@ -118,6 +118,7 @@ pub fn launchd_plist_content(
          \t<key>ProgramArguments</key>\n\
          \t<array>\n\
          \t\t<string>{executable}</string>\n\
+         \t\t<string>serve</string>\n\
          \t</array>\n\
          \t<key>RunAtLoad</key>\n\
          \t<true/>\n\
@@ -250,7 +251,7 @@ pub fn linux_unit_content(
          Wants=network-online.target\n\n\
          [Service]\n\
          Type=simple\n\
-         ExecStart={executable}\n\
+         ExecStart={executable} serve\n\
          Restart=always\n\
          RestartSec=5\n\
          WorkingDirectory={working_dir}\n\
@@ -806,7 +807,7 @@ fn install_user(
         bat.push_str(&format!("set \"CAB_FRONTEND_DIR={}\"\r\n", fe.display()));
     }
     bat.push_str(&format!(
-        "\"{}\" >> \"%CAB_HOME%\\logs\\cab-srv.stdout.log\" 2>> \"%CAB_HOME%\\logs\\cab-srv.stderr.log\"\r\n",
+        "\"{}\" serve >> \"%CAB_HOME%\\logs\\cab-srv.stdout.log\" 2>> \"%CAB_HOME%\\logs\\cab-srv.stderr.log\"\r\n",
         executable_path.display()
     ));
     fs::create_dir_all(cfg.cab_home.join("logs")).map_err(|e| e.to_string())?;
@@ -974,7 +975,7 @@ fn uninstall_user() -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn uninstall_system() -> Result<(), String> {
     let cfg = super::scope::load_service_config();
-    let exe = get_cab_srv_executable_path().ok();
+    let exe = get_cab_executable_path().ok();
 
     // Drop service-scoped Environment before deleting the service key.
     let _ = run_cmd(
@@ -1037,11 +1038,11 @@ mod tests {
             cab_home: PathBuf::from("/home/me/.cab"),
             frontend_dir: Some(PathBuf::from("/usr/share/cab/ui")),
         };
-        let unit = linux_unit_content("/usr/bin/cab-srv", "/usr/bin", &cfg, false);
+        let unit = linux_unit_content("/usr/bin/cab", "/usr/bin", &cfg, false);
         assert!(unit.contains("Environment=CAB_HOME=/home/me/.cab"));
         assert!(unit.contains("Environment=CAB_FRONTEND_DIR=/usr/share/cab/ui"));
         assert!(unit.contains("WantedBy=default.target"));
-        assert!(unit.contains("ExecStart=/usr/bin/cab-srv"));
+        assert!(unit.contains("ExecStart=/usr/bin/cab serve"));
         assert!(!unit.contains("User=cab"));
         assert!(!unit.contains("ProtectSystem=strict"));
         assert!(!unit.contains("UMask=0077"));
@@ -1055,7 +1056,7 @@ mod tests {
             cab_home: PathBuf::from("/var/lib/cab"),
             frontend_dir: Some(PathBuf::from("/usr/share/cab/ui")),
         };
-        let unit = linux_unit_content("/usr/bin/cab-srv", "/usr/bin", &cfg, true);
+        let unit = linux_unit_content("/usr/bin/cab", "/usr/bin", &cfg, true);
         assert!(unit.contains("WantedBy=multi-user.target"));
         assert!(unit.contains("Environment=CAB_HOME=/var/lib/cab"));
         assert!(unit.contains("User=cab"));
@@ -1079,7 +1080,7 @@ mod tests {
             frontend_dir: Some(PathBuf::from("/usr/local/share/cab/ui")),
         };
         let plist = launchd_plist_content(
-            "/usr/local/bin/cab-srv",
+            "/usr/local/bin/cab",
             "/usr/local/bin",
             &cfg,
             "/Library/Application Support/cab/logs/cab-srv.stdout.log",
@@ -1087,7 +1088,8 @@ mod tests {
             Some("_cab"),
         );
         assert!(plist.contains("<string>com.cab.cab-srv</string>"));
-        assert!(plist.contains("<string>/usr/local/bin/cab-srv</string>"));
+        assert!(plist.contains("<string>/usr/local/bin/cab</string>"));
+        assert!(plist.contains("<string>serve</string>"));
         assert!(plist.contains("<key>UserName</key>"));
         assert!(plist.contains("<string>_cab</string>"));
         assert!(plist.contains("<key>KeepAlive</key>"));

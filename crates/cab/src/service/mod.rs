@@ -1,4 +1,4 @@
-//! cab-srv service install / start / stop across user and system scopes.
+//! CAB service install / start / stop across user and system scopes.
 
 mod install;
 mod runtime;

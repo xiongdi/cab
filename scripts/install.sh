@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# CAB one-line installer (cab-cli + cab-srv + dashboard UI).
+# CAB one-line installer (cab + dashboard UI).
 #
 #   curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
 #   curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
 #
 # Options (pass after -- when piping):
-#   --version <ver>     Install a specific version (e.g. 0.8.6 or v0.8.6)
+#   --version <ver>     Install a specific version (e.g. 0.9.0 or v0.9.0)
 #   --dir <path>        Install root (default: ~/.cab)
 #   --no-modify-path    Do not edit shell rc files
-#   --no-service        Skip `cab-cli service install`
+#   --no-service        Skip `cab service install`
 #   --help
 set -euo pipefail
 
@@ -25,17 +25,17 @@ NC=$'\033[0m'
 
 usage() {
   cat <<EOF
-Install CAB CLI (cab-cli + cab-srv) from GitHub Releases.
+Install CAB (`cab`) from GitHub Releases.
 
 Usage:
   curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
-  curl -fsSL …/install.sh | bash -s -- --version 0.8.6
+  curl -fsSL …/install.sh | bash -s -- --version 0.9.0
 
 Options:
   -v, --version <ver>   Install this version (with or without leading v)
   -d, --dir <path>      Install root (default: ~/.cab)
       --no-modify-path  Do not modify shell config for PATH
-      --no-service      Do not run: cab-cli service install
+      --no-service      Do not run: cab service install
   -h, --help            Show this help
 EOF
 }
@@ -152,24 +152,23 @@ else
   unzip -q "$archive_path" -d "$extract_dir"
 fi
 
-# Archive layout: cab-cli, cab-srv, ui/ at top level (or nested one directory).
+# Archive layout: cab, ui/ at top level (or nested one directory).
 payload="$extract_dir"
-if [[ ! -f "${payload}/cab-cli" && ! -f "${payload}/cab-cli.exe" ]]; then
+if [[ ! -f "${payload}/cab" && ! -f "${payload}/cab.exe" ]]; then
   # single top-level folder
   for d in "$extract_dir"/*; do
-    if [[ -d "$d" && ( -f "$d/cab-cli" || -f "$d/cab-cli.exe" ) ]]; then
+    if [[ -d "$d" && ( -f "$d/cab" || -f "$d/cab.exe" ) ]]; then
       payload="$d"
       break
     fi
   done
 fi
 
-cli_src="${payload}/cab-cli"
-srv_src="${payload}/cab-srv"
-[[ "$os" == "windows" ]] && cli_src="${payload}/cab-cli.exe" && srv_src="${payload}/cab-srv.exe"
+cab_src="${payload}/cab"
+[[ "$os" == "windows" ]] && cab_src="${payload}/cab.exe"
 
-[[ -f "$cli_src" && -f "$srv_src" ]] || {
-  echo "${RED}Archive missing cab-cli / cab-srv${NC}" >&2
+[[ -f "$cab_src" ]] || {
+  echo "${RED}Archive missing cab binary${NC}" >&2
   rm -rf "$TMP_DIR"
   exit 1
 }
@@ -184,8 +183,7 @@ copy_bin() {
     chmod 755 "$dst" 2>/dev/null || true
   fi
 }
-copy_bin "$cli_src" "${BIN_DIR}/$(basename "$cli_src")"
-copy_bin "$srv_src" "${BIN_DIR}/$(basename "$srv_src")"
+copy_bin "$cab_src" "${BIN_DIR}/$(basename "$cab_src")"
 
 if [[ -d "${payload}/ui" ]]; then
   rm -rf "$UI_DIR"
@@ -195,7 +193,7 @@ fi
 
 rm -rf "$TMP_DIR"
 
-# Persist install metadata for `cab-cli update`.
+# Persist install metadata for `cab update`.
 mkdir -p "$INSTALL_ROOT"
 cat >"${INSTALL_ROOT}/install.json" <<EOF
 {
@@ -256,26 +254,27 @@ fi
 
 echo ""
 echo "${GREEN}CAB ${version} installed to ${BIN_DIR}${NC}"
-echo "${MUTED}Binaries:${NC} cab-cli, cab-srv"
+echo "${MUTED}Binary:${NC} cab"
 [[ -d "$UI_DIR" ]] && echo "${MUTED}UI:${NC} ${UI_DIR}"
 
 if [[ "$NO_SERVICE" != "true" ]]; then
-  if [[ -x "${BIN_DIR}/cab-cli" || -x "${BIN_DIR}/cab-cli.exe" ]]; then
+  if [[ -x "${BIN_DIR}/cab" || -x "${BIN_DIR}/cab.exe" ]]; then
     echo "${MUTED}Installing user service…${NC}"
-    if "${BIN_DIR}/cab-cli" service install --scope user; then
-      "${BIN_DIR}/cab-cli" start || true
+    if "${BIN_DIR}/cab" service install --scope user; then
+      "${BIN_DIR}/cab" start || true
       echo "${MUTED}Gateway:${NC} http://127.0.0.1:3125"
     else
       echo "${MUTED}Service install skipped/failed — run later:${NC}"
-      echo "  cab-cli service install --scope user && cab-cli start"
+      echo "  cab service install --scope user && cab start"
     fi
   fi
 fi
 
 echo ""
 echo "${MUTED}Next:${NC}"
-echo "  cab-cli status"
-echo "  cab-cli update          # upgrade to latest release"
+echo "  cab status"
+echo "  cab gui                 # open dashboard in browser"
+echo "  cab update              # upgrade to latest release"
 echo "  Docs: https://xiongdi.github.io/cab/"
 echo ""
 if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]] && [[ "$NO_MODIFY_PATH" == "true" ]]; then

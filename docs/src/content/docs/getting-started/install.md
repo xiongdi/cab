@@ -3,94 +3,75 @@ title: Install
 description: Download and install CAB for Windows, macOS, and Linux.
 ---
 
-## CLI (recommended for headless / servers)
+## One-line install
 
-One-line install of `cab-cli` + `cab-srv` (+ dashboard UI) from GitHub Releases:
+Install the single `cab` binary (+ dashboard UI) from GitHub Releases:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
 # mirror: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
 ```
 
-This installs into `~/.cab/bin`, adds it to your shell `PATH`, and runs `cab-cli service install --scope user`.
+This installs into `~/.cab/bin`, adds it to your shell `PATH`, and runs `cab service install --scope user`.
 
 ```bash
-cab-cli status
-cab-cli update              # upgrade to the latest release
-cab-cli update --check      # only check for a newer version
-cab-cli update --version 0.8.6
+cab status
+cab gui                     # open the dashboard in your browser
+cab update                  # upgrade to the latest release
+cab update --check          # only check for a newer version
+cab update --version 0.9.0
 ```
 
 Options for the installer:
 
 ```bash
-curl -fsSL …/install.sh | bash -s -- --version 0.8.6
+curl -fsSL …/install.sh | bash -s -- --version 0.9.0
 curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
 ```
 
-Desktop GUI installers remain available below (and on [GitHub Releases](https://github.com/xiongdi/cab/releases)). To build from source, see the [repository README](https://github.com/xiongdi/cab#getting-started).
+Desktop `.dmg` / `.msi` / AppImage packages are **not** shipped (0.9+). Use the CLI and open the UI with `cab gui`. To build from source, see the [repository README](https://github.com/xiongdi/cab#getting-started).
 
 ## System requirements
 
-| Platform    | Minimum version             | Architectures                         | Notes                                                                                           |
-| ----------- | --------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Windows** | Windows 7+                  | x64, ARM64                            | Requires [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (Tauri 2) |
-| **macOS**   | 10.15 Catalina+             | Intel (x86_64), Apple Silicon (arm64) | Separate `.dmg` per architecture (Tauri 2)                                                      |
-| **Linux**   | WebKitGTK 4.1 + glibc 2.35+ | x64, ARM64                            | Built on Ubuntu 22.04; e.g. Ubuntu 22.04+, Debian 12+ (Tauri 2)                                 |
+| Platform    | Minimum version | Architectures                         | Notes                                     |
+| ----------- | --------------- | ------------------------------------- | ----------------------------------------- |
+| **Windows** | Windows 7+      | x64, ARM64                            | No WebView required; dashboard in browser |
+| **macOS**   | 10.15 Catalina+ | Intel (x86_64), Apple Silicon (arm64) | Separate archive per architecture         |
+| **Linux**   | glibc 2.35+     | x64, ARM64                            | Built on Ubuntu 22.04; e.g. Ubuntu 22.04+ |
 
-**Headless server** (`cab-srv`) runs on the same OS families without WebView. Build from source with `cargo run -p cab-srv` for release testing, or use a pre-built binary from GitHub Releases. For daily development, follow the two-terminal workflow in [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) instead.
+Build from source with `cargo run -p cab --bin cab -- serve` for release testing, or use a pre-built archive from GitHub Releases. For daily development, follow the two-terminal workflow in [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md).
 
-## Choose the right package
+## Release archives
 
-Replace `VERSION` with the release number without the `v` prefix (e.g. `0.8.0`).
+Replace `VERSION` with the release number without the `v` prefix (e.g. `0.9.0`). Assets on each release:
 
-### Windows
+| Platform                    | File                                                |
+| --------------------------- | --------------------------------------------------- |
+| Linux x64 / ARM64           | `cab-linux-x64.tar.gz` / `cab-linux-arm64.tar.gz`   |
+| macOS Intel / Apple Silicon | `cab-darwin-x64.tar.gz` / `cab-darwin-arm64.tar.gz` |
+| Windows x64 / ARM64         | `cab-windows-x64.zip` / `cab-windows-arm64.zip`     |
 
-| Device   | File                                                           | Notes                 |
-| -------- | -------------------------------------------------------------- | --------------------- |
-| PC (x64) | `CAB_VERSION_x64_en-US.msi` or `CAB_VERSION_x64_zh-CN.msi`     | MSI installer         |
-| PC (x64) | `CAB_VERSION_x64-setup.exe`                                    | NSIS, language picker |
-| ARM PC   | `CAB_VERSION_arm64_en-US.msi` or `CAB_VERSION_arm64-setup.exe` | ARM64 builds          |
-
-### macOS
-
-| Chip          | File                    | Notes                      |
-| ------------- | ----------------------- | -------------------------- |
-| Intel         | `CAB_VERSION_x64.dmg`   | Drag CAB into Applications |
-| Apple Silicon | `CAB_VERSION_arm64.dmg` | Drag CAB into Applications |
-
-### Linux
-
-| Distro          | File                         | Install             |
-| --------------- | ---------------------------- | ------------------- |
-| Debian / Ubuntu | `CAB_VERSION_amd64.deb`      | `sudo dpkg -i …`    |
-| Fedora / RHEL   | `CAB-VERSION-1.x86_64.rpm`   | `sudo rpm -i …`     |
-| Portable        | `CAB_VERSION_amd64.AppImage` | `chmod +x` then run |
+Each archive contains `cab` (or `cab.exe`) and an `ui/` directory.
 
 ## After install
 
-1. Launch **CAB** from your app launcher.
-2. If prompted, choose **service scope**:
+1. Run `cab gui` (starts the service if needed and opens the dashboard).
+2. If you skipped service install, choose **service scope**:
    - **Current user** (default) — data in `~/.cab`; starts after login.
    - **System** — data in `/var/lib/cab`, `/Library/Application Support/cab`, or `%ProgramData%\cab`; needs admin/root; starts at boot.
 3. Continue with the [Quick Start](../quick-start/) guide.
-4. If the window is blank on Windows, install [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/). On macOS, use Right-click → Open if Gatekeeper blocks the app.
-
-CLI equivalent:
 
 ```bash
-cab-cli service install --scope user   # or: --scope system (elevated)
-cab-cli start
-cab-cli status
+cab service install --scope user   # or: --scope system (elevated)
+cab start
+cab status
+cab gui
 ```
-
-Windows NSIS setup asks for scope at the end of install. MSI leaves scope to first GUI launch (or run `cab-cli service install` yourself).
 
 ## Troubleshooting
 
-| Symptom                | Fix                                             |
-| ---------------------- | ----------------------------------------------- |
-| Blank window (Windows) | Install WebView2 Runtime                        |
-| App blocked (macOS)    | Right-click → Open, or allow in System Settings |
-| Linux install fails    | Upgrade to WebKitGTK 4.1, or use AppImage       |
-| Agent can't connect    | Ensure CAB is running; port `3125` is free      |
+| Symptom             | Fix                                                                               |
+| ------------------- | --------------------------------------------------------------------------------- |
+| Browser won't open  | Visit `http://127.0.0.1:3125/` manually                                           |
+| Agent can't connect | Ensure CAB is running; port `3125` is free                                        |
+| Upgrading from 0.8  | Uninstall old `cab-cli`/`cab-srv` service, then reinstall with the curl installer |

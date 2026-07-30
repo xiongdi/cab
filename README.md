@@ -11,7 +11,7 @@ CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed fo
 - **OpenAI / Anthropic gateway**: Exposes `/v1/chat/completions`, `/v1/messages`, and `/v1/responses` on a single local HTTP port.
 - **Ability & cost-aware routing**: Ranks models using Intelligence / Coding / Agentic indices, token pricing, and context window.
 - **Real-time catalog sync**: Pulls models, pricing, and benchmark data from `models.dev`.
-- **Desktop dashboard**: Tauri + Svelte UI for providers, keys, routing strategies, agent config, and request logs.
+- **Browser dashboard**: Svelte UI served by the gateway for providers, keys, routing strategies, agent config, and request logs.
 - **Agent config switcher**: Auto/Manual modes rewrite configs for Claude Code, Codex, OpenCode, and Grok Build.
 
 ---
@@ -20,13 +20,13 @@ CAB (Coding Agents Bridge) is a local, cost-aware LLM gateway router designed fo
 
 ```mermaid
 graph TD
-    subgraph Frontend [Desktop GUI / Web View]
-        Tauri[cab-gui Tauri Shell]
-        Svelte[Svelte UI served by cab-srv]
-        Tauri -->|opens http://127.0.0.1:port| Svelte
+    subgraph Frontend [Browser dashboard]
+        Browser[System browser]
+        Svelte[Svelte UI served by cab]
+        Browser -->|http://127.0.0.1:port| Svelte
     end
 
-    subgraph Backend [cab-srv / Daemon — sole HTTP server]
+    subgraph Backend [cab binary — sole HTTP server]
         API[cab-api: Management API]
         Gateway[cab-gateway: HTTP Gateway]
         Services[cab-services: Application Layer]
@@ -50,27 +50,25 @@ graph TD
 | `cab-services` | Catalog sync, route resolution, agent config                   |
 | `cab-gateway`  | Auth, protocol adapters, upstream forwarding                   |
 | `cab-api`      | Management REST API (`/api/*`)                                 |
-| `cab-srv`      | **Sole** HTTP daemon (gateway + API + static UI)               |
-| `cab`          | CLI (`cab-cli`) for daemon control and management API          |
-| `src`          | Svelte dashboard (served by `cab-srv`)                         |
-| `src-tauri`    | Thin desktop shell — ensures `cab-srv` and opens its URL       |
-
-> **Do not** run `cab-gui` and a second gateway on the same port: the GUI does not embed a server; it only talks to `cab-srv`. See [CHANGELOG](CHANGELOG.md).
+| `cab-srv`      | Library: combined HTTP app (used by `cab serve`)               |
+| `cab`          | Single CLI/daemon binary (`cab`)                               |
+| `src`          | Svelte dashboard (served by `cab serve`)                       |
 
 ---
 
 ## Getting Started
 
-**One-line CLI install** (Linux / macOS / Git Bash):
+**One-line install** (Linux / macOS / Git Bash):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
 # or: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
-cab-cli status
-cab-cli update          # upgrade later
+cab status
+cab gui                 # open dashboard in browser
+cab update              # upgrade later
 ```
 
-**Desktop installers:** see the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) or [GitHub Releases](https://github.com/xiongdi/cab/releases).
+See the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) or [GitHub Releases](https://github.com/xiongdi/cab/releases).
 
 ### Prerequisites
 
@@ -94,27 +92,15 @@ Default gateway: `http://127.0.0.1:3125/v1`
 
 > **Port conflicts**: never change ports or stack a second instance. Kill the occupying process first — see `scripts/kill-dev-ports.ps1`.
 
-### Desktop GUI (Tauri)
-
-The desktop app is a **thin client**: it ensures `cab-srv` is running and opens `http://127.0.0.1:{gateway_port}/`. It does **not** embed a second gateway (no port conflict with the daemon).
+### Service / foreground daemon
 
 ```bash
-npm install
-# Ensure cab-srv / npm run dev:server is available, then:
-npm run tauri:dev
-```
-
-### Headless release binary
-
-Install as a user or system service (not for daily `dev:server` workflow):
-
-```bash
-cab-cli service install --scope user     # ~/.cab — user service / LaunchAgent / Task Scheduler
-# sudo cab-cli service install --scope system
-#   Linux: systemd as user `cab` + hardening; macOS: LaunchDaemon as `_cab`;
-#   Windows: SCM as LocalService (service-scoped env, not machine setx)
-cab-cli start
-# or foreground: cargo run -p cab-srv
+cab service install --scope user     # ~/.cab — user service / LaunchAgent / Task Scheduler
+# sudo cab service install --scope system
+cab start
+cab gui
+# or foreground: cab serve
+# or from source: cargo run -p cab --bin cab -- serve
 ```
 
 See [Gateway & Auth](https://xiongdi.github.io/cab/guides/gateway-auth/) for scope / data paths.

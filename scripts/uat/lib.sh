@@ -65,9 +65,9 @@ PY
 uat_build_release() {
   local root
   root="$(uat_root)"
-  echo "== UAT: building release cab-srv =="
-  (cd "${root}" && cargo build --release -p cab-srv)
-  export CAB_UAT_SERVER_BIN="${root}/target/release/cab-srv"
+  echo "== UAT: building release cab =="
+  (cd "${root}" && cargo build --release -p cab)
+  export CAB_UAT_SERVER_BIN="${root}/target/release/cab"
 }
 
 uat_stop_managed_server() {
@@ -111,7 +111,7 @@ uat_start_packaged_server() {
   echo "== UAT: starting packaged server ${CAB_UAT_SERVER_BIN} on port ${GATEWAY_PORT} =="
   : >"${UAT_LOG_FILE}"
   cd "${root}"
-  nohup "${CAB_UAT_SERVER_BIN}" >>"${UAT_LOG_FILE}" 2>&1 &
+  nohup "${CAB_UAT_SERVER_BIN}" serve >>"${UAT_LOG_FILE}" 2>&1 &
   echo $! >"${UAT_PID_FILE}"
   cd - >/dev/null
   uat_wait_ready

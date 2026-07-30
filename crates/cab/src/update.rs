@@ -1,5 +1,5 @@
-//! `cab-cli update` — download the latest (or pinned) CLI release archive and
-//! replace the local `cab-cli` / `cab-srv` (+ UI) install.
+//! `cab update` — download the latest (or pinned) CLI release archive and
+//! replace the local `cab` binary (+ UI) install.
 
 use std::env;
 use std::fs;
@@ -74,13 +74,18 @@ fn install_root() -> PathBuf {
     PathBuf::from(home).join(".cab")
 }
 
-/// Directory that holds the running `cab-cli` (preferred) or `~/.cab/bin`.
+/// Directory that holds the running `cab` (preferred) or `~/.cab/bin`.
 fn resolve_bin_dir() -> Result<PathBuf, String> {
     if let Ok(exe) = env::current_exe()
         && let Some(dir) = exe.parent()
     {
-        let srv = dir.join(format!("cab-srv{}", exe_suffix()));
-        if srv.exists() || dir.join("cab-cli").exists() || dir.join("cab-cli.exe").exists() {
+        let name = format!("cab{}", exe_suffix());
+        if dir.join(&name).exists()
+            || exe
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| n.eq_ignore_ascii_case(&name))
+        {
             return Ok(dir.to_path_buf());
         }
     }
@@ -127,7 +132,7 @@ async fn fetch_release(tag: Option<&str>) -> Result<GhRelease, String> {
         None => format!("https://api.github.com/repos/{repo}/releases/latest"),
     };
     let client = reqwest::Client::builder()
-        .user_agent(format!("cab-cli/{}", current_version()))
+        .user_agent(format!("cab/{}", current_version()))
         .build()
         .map_err(|e| format!("http client: {e}"))?;
     let resp = client
@@ -150,7 +155,7 @@ async fn fetch_release(tag: Option<&str>) -> Result<GhRelease, String> {
 
 async fn download_to(url: &str, dest: &Path) -> Result<(), String> {
     let client = reqwest::Client::builder()
-        .user_agent(format!("cab-cli/{}", current_version()))
+        .user_agent(format!("cab/{}", current_version()))
         .build()
         .map_err(|e| format!("http client: {e}"))?;
     let resp = client
@@ -222,20 +227,20 @@ fn extract_archive(archive: &Path, dest: &Path, platform: Platform) -> Result<()
 }
 
 fn find_payload(extract_root: &Path, platform: Platform) -> Result<PathBuf, String> {
-    let cli_name = format!("cab-cli{}", platform.exe_suffix);
-    let direct = extract_root.join(&cli_name);
+    let bin_name = format!("cab{}", platform.exe_suffix);
+    let direct = extract_root.join(&bin_name);
     if direct.exists() {
         return Ok(extract_root.to_path_buf());
     }
     for entry in fs::read_dir(extract_root).map_err(|e| format!("read extract dir: {e}"))? {
         let entry = entry.map_err(|e| format!("read extract entry: {e}"))?;
         let path = entry.path();
-        if path.is_dir() && path.join(&cli_name).exists() {
+        if path.is_dir() && path.join(&bin_name).exists() {
             return Ok(path);
         }
     }
     Err(format!(
-        "archive does not contain {cli_name} (looked under {})",
+        "archive does not contain {bin_name} (looked under {})",
         extract_root.display()
     ))
 }
@@ -333,10 +338,8 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
     extract_archive(&archive, &extract, platform)?;
     let payload = find_payload(&extract, platform)?;
 
-    let cli_name = format!("cab-cli{}", platform.exe_suffix);
-    let srv_name = format!("cab-srv{}", platform.exe_suffix);
-    install_file(&payload.join(&cli_name), &bin_dir.join(&cli_name))?;
-    install_file(&payload.join(&srv_name), &bin_dir.join(&srv_name))?;
+    let bin_name = format!("cab{}", platform.exe_suffix);
+    install_file(&payload.join(&bin_name), &bin_dir.join(&bin_name))?;
 
     let ui_src = payload.join("ui");
     if ui_src.is_dir() {
@@ -350,12 +353,12 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
     write_install_meta(remote, platform, &bin_dir, &ui_dir);
     let _ = fs::remove_dir_all(&tmp);
 
-    println!("Updated binaries in {}", bin_dir.display());
+    println!("Updated binary in {}", bin_dir.display());
     match crate::service::start_daemon() {
         Ok(()) => println!("Service restarted."),
         Err(e) => println!("Warning: could not restart service: {e}"),
     }
-    println!("CAB {remote} ready. Run: cab-cli status");
+    println!("CAB {remote} ready. Run: cab status");
     Ok(())
 }
 

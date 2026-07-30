@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 use serde::Deserialize;
+use tracing_subscriber::EnvFilter;
 
 mod service;
 mod update;
@@ -10,7 +11,12 @@ use service::{
 };
 
 #[derive(Parser)]
-#[command(name = "cab-cli", about = "Coding Agents Bridge CLI", version)]
+#[command(
+    name = "cab",
+    about = "Coding Agents Bridge CLI",
+    version,
+    arg_required_else_help = true
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -18,15 +24,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the cab-srv daemon service
+    /// Run the gateway + API + UI in the foreground
+    Serve,
+    /// Ensure the gateway is up and open the dashboard in a browser
+    Gui,
+    /// Start the CAB daemon service
     Start,
-    /// Stop the cab-srv daemon service
+    /// Stop the CAB daemon service
     Stop,
-    /// Restart the cab-srv daemon service
+    /// Restart the CAB daemon service
     Restart,
-    /// Check the status of the cab-srv daemon and gateway
+    /// Check the status of the CAB daemon and gateway
     Status,
-    /// Show cab-srv daemon logs
+    /// Show CAB daemon logs
     Logs {
         #[arg(short, long)]
         follow: bool,
@@ -41,17 +51,17 @@ enum Commands {
         #[command(subcommand)]
         command: ProviderCommands,
     },
-    /// Manage cab-srv background service installation
+    /// Manage CAB background service installation
     Service {
         #[command(subcommand)]
         command: ServiceCommands,
     },
-    /// Update cab-cli / cab-srv from GitHub Releases
+    /// Update cab from GitHub Releases
     Update {
         /// Only check whether a newer release exists
         #[arg(long)]
         check: bool,
-        /// Install a specific version (e.g. 0.8.6 or v0.8.6)
+        /// Install a specific version (e.g. 0.9.0 or v0.9.0)
         #[arg(long)]
         version: Option<String>,
     },
@@ -83,13 +93,13 @@ enum ProviderCommands {
 
 #[derive(Subcommand)]
 enum ServiceCommands {
-    /// Install cab-srv as a user or system service
+    /// Install CAB as a user or system service
     Install {
         /// Service scope: user (default) or system (requires admin/root)
         #[arg(long, value_enum, default_value_t = ScopeArg::User)]
         scope: ScopeArg,
     },
-    /// Uninstall the installed cab-srv service
+    /// Uninstall the installed CAB service
     Uninstall,
 }
 
@@ -130,12 +140,57 @@ fn restart_daemon() -> Result<(), String> {
     start_daemon()
 }
 
-#[tokio::main]
-async fn main() {
+fn init_tracing() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,cab_gateway=debug,cab_api=debug")),
+        )
+        .init();
+}
+
+fn main() {
     apply_installed_cab_home();
 
+    #[cfg(windows)]
+    {
+        if std::env::args().any(|a| a == "--service") {
+            init_tracing();
+            if let Err(e) = cab_srv::windows_service::run_as_service() {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+            return;
+        }
+    }
+
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("Error: failed to start runtime: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    if let Err(e) = rt.block_on(async_main()) {
+        eprintln!("Error: {e}");
+        std::process::exit(1);
+    }
+}
+
+async fn async_main() -> Result<(), String> {
     let cli = Cli::parse();
-    let result = match cli.command {
+    match cli.command {
+        Commands::Serve => {
+            init_tracing();
+            cab_srv::run_server()
+                .await
+                .map_err(|e| format!("serve failed: {e}"))
+        }
+        Commands::Gui => open_gui().await,
         Commands::Start => start_daemon(),
         Commands::Stop => stop_daemon(),
         Commands::Restart => restart_daemon(),
@@ -162,11 +217,71 @@ async fn main() {
             ServiceCommands::Uninstall => uninstall_service(),
         },
         Commands::Update { check, version } => update::run_update(check, version).await,
-    };
+    }
+}
 
-    if let Err(e) = result {
-        eprintln!("Error: {}", e);
-        std::process::exit(1);
+fn resolve_gateway_port() -> u16 {
+    load_settings_from_db()
+        .map(|s| s.gateway_port as u16)
+        .unwrap_or(3125)
+}
+
+async fn open_gui() -> Result<(), String> {
+    let port = resolve_gateway_port();
+    if !check_api_alive(port).await {
+        println!("Gateway not reachable on :{port}; starting service…");
+        start_daemon()?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while std::time::Instant::now() < deadline {
+            if check_api_alive(port).await {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        }
+        if !check_api_alive(port).await {
+            return Err(format!(
+                "Gateway did not become ready on http://127.0.0.1:{port}/ within 30s. \
+                 Try: cab service install && cab start"
+            ));
+        }
+    }
+
+    let url = format!("http://127.0.0.1:{port}/");
+    open_browser(&url)?;
+    println!("Opened {url}");
+    Ok(())
+}
+
+fn open_browser(url: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(url)
+            .status()
+            .map_err(|e| format!("failed to open browser: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", url])
+            .status()
+            .map_err(|e| format!("failed to open browser: {e}"))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        for cmd in ["xdg-open", "gio", "gnome-open"] {
+            if std::process::Command::new(cmd)
+                .arg(url)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+            {
+                return Ok(());
+            }
+        }
+        Err(format!("Could not open a browser. Visit {url} manually."))
     }
 }
 
@@ -174,7 +289,7 @@ fn load_settings_from_db() -> Result<cab_core::types::Settings, String> {
     let path = cab_db::sqlite::db_path();
     if !path.exists() {
         return Err(
-            "CAB database does not exist. Please run 'cab-srv' or start the service to initialize."
+            "CAB database does not exist. Please run 'cab serve' or start the service to initialize."
                 .to_string(),
         );
     }

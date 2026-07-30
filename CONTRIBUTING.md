@@ -8,8 +8,7 @@ To build and run CAB locally, you need the following prerequisites installed on 
 
 1. **Rust Toolchain**: Install via [rustup](https://rustup.rs/) (edition 2024; repo `rust-toolchain.toml` pins `stable`).
 2. **Node.js & npm**: Install Node.js (v24 or higher, LTS).
-3. **OS-specific dependencies for Tauri**: Follow the [Tauri 2 Prerequisites Guide](https://v2.tauri.app/start/prerequisites/) (e.g., on Linux, you will need `libwebkit2gtk-4.1` and other system packages).
-4. **OpenSSL**: Required by the server component to dynamically generate local SSL certificates.
+3. **OpenSSL**: Required by the server component to dynamically generate local SSL certificates.
 
 ### Build and Run Steps
 
@@ -38,11 +37,11 @@ To build and run CAB locally, you need the following prerequisites installed on 
    npm run dev
    ```
 
-   > Do **not** stack a second gateway on port 3125. `cab-gui` talks to `cab-srv` / `dev:server` and does not embed its own server. See AGENTS.md for the full forbidden list and port-conflict resolution.
+   > Do **not** stack a second gateway on port 3125. See AGENTS.md for the full forbidden list and port-conflict resolution.
 
-4. **Desktop GUI / release testing** (separate from daily Vite+watch pair):
-   - **Tauri desktop app** (thin client over `cab-srv`): ensure `npm run dev:server` or a running `cab-srv`, then `npm run tauri:dev`
-   - **Headless release binary**: `cargo run -p cab-srv`
+4. **Foreground / release testing** (separate from daily Vite+watch pair):
+   - `cargo run -p cab --bin cab -- serve`
+   - Open the dashboard with `cab gui` (or visit `http://127.0.0.1:3125/`)
 
 5. **Binding to privileged ports (e.g., port 443 for DNS hijacking proxy)**:
    CAB needs `cap_net_bind_service` permission to run on port 443 without root on Linux. You can use the provided helper script:

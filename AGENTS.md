@@ -16,13 +16,13 @@
 含义：
 
 - **不论**开几个终端、几个 Cursor 会话、几个仓库目录——5173 与 3125 上**各只能有一个**监听进程。
-- **禁止** Tauri 与另一个占用同一 `gateway_port` 的 `cab-srv` **叠跑**（`cab-gui` 为薄客户端，应确保唯一 `cab-srv`/`dev:server`；不要再手动起第二个网关）。
+- **禁止** 叠跑第二个网关（`cab serve` / release `cab` 与 `dev:server` 争用 3125）。
 - **禁止** 第二个 `npm run dev`、第二个 Vite 实例占用 5173。
 - **禁止** 换端口绕过占用；**禁止** 不 kill 旧进程直接再起第二个实例。
 
 ## 端口占用：kill 后再起
 
-启动 `npm run dev` / `npm run dev:server` 时，若 5173 或 3125 **已被占用**（含僵尸 `cab-srv.exe`、旧 Vite、上次 crash 残留）：
+启动 `npm run dev` / `npm run dev:server` 时，若 5173 或 3125 **已被占用**（含僵尸 `cab`/`cab-srv`、旧 Vite、上次 crash 残留）：
 
 1. **Kill 占用进程**（不换端口）
 
@@ -64,15 +64,14 @@ npm run dev:server
 
 ## 禁止的启动方式
 
-| 禁止                                        | 原因                                |
-| ------------------------------------------- | ----------------------------------- |
-| `cargo run -p cab-srv`                      | 无 watch；易与 watch 实例冲突       |
-| `npm run dev:server:once`                   | 非 watch                            |
-| `target/**/cab-srv.exe` 直接运行            | 非 watch；应 kill 后用 `dev:server` |
-| 端口占用时改端口或叠第二个实例              | 破坏全局唯一                        |
-| `npm run tauri:dev` / `npm run tauri:start` | 与约定 dev 流程冲突                 |
-| `cargo build --release` 后单独起 server     | 发布流程，非日常 dev                |
-| 修改 5173 / 3125                            | 端口固定                            |
+| 禁止                                    | 原因                                |
+| --------------------------------------- | ----------------------------------- |
+| `cargo run -p cab -- serve`（无 watch） | 易与 watch 实例冲突                 |
+| `npm run dev:server:once`               | 非 watch                            |
+| `target/**/cab` 直接 `serve`（日常）    | 非 watch；应 kill 后用 `dev:server` |
+| 端口占用时改端口或叠第二个实例          | 破坏全局唯一                        |
+| `cargo build --release` 后单独起 server | 发布流程，非日常 dev                |
+| 修改 5173 / 3125                        | 端口固定                            |
 
 ## 验证
 
@@ -108,7 +107,7 @@ powershell -File scripts/test-cc-headless.ps1
 
    ```powershell
    powershell -File scripts/kill-dev-ports.ps1
-   Get-Process claude,cab-srv,cargo-watch -ErrorAction SilentlyContinue | Stop-Process -Force
+   Get-Process claude,cab,cab-srv,cargo-watch -ErrorAction SilentlyContinue | Stop-Process -Force
    ```
 
 2. **启动唯一 dev 套**（各 1 个进程）

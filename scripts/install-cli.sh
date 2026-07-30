@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
+# Build release cab and install to ~/.local/bin
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "Building cab-cli and cab-srv in release mode..."
-cargo build --release -p cab -p cab-srv
+echo "Building cab in release mode..."
+cargo build --release -p cab
 
 mkdir -p ~/.local/bin
+echo "Installing cab to ~/.local/bin/..."
+cp "$ROOT/target/release/cab" ~/.local/bin/
+chmod 755 ~/.local/bin/cab
 
-echo "Installing cab-cli and cab-srv to ~/.local/bin/..."
-cp "$ROOT/target/release/cab-cli" ~/.local/bin/
-cp "$ROOT/target/release/cab-srv" ~/.local/bin/
+echo "Installing cab systemd user service..."
+~/.local/bin/cab service install
+~/.local/bin/cab start || true
 
-echo "Installing cab-srv systemd user service..."
-~/.local/bin/cab-cli service install
-
-echo "Successfully installed cab-cli and cab-srv!"
+echo "Successfully installed cab!"
+echo "Open dashboard: cab gui"

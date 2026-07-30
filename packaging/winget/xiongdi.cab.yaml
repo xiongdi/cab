@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json
 
 PackageIdentifier: xiongdi.cab
-PackageVersion: 0.6.0
+PackageVersion: 0.9.0
 PackageName: CAB
 Publisher: xiongdi
 License: Auditable Commercial License v1.0
@@ -11,12 +11,14 @@ Tags:
   - gateway
   - llm
   - coding-agents
-  - tauri
 Installers:
   - Architecture: x64
-    InstallerType: wix
-    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.6.0/cab-gui_0.6.0_x64_en-US.msi
-    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000 # Replace with actual MSI checksum on release
-    ProductCode: '{00000000-0000-0000-0000-000000000000}' # Replace with actual product code on release
+    InstallerType: zip
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: cab.exe
+        PortableCommandAlias: cab
+    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.9.0/cab-windows-x64.zip
+    InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
 ManifestType: singleton
 ManifestVersion: 1.6.0

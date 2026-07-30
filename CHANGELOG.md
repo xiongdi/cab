@@ -5,6 +5,21 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-07-30
+
+### Changed
+
+- **Single `cab` binary (hard cut)**: ships only `cab` — no `cab-cli` / `cab-srv` / `cab-gui` aliases or desktop installers. Bare `cab` prints help; run `cab serve` for the foreground daemon, `cab gui` to start the gateway if needed and open the browser dashboard.
+- **Service units** launch `{install_dir}/cab serve` (Windows SCM still uses `cab --service`).
+- **Install / update** operate on one binary + `ui/` (`scripts/install.sh`, `cab update`, CLI release archives).
+- **Workspace**: `cab-srv` is library-only; Tauri (`src-tauri`) removed; release CI builds CLI archives without WebKit.
+
+### Migration from 0.8.x
+
+1. Uninstall the old service: `cab-cli service uninstall` (or stop/delete the `cab-srv` unit / task).
+2. Reinstall with the curl installer (or replace `~/.cab/bin` with the new archive).
+3. Use `cab …` thereafter; open the UI with `cab gui`. Desktop `.dmg` / `.msi` / AppImage packages are no longer shipped.
+
 ## [0.8.7] - 2026-07-30
 
 ### Added

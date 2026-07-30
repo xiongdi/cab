@@ -28,7 +28,7 @@ uat_start_packaged_server
 export CAB_RUN_UAT=1
 export CAB_UAT_CA_TIMEOUT="${CAB_UAT_CA_TIMEOUT:-300}"
 
-echo "== UAT: packaged cab-srv at ${CAB_UAT_BASE_URL} =="
+echo "== UAT: packaged cab serve at ${CAB_UAT_BASE_URL} =="
 echo "== UAT: real CA CLIs (claude, codex, opencode, …) =="
 echo "== Report: ${CAB_UAT_REPORT} =="
 

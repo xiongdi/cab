@@ -36,17 +36,12 @@ import type {
 
 let resolvedPort: number | null = null;
 
-function isTauriRuntime(): boolean {
-  if (typeof window === 'undefined') return false;
-  return '__TAURI_INTERNALS__' in window || '__TAURI__' in window;
-}
-
 async function getApiBase(): Promise<string> {
   if (resolvedPort !== null) {
     return `http://127.0.0.1:${resolvedPort}/api`;
   }
 
-  // UI served by cab-srv — same origin (any configured gateway port).
+  // UI served by cab — same origin (any configured gateway port).
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const port = window.location.port;
@@ -68,18 +63,6 @@ async function getApiBase(): Promise<string> {
       const implied = protocol === 'https:' ? 443 : 80;
       resolvedPort = implied;
       return `${protocol}//${host}/api`;
-    }
-  }
-
-  // Tauri asset protocol: ask Rust for the gateway port.
-  if (isTauriRuntime()) {
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const port = await invoke<number>('get_gateway_port');
-      resolvedPort = port;
-      return `http://127.0.0.1:${port}/api`;
-    } catch (e) {
-      console.warn('Failed to get gateway port from Tauri, using default 3125', e);
     }
   }
 

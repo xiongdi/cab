@@ -3,15 +3,10 @@ name = "cab-srv"
 version.workspace = true
 edition.workspace = true
 license-file.workspace = true
-default-run = "cab-srv"
 
 [lib]
 name = "cab_srv"
 path = "src/lib.rs"
-
-[[bin]]
-name = "cab-srv"
-path = "src/main.rs"
 
 [dependencies]
 cab-core = { path = "../cab-core" }

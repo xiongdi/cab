@@ -263,7 +263,7 @@ fn stop_user() -> Result<(), String> {
     let _ = run_cmd("schtasks", &["/End", "/TN", "CAB\\cab-srv"]);
     // Graceful first (WM_CLOSE equivalent for console apps), then force.
     let soft = std::process::Command::new("taskkill")
-        .args(["/IM", "cab-srv.exe"])
+        .args(["/IM", "cab.exe"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
@@ -271,7 +271,7 @@ fn stop_user() -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(800));
     }
     if is_active_user() {
-        let _ = run_cmd("taskkill", &["/F", "/IM", "cab-srv.exe"]);
+        let _ = run_cmd("taskkill", &["/F", "/IM", "cab.exe"]);
     }
     Ok(())
 }
@@ -282,10 +282,10 @@ fn stop_system() -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn is_active_user() -> bool {
     std::process::Command::new("tasklist")
-        .args(["/FI", "IMAGENAME eq cab-srv.exe"])
+        .args(["/FI", "IMAGENAME eq cab.exe"])
         .output()
         .ok()
-        .map(|o| String::from_utf8_lossy(&o.stdout).contains("cab-srv.exe"))
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains("cab.exe"))
         .unwrap_or(false)
 }
 #[cfg(target_os = "windows")]

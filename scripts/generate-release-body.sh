@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Generate GitHub Release notes from CHANGELOG.md for a given tag (e.g. v0.1.2).
+# Generate GitHub Release notes from CHANGELOG.md for a given tag (e.g. v0.9.0).
 set -euo pipefail
 
-TAG="${1:?usage: generate-release-body.sh <tag>  (e.g. v0.1.2)}"
+TAG="${1:?usage: generate-release-body.sh <tag>  (e.g. v0.9.0)}"
 VERSION="${TAG#v}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUTPUT="${ROOT}/.github/release-body.md"
@@ -39,7 +39,7 @@ mkdir -p "$(dirname "$OUTPUT")"
 cat >"$OUTPUT" <<EOF
 ## Highlights / 亮点
 
-- Desktop installers for Windows, macOS, and Linux (x64 + ARM64 where applicable).
+- Single \`cab\` binary: gateway + API + dashboard UI (browser).
 - Local LLM gateway for coding agents at \`http://127.0.0.1:3125/v1\`.
 - Official site: [English](https://xiongdi.github.io/cab/) · [简体中文](https://xiongdi.github.io/cab/zh-cn/)
 
@@ -51,71 +51,28 @@ ${CHANGELOG_SECTION}
 
 ---
 
-## System requirements / 系统要求
-
-| Platform | Minimum | Architectures | Notes |
-| -------- | ------- | ------------- | ----- |
-| **Windows** | Windows **7+** | x64, ARM64 | [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) required (Tauri 2) |
-| **macOS** | **10.15+** Catalina | Intel + Apple Silicon | Separate Intel / Apple Silicon \`.dmg\` (Tauri 2) |
-| **Linux** | WebKitGTK **4.1** + glibc **2.35+** | x64, ARM64 | Built on Ubuntu 22.04; e.g. Ubuntu 22.04+, Debian 12+ (Tauri 2) |
-
-| 平台 | 最低版本 | 架构 | 说明 |
-| ---- | -------- | ---- | ---- |
-| **Windows** | Windows **7+** | x64、ARM64 | 需 [WebView2 运行时](https://developer.microsoft.com/microsoft-edge/webview2/)（Tauri 2） |
-| **macOS** | **10.15+** Catalina | Intel + Apple Silicon | 独立 Intel / Apple Silicon \`.dmg\`（Tauri 2） |
-| **Linux** | WebKitGTK **4.1** + glibc **2.35+** | x64、ARM64 | 在 Ubuntu 22.04 构建；如 Ubuntu 22.04+、Debian 12+（Tauri 2） |
-
----
-
 ## Download & install / 下载与安装
 
-### CLI (curl | bash)
+### One-line install (Linux / macOS / Git Bash)
 
 \`\`\`bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
-cab-cli update
+cab gui
+cab update
 \`\`\`
 
 Archives on this release: \`cab-linux-x64.tar.gz\`, \`cab-linux-arm64.tar.gz\`, \`cab-darwin-x64.tar.gz\`, \`cab-darwin-arm64.tar.gz\`, \`cab-windows-x64.zip\`, \`cab-windows-arm64.zip\`.
 
-### Windows
-
-| Device | File | Notes |
-| ------ | ---- | ----- |
-| PC x64 | \`CAB_${VERSION}_x64_zh-CN.msi\` | Chinese installer UI |
-| PC x64 | \`CAB_${VERSION}_x64_en-US.msi\` | English installer UI |
-| PC x64 | \`CAB_${VERSION}_x64-setup.exe\` | NSIS — language selector at install |
-| ARM PC | \`CAB_${VERSION}_arm64_zh-CN.msi\` | ARM64, Chinese UI |
-| ARM PC | \`CAB_${VERSION}_arm64_en-US.msi\` | ARM64, English UI |
-| ARM PC | \`CAB_${VERSION}_arm64-setup.exe\` | ARM64 NSIS |
-
-### macOS
-
-| Chip | File | Notes |
-| ---- | ---- | ----- |
-| Intel | \`CAB_${VERSION}_x64.dmg\` | Intel Mac (x86_64) |
-| Apple Silicon | \`CAB_${VERSION}_arm64.dmg\` | Apple Silicon Mac (M1–M4) |
-
-### Linux
-
-| Distro | File | Install |
-| ------ | ---- | ------- |
-| Debian/Ubuntu x64 | \`CAB_${VERSION}_amd64.deb\` | \`sudo dpkg -i CAB_${VERSION}_amd64.deb\` |
-| Debian/Ubuntu ARM64 | \`CAB_${VERSION}_arm64.deb\` | \`sudo dpkg -i CAB_${VERSION}_arm64.deb\` |
-| Fedora/RHEL x64 | \`CAB-${VERSION}-1.x86_64.rpm\` | \`sudo rpm -i CAB-${VERSION}-1.x86_64.rpm\` |
-| Fedora/RHEL ARM64 | \`CAB-${VERSION}-1.aarch64.rpm\` | \`sudo rpm -i CAB-${VERSION}-1.aarch64.rpm\` |
-| Portable | \`CAB_${VERSION}_amd64.AppImage\` / \`CAB_${VERSION}_aarch64.AppImage\` | \`chmod +x\` then run |
-
-RPM 文件名中的 \`-1\` 为 Release 号，非应用版本。
+Desktop \`.dmg\` / \`.msi\` / AppImage installers are no longer shipped (use the CLI + browser dashboard).
 
 ---
 
 ## Quick start / 快速开始
 
-1. Install and launch **CAB** / 安装并启动 **CAB**
-2. Add LLM API keys under **Providers** / 在 **提供商** 中添加 API Key
-3. Point your agent to \`http://127.0.0.1:3125/v1\` / 将代理指向 \`http://127.0.0.1:3125/v1\`
-4. Use **Agents** to switch agent configs / 在 **代理** 中切换 Agent 配置
+1. Install with the curl installer / 用 curl 安装
+2. Open the dashboard: \`cab gui\` / 打开仪表盘
+3. Add LLM API keys under **Providers** / 在 **提供商** 中添加 API Key
+4. Point your agent to \`http://127.0.0.1:3125/v1\` / 将代理指向 \`http://127.0.0.1:3125/v1\`
 EOF
 
 echo "Wrote $OUTPUT"

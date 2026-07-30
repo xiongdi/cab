@@ -19,9 +19,9 @@ function run(cmd, args) {
 // 1. Build the Svelte frontend assets
 run('npm', ['run', 'build']);
 
-// 2. Build the Rust release binaries
+// 2. Build the Rust release binary
 const targetFlag = process.env.CAB_CARGO_TARGET ? ['--target', process.env.CAB_CARGO_TARGET] : [];
-run('cargo', ['build', '--release', '-p', 'cab', '-p', 'cab-srv', ...targetFlag]);
+run('cargo', ['build', '--release', '-p', 'cab', ...targetFlag]);
 
 // 3. Create the unified resources directories
 const resourcesBinDir = join(ROOT, 'resources', 'bin');
@@ -36,20 +36,15 @@ const targetDir = cargoTarget
   ? join(ROOT, 'target', cargoTarget, 'release')
   : join(ROOT, 'target', 'release');
 
-// 5. Copy the compiled binaries to resources/bin
+// 5. Copy the compiled binary to resources/bin
 const ext = IS_WINDOWS ? '.exe' : '';
-const cabSrc = join(targetDir, `cab-cli${ext}`);
-const cabSrvSrc = join(targetDir, `cab-srv${ext}`);
-const cabDst = join(resourcesBinDir, `cab-cli${ext}`);
-const cabSrvDst = join(resourcesBinDir, `cab-srv${ext}`);
+const cabSrc = join(targetDir, `cab${ext}`);
+const cabDst = join(resourcesBinDir, `cab${ext}`);
 
 console.log(`Copying ${cabSrc} to ${cabDst}`);
 copyFileSync(cabSrc, cabDst);
 
-console.log(`Copying ${cabSrvSrc} to ${cabSrvDst}`);
-copyFileSync(cabSrvSrc, cabSrvDst);
-
-// 6. Copy built frontend to resources/ui for cab-srv to serve
+// 6. Copy built frontend to resources/ui for `cab serve` to serve
 const buildDir = join(ROOT, 'build');
 if (!existsSync(buildDir)) {
   console.error(`Frontend build directory missing: ${buildDir}`);

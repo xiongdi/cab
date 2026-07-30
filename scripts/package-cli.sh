@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Package cab-cli + cab-srv + UI into a release archive for the curl installer.
+# Package cab + UI into a release archive for the curl installer.
 #
 # Usage:
 #   ./scripts/package-cli.sh <os> <arch> [outdir]
@@ -9,8 +9,7 @@
 #   ./scripts/package-cli.sh darwin arm64 dist/cli
 #
 # Expects:
-#   resources/bin/cab-cli[.exe]
-#   resources/bin/cab-srv[.exe]
+#   resources/bin/cab[.exe]
 #   resources/ui/   (or build/ as fallback)
 set -euo pipefail
 
@@ -43,18 +42,15 @@ bin_dir="${ROOT}/resources/bin"
 ui_src="${ROOT}/resources/ui"
 [[ -d "$ui_src" ]] || ui_src="${ROOT}/build"
 
-cli="${bin_dir}/cab-cli${ext}"
-srv="${bin_dir}/cab-srv${ext}"
+cab="${bin_dir}/cab${ext}"
 
-[[ -f "$cli" ]] || { echo "missing $cli — run npm run tauri:pre-build first" >&2; exit 1; }
-[[ -f "$srv" ]] || { echo "missing $srv — run npm run tauri:pre-build first" >&2; exit 1; }
+[[ -f "$cab" ]] || { echo "missing $cab — run npm run pre-build first" >&2; exit 1; }
 [[ -d "$ui_src" ]] || { echo "missing UI at $ui_src — run npm run build first" >&2; exit 1; }
 
 stage="${OUTDIR}/stage-cab-${OS}-${ARCH}"
 rm -rf "$stage"
 mkdir -p "$stage/ui"
-cp "$cli" "$stage/"
-cp "$srv" "$stage/"
+cp "$cab" "$stage/"
 # copy UI contents into stage/ui
 cp -R "${ui_src}/." "$stage/ui/"
 
@@ -67,12 +63,12 @@ rm -f "$out_path"
   # Write to parent of stage (== OUTDIR) via a relative path so PowerShell on
   # Windows Git Bash does not see an MSYS path like /d/a/... (invalid for Win32).
   if [[ "$archive_ext" == "tar.gz" ]]; then
-    tar -czf "../${asset}" "cab-cli${ext}" "cab-srv${ext}" ui
+    tar -czf "../${asset}" "cab${ext}" ui
   elif command -v zip >/dev/null 2>&1; then
-    zip -qr "../${asset}" "cab-cli${ext}" "cab-srv${ext}" ui
+    zip -qr "../${asset}" "cab${ext}" ui
   else
     powershell.exe -NoProfile -NonInteractive -Command \
-      "Compress-Archive -Path 'cab-cli${ext}','cab-srv${ext}','ui' -DestinationPath '..\\${asset}' -Force"
+      "Compress-Archive -Path 'cab${ext}','ui' -DestinationPath '..\\${asset}' -Force"
   fi
 )
 

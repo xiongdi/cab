@@ -1,4 +1,4 @@
-name: Build Tauri App
+name: Build CLI
 
 on:
   push:
@@ -34,10 +34,10 @@ jobs:
               --notes-file .github/release-body.md
           fi
 
-  build-tauri:
+  build-cli:
     needs: prepare-release
     if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
-    name: Build (${{ matrix.platform }}${{ matrix.args != '' && ' - ' || '' }}${{ matrix.args }})
+    name: Build (${{ matrix.platform }} / ${{ matrix.arch }})
     permissions:
       contents: write
     strategy:
@@ -45,43 +45,30 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-            target: 'x86_64-apple-darwin'
-            arch: 'x64'
+            os: darwin
+            arch: x64
             cargo_target: 'x86_64-apple-darwin'
-            path: 'target/x86_64-apple-darwin/release/bundle/**'
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-            arch: 'arm64'
+            os: darwin
+            arch: arm64
             cargo_target: 'aarch64-apple-darwin'
-            path: 'target/aarch64-apple-darwin/release/bundle/**'
           - platform: 'windows-latest'
-            args: ''
-            target: ''
-            arch: 'x64'
+            os: windows
+            arch: x64
             cargo_target: ''
-            path: 'target/release/bundle/**'
           - platform: 'windows-latest'
-            args: '--target aarch64-pc-windows-msvc'
-            target: 'aarch64-pc-windows-msvc'
-            arch: 'arm64'
-            cargo_target: ''
-            path: 'target/aarch64-pc-windows-msvc/release/bundle/**'
-          # Ubuntu 22.04 keeps glibc ≤ 2.35 so packages run on Deepin 25 / older distros.
-          # ubuntu-latest (24.04) links against glibc 2.39 and breaks those systems.
+            os: windows
+            arch: arm64
+            cargo_target: 'aarch64-pc-windows-msvc'
+          # Ubuntu 22.04 keeps glibc ≤ 2.35 for older distros.
           - platform: 'ubuntu-22.04'
-            args: ''
-            target: ''
-            arch: 'x64'
+            os: linux
+            arch: x64
             cargo_target: ''
-            path: 'target/release/bundle/**'
           - platform: 'ubuntu-22.04-arm'
-            args: ''
-            target: ''
-            arch: 'arm64'
+            os: linux
+            arch: arm64
             cargo_target: ''
-            path: 'target/release/bundle/**'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -103,20 +90,14 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.platform }}
-
-      - name: Install system dependencies (Linux)
-        if: startsWith(matrix.platform, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          key: ${{ matrix.platform }}-${{ matrix.arch }}
 
       - name: Install macOS target
-        if: matrix.platform == 'macos-latest'
+        if: matrix.cargo_target != '' && startsWith(matrix.platform, 'macos')
         run: rustup target add ${{ matrix.cargo_target }}
 
       - name: Install Windows ARM64 target
-        if: matrix.target == 'aarch64-pc-windows-msvc'
+        if: matrix.cargo_target == 'aarch64-pc-windows-msvc'
         run: rustup target add aarch64-pc-windows-msvc
 
       - name: Build Frontend
@@ -124,27 +105,33 @@ jobs:
           npx svelte-kit sync
           vp build
 
-      - name: Build Tauri App
-        uses: tauri-apps/tauri-action@v0
+      - name: Build cab binary
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CAB_CARGO_TARGET: ${{ matrix.cargo_target }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'CAB ${{ github.ref_name }}'
-          releaseDraft: true
-          prerelease: false
-          args: ${{ matrix.args }}
+        run: |
+          TARGET_ARGS=()
+          if [[ -n "${CAB_CARGO_TARGET}" ]]; then
+            TARGET_ARGS=(--target "${CAB_CARGO_TARGET}")
+          fi
+          cargo build --release -p cab "${TARGET_ARGS[@]}"
+          EXT=""
+          if [[ "${{ matrix.os }}" == "windows" ]]; then EXT=".exe"; fi
+          if [[ -n "${CAB_CARGO_TARGET}" ]]; then
+            SRC="target/${CAB_CARGO_TARGET}/release/cab${EXT}"
+          else
+            SRC="target/release/cab${EXT}"
+          fi
+          mkdir -p resources/bin
+          cp "$SRC" "resources/bin/cab${EXT}"
+          rm -rf resources/ui
+          cp -R build resources/ui
 
-      - name: Package CLI archive (cab-cli + cab-srv + ui)
+      - name: Package CLI archive
         shell: bash
         run: |
           chmod +x scripts/package-cli.sh scripts/install.sh
-          if [[ "${{ matrix.platform }}" == macos* ]]; then OS=darwin
-          elif [[ "${{ matrix.platform }}" == windows* ]]; then OS=windows
-          else OS=linux
-          fi
-          ./scripts/package-cli.sh "$OS" "${{ matrix.arch }}" dist/cli
+          ./scripts/package-cli.sh "${{ matrix.os }}" "${{ matrix.arch }}" dist/cli
 
       - name: Upload CLI archive to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -152,10 +139,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ matrix.platform }}" == macos* ]]; then OS=darwin
-          elif [[ "${{ matrix.platform }}" == windows* ]]; then OS=windows
-          else OS=linux
-          fi
+          OS="${{ matrix.os }}"
           ARCH="${{ matrix.arch }}"
           if [[ "$OS" == "windows" ]]; then
             ASSET="dist/cli/cab-${OS}-${ARCH}.zip"
@@ -167,8 +151,6 @@ jobs:
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: cab-gui-${{ matrix.platform }}-${{ matrix.arch }}
-          path: |
-            ${{ matrix.path }}
-            dist/cli/*
-          if-no-files-found: warn
+          name: cab-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/cli/*
+          if-no-files-found: error
