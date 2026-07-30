@@ -273,7 +273,10 @@ fn stop_user() -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(800));
     }
     if is_active_user() {
-        let _ = run_cmd("taskkill", &["/F", "/IM", "cab.exe", "/FI", &format!("PID ne {self_pid}")]);
+        let _ = run_cmd(
+            "taskkill",
+            &["/F", "/IM", "cab.exe", "/FI", &format!("PID ne {self_pid}")],
+        );
     }
     Ok(())
 }

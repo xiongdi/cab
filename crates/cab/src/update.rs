@@ -322,8 +322,7 @@ fn schedule_post_exit_replace(
     let staging_ui = tmp_dir.join("ui");
 
     // Copy new binary + UI into the staging dir ( survives the current process ).
-    fs::copy(new_src, &staging_bin)
-        .map_err(|e| format!("stage binary: {e}"))?;
+    fs::copy(new_src, &staging_bin).map_err(|e| format!("stage binary: {e}"))?;
     if ui_src.is_dir() {
         if staging_ui.exists() {
             fs::remove_dir_all(&staging_ui).ok();
@@ -356,8 +355,7 @@ fn schedule_post_exit_replace(
         cab_ui.display(),
         version,
     );
-    fs::write(&script_path, script_content)
-        .map_err(|e| format!("write apply script: {e}"))?;
+    fs::write(&script_path, script_content).map_err(|e| format!("write apply script: {e}"))?;
 
     // Spawn the script in a new window ( hidden via wscript ).
     let vbs_path = tmp_dir.join("cab-update-apply.vbs");
@@ -462,7 +460,8 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
 
         if ui_src.is_dir() {
             if ui_dir.exists() {
-                fs::remove_dir_all(&ui_dir).map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
+                fs::remove_dir_all(&ui_dir)
+                    .map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
             }
             copy_dir_recursive(&ui_src, &ui_dir)?;
             println!("Updated UI → {}", ui_dir.display());
