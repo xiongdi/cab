@@ -58,21 +58,21 @@ cp "$srv" "$stage/"
 # copy UI contents into stage/ui
 cp -R "${ui_src}/." "$stage/ui/"
 
-mkdir -p "$OUTDIR"
 asset="cab-${OS}-${ARCH}.${archive_ext}"
 out_path="${OUTDIR}/${asset}"
 rm -f "$out_path"
 
 (
   cd "$stage"
+  # Write to parent of stage (== OUTDIR) via a relative path so PowerShell on
+  # Windows Git Bash does not see an MSYS path like /d/a/... (invalid for Win32).
   if [[ "$archive_ext" == "tar.gz" ]]; then
-    tar -czf "$out_path" "cab-cli${ext}" "cab-srv${ext}" ui
+    tar -czf "../${asset}" "cab-cli${ext}" "cab-srv${ext}" ui
   elif command -v zip >/dev/null 2>&1; then
-    zip -qr "$out_path" "cab-cli${ext}" "cab-srv${ext}" ui
+    zip -qr "../${asset}" "cab-cli${ext}" "cab-srv${ext}" ui
   else
-    # Windows runners: PowerShell Compress-Archive
     powershell.exe -NoProfile -NonInteractive -Command \
-      "Compress-Archive -Path 'cab-cli${ext}','cab-srv${ext}','ui' -DestinationPath '$out_path' -Force"
+      "Compress-Archive -Path 'cab-cli${ext}','cab-srv${ext}','ui' -DestinationPath '..\\${asset}' -Force"
   fi
 )
 
