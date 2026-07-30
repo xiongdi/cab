@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4] - 2026-07-30
+
+### Fixed
+
+- **`cab service install` no longer fails when the scheduled task already exists with elevated ACLs**: `install_user()` now tries to delete the existing task before re-creating it, and if both delete and create fail with "Access denied" (e.g. the task was created in a previous elevated session), it falls back to a warning instead of failing the whole install. The updated launcher files (VBS/CMD) are already in place, so the existing task will use them on next start. This fixes the `错误: 拒绝访问` error during `irm | iex` re-install on Windows.
+
 ## [0.9.3] - 2026-07-30
 
 ### Fixed

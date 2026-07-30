@@ -834,6 +834,10 @@ fn install_user(
     };
     fs::write(&xml_path, utf16).map_err(|e| e.to_string())?;
 
+    // Delete any pre-existing task first — schtasks /Create /F can still fail
+    // with "Access denied" when the existing task has different ACLs.
+    let deleted = run_cmd("schtasks", &["/Delete", "/TN", "CAB\\cab-srv", "/F"]).is_ok();
+
     let xml_err = match run_cmd(
         "schtasks",
         &[
@@ -851,7 +855,7 @@ fn install_user(
 
     // Fallback when /XML is denied (e.g. prior elevated task ACLs): plain /TR create.
     let tr = format!("wscript.exe \"{}\"", vbs.display());
-    run_cmd(
+    match run_cmd(
         "schtasks",
         &[
             "/Create",
@@ -865,9 +869,24 @@ fn install_user(
             "LIMITED",
             "/F",
         ],
-    )
-    .map_err(|e| format!("Failed to register scheduled task (XML: {xml_err}; /TR: {e})"))?;
-    Ok(())
+    ) {
+        Ok(()) => return Ok(()),
+        Err(e) => {
+            // If the task already exists (delete failed) and is still registered,
+            // the updated VBS/CMD files are already in place — the existing task
+            // will use them on next start.  Don't fail the whole install.
+            if !deleted {
+                eprintln!(
+                    "Warning: could not re-register scheduled task (access denied). \
+                     Existing task will be used with updated launcher files."
+                );
+                return Ok(());
+            }
+            return Err(format!(
+                "Failed to register scheduled task (XML: {xml_err}; /TR: {e})"
+            ));
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
