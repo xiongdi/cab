@@ -175,7 +175,19 @@ cab_src="${payload}/cab"
 # Replace binaries atomically where possible.
 copy_bin() {
   local src=$1 dst=$2
-  if command -v install >/dev/null 2>&1; then
+  if [[ "$os" == "windows" ]]; then
+    # Stop any running CAB service so cab.exe is not locked (Windows file locking).
+    if command -v schtasks >/dev/null 2>&1; then
+      schtasks //End //TN "CAB\\cab-srv" //F >/dev/null 2>&1 || true
+      sleep 0.3
+    fi
+    if command -v taskkill >/dev/null 2>&1; then
+      taskkill //F //IM cab.exe >/dev/null 2>&1 || true
+      sleep 0.5
+    fi
+    # Use cmd copy on Windows for better share-mode handling.
+    cmd //c copy //Y "$src" "$dst" >/dev/null 2>&1 || cp "$src" "$dst"
+  elif command -v install >/dev/null 2>&1; then
     install -m 755 "$src" "$dst"
   else
     cp "$src" "$dst"

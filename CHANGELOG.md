@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.3] - 2026-07-30
+
+### Fixed
+
+- **PowerShell installer file-lock on upgrade**: `install.ps1` (and `install.sh`) now stop any running CAB service (`schtasks /End`, `taskkill /IM cab.exe`) before replacing `cab.exe`, and fall back to `cmd /c copy /Y` if `Copy-Item` still fails. This resolves "The process cannot access the file because it is being used by another process" when re-running the one-line installer with CAB already installed and running.
+
 ## [0.9.2] - 2026-07-30
 
 ### Fixed

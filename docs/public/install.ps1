@@ -92,7 +92,24 @@ try {
     }
 
     $cabDst = Join-Path $binDir 'cab.exe'
-    Copy-Item -Path $cabSrc -Destination $cabDst -Force
+
+    # Stop any running CAB service so cab.exe is not locked.
+    Write-Muted 'Stopping existing CAB service…'
+    schtasks /End /TN "CAB\cab-srv" /F 2>$null
+    Start-Sleep -Milliseconds 300
+    taskkill /F /IM cab.exe 2>$null
+    Start-Sleep -Milliseconds 500
+
+    try {
+        Copy-Item -Path $cabSrc -Destination $cabDst -Force
+    } catch {
+        # Windows may still refuse the copy (AV scan, etc.) — fall back to cmd copy.
+        Write-Muted 'Copy-Item blocked, falling back to cmd /c copy /Y…'
+        cmd /c copy /Y $cabSrc $cabDst | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to replace $cabDst : $_"
+        }
+    }
 
     $uiSrc = Join-Path $payload 'ui'
     if (Test-Path $uiSrc) {
