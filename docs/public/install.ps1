@@ -113,8 +113,11 @@ try {
 
     $uiSrc = Join-Path $payload 'ui'
     if (Test-Path $uiSrc) {
-        if (Test-Path $uiDir) { Remove-Item -Recurse -Force $uiDir }
-        Copy-Item -Path $uiSrc -Destination $uiDir -Recurse -Force
+        # Use robocopy /MIR to mirror the UI directory — handles existing dirs,
+        # locked files (e.g. browser open), and is the Windows-native tool.
+        # robocopy exit codes < 8 are success.
+        Write-Muted 'Updating UI…'
+        $null = (Start-Process robocopy -ArgumentList @($uiSrc, $uiDir, '/MIR', '/NFL', '/NDL', '/NJH', '/NJS') -Wait -PassThru -NoNewWindow)
     }
 
     $meta = @{
