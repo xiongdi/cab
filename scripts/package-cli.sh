@@ -28,6 +28,10 @@ case "$ARCH" in
   *) echo "arch must be x64|arm64" >&2; exit 1 ;;
 esac
 
+mkdir -p "$OUTDIR"
+# CI may pass a relative outdir; canonicalize before we `cd` into the stage tree.
+OUTDIR="$(cd "$OUTDIR" && pwd)"
+
 ext=""
 archive_ext="tar.gz"
 if [[ "$OS" == "windows" ]]; then
