@@ -262,7 +262,25 @@ fn install_file(src: &Path, dst: &Path) -> Result<(), String> {
         fs::set_permissions(&tmp, perms).map_err(|e| format!("chmod {}: {e}", tmp.display()))?;
     }
     fs::rename(&tmp, dst).or_else(|_| {
-        // Windows may refuse rename over a running exe — try direct copy.
+        // Windows may refuse rename over a running exe — try shell copy which
+        // uses different sharing semantics and can overwrite an in-use binary.
+        #[cfg(windows)]
+        {
+            let status = std::process::Command::new("cmd")
+                .args(["/C", "copy", "/Y"])
+                .arg(src)
+                .arg(dst)
+                .status()
+                .map_err(|e| format!("cmd copy failed: {e}"))?;
+            if status.success() {
+                return Ok(());
+            }
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = &dst;
+        }
+        // Last resort: direct copy (works on Unix; on Windows may fail if locked).
         fs::copy(src, dst).map(|_| ()).map_err(|e| {
             format!(
                 "replace {}: {e} (stop the service and retry if the file is locked)",
@@ -286,7 +304,81 @@ fn write_install_meta(version: &str, platform: Platform, bin_dir: &Path, ui_dir:
     let _ = fs::write(root.join("install.json"), meta);
 }
 
-/// Check / download / apply a CLI release update.
+/// Windows-only: write a batch script that replaces the binary + UI after the
+/// current process exits (since Windows locks the running executable).
+#[cfg(windows)]
+fn schedule_post_exit_replace(
+    bin_dir: &Path,
+    bin_name: &str,
+    new_src: &Path,
+    ui_src: &Path,
+    ui_dir: &Path,
+    tmp_dir: &Path,
+    version: &str,
+) -> Result<(), String> {
+    let cab_exe = bin_dir.join(bin_name);
+    let cab_ui = ui_dir;
+    let staging_bin = tmp_dir.join(bin_name);
+    let staging_ui = tmp_dir.join("ui");
+
+    // Copy new binary + UI into the staging dir ( survives the current process ).
+    fs::copy(new_src, &staging_bin)
+        .map_err(|e| format!("stage binary: {e}"))?;
+    if ui_src.is_dir() {
+        if staging_ui.exists() {
+            fs::remove_dir_all(&staging_ui).ok();
+        }
+        copy_dir_recursive(ui_src, &staging_ui)?;
+    }
+
+    // Generate a batch script that will replace + restart after exit.
+    let script_path = tmp_dir.join("cab-update-apply.cmd");
+    let script_content = format!(
+        "@echo off\r\n\
+         chcp 65001 >nul\r\n\
+         timeout /t 2 /nobreak >nul\r\n\
+         net start \"Task Scheduler\" >nul 2>&1\r\n\
+         schtasks /End /TN CAB\\cab-srv /F >nul 2>&1\r\n\
+         timeout /t 1 /nobreak >nul\r\n\
+         copy /Y \"{}\" \"{}\" >nul\r\n\
+         if exist \"{}\" (\r\n\
+         rmdir /s /q \"{}\" >nul 2>&1\r\n\
+         xcopy /E /I /Y \"{}\" \"{}\" >nul\r\n\
+         )\r\n\
+         schtasks /Run /TN CAB\\cab-srv >nul 2>&1\r\n\
+         echo CAB {} installed successfully.\r\n\
+         del /q \"%~f0\" >nul 2>&1\r\n",
+        staging_bin.display(),
+        cab_exe.display(),
+        staging_ui.display(),
+        cab_ui.display(),
+        staging_ui.display(),
+        cab_ui.display(),
+        version,
+    );
+    fs::write(&script_path, script_content)
+        .map_err(|e| format!("write apply script: {e}"))?;
+
+    // Spawn the script in a new window ( hidden via wscript ).
+    let vbs_path = tmp_dir.join("cab-update-apply.vbs");
+    let vbs = format!(
+        "Set sh = CreateObject(\"WScript.Shell\")\r\n\
+         sh.Run \"cmd /c \"\"{}\"\"\", 0, False\r\n",
+        script_path.display()
+    );
+    fs::write(&vbs_path, vbs).map_err(|e| format!("write vbs: {e}"))?;
+
+    let status = std::process::Command::new("wscript.exe")
+        .arg(&vbs_path)
+        .status()
+        .map_err(|e| format!("spawn apply script: {e}"))?;
+    if !status.success() {
+        return Err("Failed to spawn post-exit updater".into());
+    }
+    Ok(())
+}
+
+/// Update flow entry point.
 pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(), String> {
     let platform = detect_platform()?;
     let wanted = asset_name(platform);
@@ -324,7 +416,7 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
     let ui_dir = resolve_ui_dir(&bin_dir);
     println!("Install dir: {}", bin_dir.display());
 
-    // Best-effort stop so binaries can be replaced.
+    // Best-effort stop so other cab.exe processes are gone.
     let _ = crate::service::stop_daemon();
 
     let tmp = env::temp_dir().join(format!("cab-update-{}", std::process::id()));
@@ -339,27 +431,54 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
     let payload = find_payload(&extract, platform)?;
 
     let bin_name = format!("cab{}", platform.exe_suffix);
-    install_file(&payload.join(&bin_name), &bin_dir.join(&bin_name))?;
-
+    let bin_src = payload.join(&bin_name);
     let ui_src = payload.join("ui");
-    if ui_src.is_dir() {
-        if ui_dir.exists() {
-            fs::remove_dir_all(&ui_dir).map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
+
+    #[cfg(windows)]
+    {
+        // On Windows we cannot replace the currently running executable.
+        // Stage the new binary + UI and schedule a post-exit batch script
+        // that will perform the swap after this process has exited.
+        let ui_exists = ui_src.is_dir();
+        schedule_post_exit_replace(
+            &bin_dir,
+            &bin_name,
+            &bin_src,
+            if ui_exists { &ui_src } else { Path::new("") },
+            &ui_dir,
+            &tmp,
+            remote,
+        )?;
+        // Also write install.json so the update metadata reflects the new version.
+        write_install_meta(remote, platform, &bin_dir, &ui_dir);
+        println!("Staged update for CAB {remote}. Service will be restarted automatically.");
+        println!("CAB {remote} ready. Run: cab status");
+        return Ok(());
+    }
+
+    #[cfg(not(windows))]
+    {
+        install_file(&bin_src, &bin_dir.join(&bin_name))?;
+
+        if ui_src.is_dir() {
+            if ui_dir.exists() {
+                fs::remove_dir_all(&ui_dir).map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
+            }
+            copy_dir_recursive(&ui_src, &ui_dir)?;
+            println!("Updated UI → {}", ui_dir.display());
         }
-        copy_dir_recursive(&ui_src, &ui_dir)?;
-        println!("Updated UI → {}", ui_dir.display());
-    }
 
-    write_install_meta(remote, platform, &bin_dir, &ui_dir);
-    let _ = fs::remove_dir_all(&tmp);
+        write_install_meta(remote, platform, &bin_dir, &ui_dir);
+        let _ = fs::remove_dir_all(&tmp);
 
-    println!("Updated binary in {}", bin_dir.display());
-    match crate::service::start_daemon() {
-        Ok(()) => println!("Service restarted."),
-        Err(e) => println!("Warning: could not restart service: {e}"),
+        println!("Updated binary in {}", bin_dir.display());
+        match crate::service::start_daemon() {
+            Ok(()) => println!("Service restarted."),
+            Err(e) => println!("Warning: could not restart service: {e}"),
+        }
+        println!("CAB {remote} ready. Run: cab status");
+        Ok(())
     }
-    println!("CAB {remote} ready. Run: cab status");
-    Ok(())
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {

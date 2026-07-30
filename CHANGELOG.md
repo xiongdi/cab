@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-07-30
+
+### Fixed
+
+- **`cab update` self-termination on Windows**: `stop_user()` no longer kills the running `cab.exe` process. `taskkill` now excludes the current PID via `/FI "PID ne {self_pid}"`, so `cab update` survives to complete the swap.
+- **Windows binary replacement during update**: `install_file()` now falls back to `cmd /c copy /Y` (different sharing semantics than `fs::rename`/`fs::copy`) when the destination is locked, and `run_update()` schedules a post-exit batch script (via `wscript`) to stage + replace the running executable and restart the service after the updater exits. This resolves "另一个程序正在使用此文件" errors when self-updating on Windows.
+
 ## [0.9.1] - 2026-07-30
 
 ### Added

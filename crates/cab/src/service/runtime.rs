@@ -261,9 +261,11 @@ fn start_system() -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn stop_user() -> Result<(), String> {
     let _ = run_cmd("schtasks", &["/End", "/TN", "CAB\\cab-srv"]);
+    let self_pid = std::process::id();
     // Graceful first (WM_CLOSE equivalent for console apps), then force.
+    // Exclude current PID so `cab update` does not kill itself.
     let soft = std::process::Command::new("taskkill")
-        .args(["/IM", "cab.exe"])
+        .args(["/F", "/IM", "cab.exe", "/FI", &format!("PID ne {self_pid}")])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status();
@@ -271,7 +273,7 @@ fn stop_user() -> Result<(), String> {
         std::thread::sleep(std::time::Duration::from_millis(800));
     }
     if is_active_user() {
-        let _ = run_cmd("taskkill", &["/F", "/IM", "cab.exe"]);
+        let _ = run_cmd("taskkill", &["/F", "/IM", "cab.exe", "/FI", &format!("PID ne {self_pid}")]);
     }
     Ok(())
 }
