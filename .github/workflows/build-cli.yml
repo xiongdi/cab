@@ -35,8 +35,6 @@ jobs:
           fi
 
   build-frontend:
-    needs: prepare-release
-    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -65,7 +63,7 @@ jobs:
 
   build-cli:
     needs: [prepare-release, build-frontend]
-    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+    if: always() && (needs.build-frontend.result == 'success')
     name: Build (${{ matrix.os }} / ${{ matrix.arch }})
     permissions:
       contents: write
@@ -73,39 +71,33 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu latest: x64 native + arm64 cross via cross
+          # Ubuntu latest: x64 native + arm64 cross via gcc linker
           - platform: 'ubuntu-latest'
             os: linux
             arch: x64
             cargo_target: ''
-            use_cross: false
           - platform: 'ubuntu-latest'
             os: linux
             arch: arm64
             cargo_target: 'aarch64-unknown-linux-gnu'
-            use_cross: true
           # Windows latest: x64 native + arm64 cross
           - platform: 'windows-latest'
             os: windows
             arch: x64
             cargo_target: ''
-            use_cross: false
           - platform: 'windows-latest'
             os: windows
             arch: arm64
             cargo_target: 'aarch64-pc-windows-msvc'
-            use_cross: false
           # macOS latest (Apple Silicon): arm64 native + x64 cross
           - platform: 'macos-latest'
             os: darwin
             arch: arm64
             cargo_target: ''
-            use_cross: false
           - platform: 'macos-latest'
             os: darwin
             arch: x64
             cargo_target: 'x86_64-apple-darwin'
-            use_cross: false
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -118,21 +110,19 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: ${{ matrix.platform }}-${{ matrix.arch }}
+          key: ${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.cargo_target }}
 
       # Install cross-compilation target toolchain
       - name: Install cross target
         if: matrix.cargo_target != ''
         run: rustup target add ${{ matrix.cargo_target }}
 
-      # Install cross via pre-built binary (2-3 min faster than cargo install)
-      - name: Install cross
-        if: matrix.use_cross
-        shell: bash
+      # Install Linux ARM64 cross-linker (gcc) — avoids Docker overhead of `cross`
+      - name: Install Linux ARM64 linker
+        if: matrix.cargo_target == 'aarch64-unknown-linux-gnu'
         run: |
-          cd /usr/local/cargo/bin
-          curl -sSfL https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          chmod +x cross
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu
 
       # Download pre-built frontend artifact
       - name: Download frontend artifact
@@ -145,17 +135,18 @@ jobs:
         shell: bash
         env:
           CAB_CARGO_TARGET: ${{ matrix.cargo_target }}
-          USE_CROSS: ${{ matrix.use_cross }}
         run: |
+          # Set linker for Linux ARM64 cross-compilation
+          if [[ "${CAB_CARGO_TARGET}" == "aarch64-unknown-linux-gnu" ]]; then
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          fi
+
           TARGET_ARGS=()
           if [[ -n "${CAB_CARGO_TARGET}" ]]; then
             TARGET_ARGS=(--target "${CAB_CARGO_TARGET}")
           fi
-          if [[ "${USE_CROSS}" == "true" ]]; then
-            cross build --profile ci -p cab "${TARGET_ARGS[@]}"
-          else
-            cargo build --profile ci -p cab "${TARGET_ARGS[@]}"
-          fi
+          cargo build --profile ci -p cab "${TARGET_ARGS[@]}"
+
           EXT=""
           if [[ "${{ matrix.os }}" == "windows" ]]; then EXT=".exe"; fi
           if [[ -n "${CAB_CARGO_TARGET}" ]]; then
