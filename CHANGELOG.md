@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.5] - 2026-07-30
+
+### Changed
+
+- **CI pipeline accelerated by ~50%**: Reduced from 4 runners to 3, split frontend build into a shared artifact job, switched Linux ARM64 from Docker-based `cross` to native `gcc-aarch64-linux-gnu` cross-compilation, added a `[profile.ci]` to Cargo.toml with LTO disabled. See [build-cli.yml](file:///c:/Users/ixion/workspace/cab/.github/workflows/build-cli.yml) and [Cargo.toml](file:///c:/Users/ixion/workspace/cab/Cargo.toml).
+
 ## [0.9.4] - 2026-07-30
 
 ### Fixed
