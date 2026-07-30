@@ -133,8 +133,7 @@ mkdir -p "$TMP_DIR" "$BIN_DIR"
 archive_path="${TMP_DIR}/${asset}"
 if ! curl -fsSL -o "$archive_path" "$url"; then
   echo "${RED}Failed to download ${url}${NC}" >&2
-  echo "${MUTED}CLI archives are published as cab-<os>-<arch>.tar.gz on GitHub Releases.${NC}" >&2
-  echo "${MUTED}Desktop installers are still available at https://github.com/${REPO}/releases${NC}" >&2
+  echo "${MUTED}CLI archives are published as cab-<os>-<arch>.zip / .tar.gz on GitHub Releases.${NC}" >&2
   rm -rf "$TMP_DIR"
   exit 1
 fi

@@ -7,12 +7,21 @@ description: 在 Windows、macOS 与 Linux 上下载并安装 CAB。
 
 从 GitHub Releases 安装单一 `cab` 二进制（含仪表盘 UI）：
 
+**Linux / macOS / Git Bash：**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
 # 镜像: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
 ```
 
-默认安装到 `~/.cab/bin`，写入 shell `PATH`，并执行 `cab service install --scope user`。
+**Windows（PowerShell）：**
+
+```powershell
+irm https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.ps1 | iex
+# 镜像: irm https://xiongdi.github.io/cab/install.ps1 | iex
+```
+
+默认安装到 `%USERPROFILE%\.cab\bin`（Windows）或 `~/.cab/bin`，写入 `PATH`，并执行 `cab service install --scope user`。
 
 ```bash
 cab status
@@ -27,6 +36,11 @@ cab update --version 0.9.0
 ```bash
 curl -fsSL …/install.sh | bash -s -- --version 0.9.0
 curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version 0.9.0
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoService -NoModifyPath
 ```
 
 自 **0.9** 起不再提供桌面 `.dmg` / `.msi` / AppImage。请用 CLI，并通过 `cab gui` 打开 UI。从源码构建见 [仓库 README](https://github.com/xiongdi/cab#getting-started)。

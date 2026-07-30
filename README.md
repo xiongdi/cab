@@ -58,17 +58,47 @@ graph TD
 
 ## Getting Started
 
-**One-line install** (Linux / macOS / Git Bash):
+### One-line install
+
+Install the single `cab` binary (+ dashboard UI) from [GitHub Releases](https://github.com/xiongdi/cab/releases).
+
+**Linux / macOS / Git Bash**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
-# or: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+# mirror: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+```
+
+**Windows (PowerShell)**
+
+```powershell
+irm https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.ps1 | iex
+# mirror: irm https://xiongdi.github.io/cab/install.ps1 | iex
+```
+
+Installs to `~/.cab/bin` (or `%USERPROFILE%\.cab\bin` on Windows), adds `cab` to your `PATH`, and runs `cab service install --scope user`.
+
+```bash
 cab status
 cab gui                 # open dashboard in browser
 cab update              # upgrade later
 ```
 
-See the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) or [GitHub Releases](https://github.com/xiongdi/cab/releases).
+Installer options:
+
+```bash
+# bash
+curl -fsSL …/install.sh | bash -s -- --version 0.9.0
+curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
+```
+
+```powershell
+# PowerShell
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version 0.9.0
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoService -NoModifyPath
+```
+
+See the [install guide](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) for archives, system requirements, and troubleshooting.
 
 ### Prerequisites
 

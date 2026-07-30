@@ -7,12 +7,21 @@ description: Download and install CAB for Windows, macOS, and Linux.
 
 Install the single `cab` binary (+ dashboard UI) from GitHub Releases:
 
+**Linux / macOS / Git Bash:**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
 # mirror: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
 ```
 
-This installs into `~/.cab/bin`, adds it to your shell `PATH`, and runs `cab service install --scope user`.
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.ps1 | iex
+# mirror: irm https://xiongdi.github.io/cab/install.ps1 | iex
+```
+
+This installs into `%USERPROFILE%\.cab\bin` (Windows) or `~/.cab/bin`, adds it to your `PATH`, and runs `cab service install --scope user`.
 
 ```bash
 cab status
@@ -27,6 +36,12 @@ Options for the installer:
 ```bash
 curl -fsSL …/install.sh | bash -s -- --version 0.9.0
 curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
+```
+
+```powershell
+irm …/install.ps1 | iex; # or save and run:
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Version 0.9.0
+powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoService -NoModifyPath
 ```
 
 Desktop `.dmg` / `.msi` / AppImage packages are **not** shipped (0.9+). Use the CLI and open the UI with `cab gui`. To build from source, see the [repository README](https://github.com/xiongdi/cab#getting-started).
