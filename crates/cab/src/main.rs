@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 use serde::Deserialize;
 
 mod service;
+mod update;
 
 use service::{
     ScopeArg, apply_installed_cab_home, install_service, is_service_active, show_logs,
@@ -44,6 +45,15 @@ enum Commands {
     Service {
         #[command(subcommand)]
         command: ServiceCommands,
+    },
+    /// Update cab-cli / cab-srv from GitHub Releases
+    Update {
+        /// Only check whether a newer release exists
+        #[arg(long)]
+        check: bool,
+        /// Install a specific version (e.g. 0.8.6 or v0.8.6)
+        #[arg(long)]
+        version: Option<String>,
     },
 }
 
@@ -151,6 +161,7 @@ async fn main() {
             ServiceCommands::Install { scope } => install_service(scope.into()),
             ServiceCommands::Uninstall => uninstall_service(),
         },
+        Commands::Update { check, version } => update::run_update(check, version).await,
     };
 
     if let Err(e) = result {

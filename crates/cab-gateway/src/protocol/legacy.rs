@@ -77,6 +77,9 @@ struct OpenAiChatStreamConverter {
     tool_calls: std::collections::HashMap<u64, StreamingToolCall>,
     finished: bool,
     output_tokens: u64,
+    /// Latched from a usage-only final chunk (common for OpenAI-compat providers
+    /// like LongCat that send finish_reason and usage on separate SSE events).
+    last_usage: Option<Value>,
 }
 
 impl OpenAiChatStreamConverter {
@@ -95,6 +98,7 @@ impl OpenAiChatStreamConverter {
             tool_calls: std::collections::HashMap::new(),
             finished: false,
             output_tokens: 0,
+            last_usage: None,
         }
     }
 
@@ -391,9 +395,12 @@ impl OpenAiChatStreamConverter {
             _ => "end_turn",
         };
 
+        // Upstream is OpenAI Chat Completions (`CompletionUsage`): only
+        // prompt_tokens / completion_tokens are authoritative.
         let output_tokens = usage
             .and_then(|u| u.get("completion_tokens"))
             .and_then(|v| v.as_u64())
+            .filter(|v| *v > 0)
             .unwrap_or(self.output_tokens);
         let input_tokens = usage
             .and_then(|u| u.get("prompt_tokens"))
@@ -439,12 +446,16 @@ impl OpenAiChatStreamConverter {
             return;
         };
         if payload == "[DONE]" {
-            self.finish_with_reason(None, None);
+            let usage = self.last_usage.clone();
+            self.finish_with_reason(None, usage.as_ref());
             return;
         }
         let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
             return;
         };
+        if let Some(usage) = chunk.get("usage") {
+            self.last_usage = Some(usage.clone());
+        }
         let choice = chunk.get("choices").and_then(|c| c.get(0));
         let delta = choice.and_then(|c| c.get("delta"));
         if let Some(reasoning) = delta
@@ -466,7 +477,21 @@ impl OpenAiChatStreamConverter {
             .and_then(|c| c.get("finish_reason"))
             .and_then(|r| r.as_str());
         if finish_reason.is_some() {
-            self.finish_with_reason(finish_reason, chunk.get("usage"));
+            // Prefer usage on this chunk; otherwise the latched usage-only chunk.
+            let usage = chunk
+                .get("usage")
+                .cloned()
+                .or_else(|| self.last_usage.clone());
+            self.finish_with_reason(finish_reason, usage.as_ref());
+        } else if chunk.get("usage").is_some()
+            && choice
+                .and_then(|c| c.get("delta"))
+                .map(|d| d.as_object().map(|o| o.is_empty()).unwrap_or(true))
+                .unwrap_or(true)
+        {
+            // Usage-only final chunk with empty/missing choices (OpenAI
+            // stream_options.include_usage) — finalize with CompletionUsage.
+            self.finish_with_reason(None, chunk.get("usage"));
         }
     }
 
@@ -485,7 +510,8 @@ impl OpenAiChatStreamConverter {
             self.line_buffer.clear();
             self.process_openai_line(&line);
         }
-        self.finish_with_reason(None, None);
+        let usage = self.last_usage.clone();
+        self.finish_with_reason(None, usage.as_ref());
     }
 
     fn pop_output(&mut self) -> Option<Bytes> {
@@ -776,12 +802,6 @@ pub struct TokenTrackingStream<S> {
     log: RequestLog,
     buffer: Vec<u8>,
     accumulated_response: Vec<u8>,
-    /// True when cache tokens were reported via Anthropic-style keys
-    /// (cache_read_input_tokens / cache_creation_input_tokens), meaning
-    /// input_tokens *excludes* cached tokens and they must be added to
-    /// total_tokens. False for OpenAI convention where input_tokens already
-    /// includes cached tokens.
-    is_anthropic_cache: bool,
 }
 
 impl<S> TokenTrackingStream<S> {
@@ -792,7 +812,6 @@ impl<S> TokenTrackingStream<S> {
             log,
             buffer: Vec::new(),
             accumulated_response: Vec::new(),
-            is_anthropic_cache: false,
         }
     }
 
@@ -808,70 +827,174 @@ impl<S> TokenTrackingStream<S> {
                     && !data_content.is_empty()
                     && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
                 {
-                    // Anthropic message_start event: message.usage.input_tokens (+ cache counts)
+                    self.track_protocol_event(&json_val);
+                }
+            }
+        }
+    }
+
+    /// Dispatch usage parsing by the client-facing protocol (`log.path`).
+    ///
+    /// Field names follow the official schemas and are not mixed across protocols:
+    /// - Chat Completions (`CompletionUsage`): `prompt_tokens` / `completion_tokens`
+    /// - Responses (`ResponseUsage`): `response.usage.input_tokens` / `output_tokens`
+    /// - Anthropic Messages: `message_start.message.usage` + `message_delta.usage`
+    fn track_protocol_event(&mut self, json_val: &serde_json::Value) {
+        match self.log.path.as_str() {
+            "/v1/chat/completions" => {
+                if let Some(usage) = json_val.get("usage") {
+                    self.apply_openai_chat_usage(usage);
+                }
+            }
+            "/v1/responses" => {
+                if let Some(usage) = json_val.get("response").and_then(|r| r.get("usage")) {
+                    self.apply_openai_responses_usage(usage);
+                }
+            }
+            "/v1/messages" => match json_val.get("type").and_then(|t| t.as_str()) {
+                Some("message_start") => {
                     if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
-                        if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
-                        {
-                            self.log.input_tokens = in_tokens;
-                        }
-                        self.track_cache_tokens(usage);
+                        self.apply_anthropic_usage(usage);
                     }
-                    // Anthropic message_delta event: usage.output_tokens
-                    // OpenAI stream chunk usage: usage.prompt_tokens, usage.completion_tokens
+                }
+                Some("message_delta") => {
                     if let Some(usage) = json_val.get("usage") {
-                        if let Some(in_tokens) = usage.get("prompt_tokens").and_then(|v| v.as_i64())
-                        {
-                            self.log.input_tokens = in_tokens;
-                        }
-                        if let Some(in_tokens) = usage.get("input_tokens").and_then(|v| v.as_i64())
-                        {
-                            self.log.input_tokens = in_tokens;
-                        }
-                        if let Some(out_tokens) =
-                            usage.get("completion_tokens").and_then(|v| v.as_i64())
-                        {
-                            self.log.output_tokens = out_tokens;
-                        }
-                        if let Some(out_tokens) =
-                            usage.get("output_tokens").and_then(|v| v.as_i64())
-                        {
-                            self.log.output_tokens = out_tokens;
-                        }
-                        self.track_cache_tokens(usage);
+                        self.apply_anthropic_usage(usage);
+                    }
+                }
+                _ => {
+                    // Tolerant fallback when `type` is absent on the data payload.
+                    if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
+                        self.apply_anthropic_usage(usage);
+                    }
+                    if let Some(usage) = json_val.get("usage") {
+                        self.apply_anthropic_usage(usage);
+                    }
+                }
+            },
+            _ => {
+                if let Some(usage) = json_val.get("response").and_then(|r| r.get("usage")) {
+                    self.apply_openai_responses_usage(usage);
+                } else if let Some(usage) = json_val.get("message").and_then(|m| m.get("usage")) {
+                    self.apply_anthropic_usage(usage);
+                } else if let Some(usage) = json_val.get("usage") {
+                    if usage.get("prompt_tokens").is_some()
+                        || usage.get("completion_tokens").is_some()
+                    {
+                        self.apply_openai_chat_usage(usage);
+                    } else {
+                        self.apply_anthropic_usage(usage);
                     }
                 }
             }
         }
     }
-}
 
-impl<S> TokenTrackingStream<S> {
-    fn track_cache_tokens(&mut self, usage: &serde_json::Value) {
-        // Anthropic-style: cache_read_input_tokens / cache_creation_input_tokens
-        let has_anthropic_keys = usage.get("cache_read_input_tokens").is_some()
-            || usage.get("cache_creation_input_tokens").is_some();
-        if has_anthropic_keys {
-            self.is_anthropic_cache = true;
+    /// OpenAI Chat Completions `CompletionUsage` only.
+    ///
+    /// Wire `prompt_tokens` includes cache; we store disjoint CAB fields.
+    fn apply_openai_chat_usage(&mut self, usage: &serde_json::Value) {
+        let reported_input = usage
+            .get("prompt_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.input_tokens + self.log.cache_read_tokens);
+        let reported_output = usage
+            .get("completion_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.output_tokens);
+        let details = usage.get("prompt_tokens_details");
+        let cache_read = details
+            .and_then(|d| d.get("cached_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.cache_read_tokens);
+        let cache_creation = details
+            .and_then(|d| d.get("cache_write_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.cache_creation_tokens);
+        let n = cab_core::normalize_stored_tokens(
+            reported_input,
+            reported_output,
+            cache_read,
+            cache_creation,
+            true,
+        );
+        self.log.input_tokens = n.input_tokens;
+        self.log.output_tokens = n.output_tokens;
+        self.log.cache_read_tokens = n.cache_read_tokens;
+        self.log.cache_creation_tokens = n.cache_creation_tokens;
+        self.log.total_tokens = n.total_tokens;
+    }
+
+    /// OpenAI Responses API `ResponseUsage` only.
+    ///
+    /// Wire `input_tokens` includes cache; we store disjoint CAB fields.
+    fn apply_openai_responses_usage(&mut self, usage: &serde_json::Value) {
+        let reported_input = usage
+            .get("input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.input_tokens + self.log.cache_read_tokens);
+        let reported_output = usage
+            .get("output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.output_tokens);
+        let details = usage.get("input_tokens_details");
+        let cache_read = details
+            .and_then(|d| d.get("cached_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.cache_read_tokens);
+        let cache_creation = details
+            .and_then(|d| d.get("cache_write_tokens"))
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.cache_creation_tokens);
+        let n = cab_core::normalize_stored_tokens(
+            reported_input,
+            reported_output,
+            cache_read,
+            cache_creation,
+            true,
+        );
+        self.log.input_tokens = n.input_tokens;
+        self.log.output_tokens = n.output_tokens;
+        self.log.cache_read_tokens = n.cache_read_tokens;
+        self.log.cache_creation_tokens = n.cache_creation_tokens;
+        self.log.total_tokens = n.total_tokens;
+    }
+
+    /// Anthropic Messages `Usage` only (`input_tokens` / `output_tokens` + cache_*).
+    ///
+    /// Wire input already excludes cache — matches CAB storage directly.
+    fn apply_anthropic_usage(&mut self, usage: &serde_json::Value) {
+        let mut reported_input = self.log.input_tokens;
+        if let Some(v) = usage.get("input_tokens").and_then(|v| v.as_i64()) {
+            // message_start carries input; later empty stubs must not wipe it.
+            if v > 0 || self.log.input_tokens == 0 {
+                reported_input = v;
+            }
         }
-        if let Some(cr) = usage
+        let reported_output = usage
+            .get("output_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(self.log.output_tokens);
+        let cache_read = usage
             .get("cache_read_input_tokens")
-            .or_else(|| usage.get("cache_read_tokens"))
-            .or_else(|| {
-                usage
-                    .get("prompt_tokens_details")
-                    .and_then(|details| details.get("cached_tokens"))
-            })
             .and_then(|v| v.as_i64())
-        {
-            self.log.cache_read_tokens = cr.max(0);
-        }
-        if let Some(cc) = usage
+            .unwrap_or(self.log.cache_read_tokens);
+        let cache_creation = usage
             .get("cache_creation_input_tokens")
-            .or_else(|| usage.get("cache_creation_tokens"))
             .and_then(|v| v.as_i64())
-        {
-            self.log.cache_creation_tokens = cc.max(0);
-        }
+            .unwrap_or(self.log.cache_creation_tokens);
+        let n = cab_core::normalize_stored_tokens(
+            reported_input,
+            reported_output,
+            cache_read,
+            cache_creation,
+            false,
+        );
+        self.log.input_tokens = n.input_tokens;
+        self.log.output_tokens = n.output_tokens;
+        self.log.cache_read_tokens = n.cache_read_tokens;
+        self.log.cache_creation_tokens = n.cache_creation_tokens;
+        self.log.total_tokens = n.total_tokens;
     }
 }
 
@@ -898,17 +1021,17 @@ where
 
 impl<S> Drop for TokenTrackingStream<S> {
     fn drop(&mut self) {
-        // Anthropic-style APIs report input_tokens excluding cached tokens,
-        // so total_tokens must include cache_read_tokens + cache_creation_tokens.
-        // OpenAI-style APIs include cached tokens within input_tokens already.
-        if self.is_anthropic_cache {
-            self.log.total_tokens = self.log.input_tokens
-                + self.log.cache_read_tokens
-                + self.log.cache_creation_tokens
-                + self.log.output_tokens;
-        } else {
-            self.log.total_tokens = self.log.input_tokens + self.log.output_tokens;
-        }
+        // Physical token total — cache write is only added when it is a disjoint
+        // Anthropic prompt part (`/v1/messages`). On OpenAI it overlays input.
+        self.log.total_tokens = match self.log.path.as_str() {
+            "/v1/messages" => {
+                self.log.input_tokens
+                    + self.log.cache_read_tokens
+                    + self.log.cache_creation_tokens
+                    + self.log.output_tokens
+            }
+            _ => self.log.input_tokens + self.log.cache_read_tokens + self.log.output_tokens,
+        };
         if let Ok(resp_str) = String::from_utf8(self.accumulated_response.clone()) {
             self.log.response_body = Some(resp_str);
         }
@@ -1341,14 +1464,14 @@ data: [DONE]\n\n";
     }
 
     #[tokio::test]
-    async fn token_tracking_stream_persists_full_log_on_drop() {
+    async fn token_tracking_stream_persists_anthropic_usage_on_drop() {
         let pool = cab_db::InMemoryStore::new();
         let log_id = "log-1".to_string();
 
         let initial_log = RequestLog {
             id: log_id.clone(),
             timestamp: "now".into(),
-            agent: "codex".into(),
+            agent: "claude-code".into(),
             provider: "test".into(),
             model: "model".into(),
             input_tokens: 0,
@@ -1359,21 +1482,21 @@ data: [DONE]\n\n";
             latency_ms: 42,
             status: 200,
             error: None,
-            path: "/v1/chat/completions".into(),
+            path: "/v1/messages".into(),
             stream: true,
             request_body: None,
             response_body: None,
         };
 
+        // Anthropic streaming: input on message_start, cumulative output on message_delta.
         let chunks = futures::stream::iter(vec![
             Ok(Bytes::from_static(
-                br#"data: {"message":{"usage":{"input_tokens":3,"cache_read_input_tokens":42,"cache_creation_input_tokens":9}}}
+                br#"data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1,"cache_read_input_tokens":42,"cache_creation_input_tokens":9}}}
 "#,
             )),
             Ok(Bytes::from_static(
-                br#"data: {"usage":{"prompt_tokens":5,"completion_tokens":8}}
-data: {"usage":{"input_tokens":7,"output_tokens":11}}
-data: [DONE]
+                br#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":15}}
+data: {"type":"message_stop"}
 "#,
             )),
         ]);
@@ -1387,16 +1510,199 @@ data: [DONE]
             .iter()
             .find(|entry| entry.id == log_id)
             .unwrap();
-        assert_eq!(log.input_tokens, 7);
-        assert_eq!(log.output_tokens, 11);
-        // cache_read_input_tokens (42) + cache_creation_input_tokens (9) are
-        // Anthropic-style — added to total because input_tokens excludes them.
-        assert_eq!(log.total_tokens, 69);
+        assert_eq!(log.input_tokens, 25);
+        assert_eq!(log.output_tokens, 15);
+        // Anthropic-style cache tokens are added into total_tokens.
+        assert_eq!(log.total_tokens, 25 + 42 + 9 + 15);
         assert_eq!(log.cache_read_tokens, 42);
         assert_eq!(log.cache_creation_tokens, 9);
         assert_eq!(log.latency_ms, 42);
-        assert_eq!(log.agent, "codex");
+        assert_eq!(log.agent, "claude-code");
         assert_eq!(log.status, 200);
+    }
+
+    #[tokio::test]
+    async fn token_tracking_openai_chat_ignores_nonstandard_zero_aliases() {
+        // Compat providers may also emit input_tokens/output_tokens=0 alongside
+        // standard CompletionUsage fields — Chat Completions must ignore them.
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-longcat".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "grok-build".into(),
+            provider: "LongCat".into(),
+            model: "meituan/longcat-2.0".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/chat/completions".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![Ok(Bytes::from_static(
+            br#"data: {"choices":[],"usage":{"prompt_tokens":13450,"completion_tokens":32,"input_tokens":0,"output_tokens":0}}
+data: [DONE]
+"#,
+        ))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 13450);
+        assert_eq!(log.output_tokens, 32);
+        assert_eq!(log.total_tokens, 13482);
+    }
+
+    #[tokio::test]
+    async fn token_tracking_openai_chat_records_prompt_cache_details() {
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-chat-cache".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "opencode".into(),
+            provider: "openai".into(),
+            model: "gpt".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/chat/completions".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![Ok(Bytes::from_static(
+            br#"data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":5,"total_tokens":105,"prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":10}}}
+data: [DONE]
+"#,
+        ))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 60);
+        assert_eq!(log.output_tokens, 5);
+        assert_eq!(log.cache_read_tokens, 40);
+        assert_eq!(log.cache_creation_tokens, 10);
+        // prompt(100)+output(5); write is overlay, not added again.
+        assert_eq!(log.total_tokens, 105);
+    }
+
+    #[tokio::test]
+    async fn token_tracking_responses_records_input_cache_details() {
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-resp-cache".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "codex".into(),
+            provider: "openai".into(),
+            model: "gpt".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/responses".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![Ok(Bytes::from_static(
+            br#"data: {"type":"response.completed","response":{"usage":{"input_tokens":100,"output_tokens":5,"total_tokens":105,"input_tokens_details":{"cached_tokens":40,"cache_write_tokens":10}}}}
+
+"#,
+        ))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 60);
+        assert_eq!(log.output_tokens, 5);
+        assert_eq!(log.cache_read_tokens, 40);
+        assert_eq!(log.cache_creation_tokens, 10);
+        assert_eq!(log.total_tokens, 105);
+    }
+
+    #[tokio::test]
+    async fn token_tracking_reads_responses_nested_usage() {
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-responses".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "codex".into(),
+            provider: "LongCat".into(),
+            model: "meituan/longcat-2.0".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/responses".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![Ok(Bytes::from_static(
+            br#"event: response.completed
+data: {"type":"response.completed","response":{"usage":{"input_tokens":10206,"output_tokens":7,"total_tokens":10213}}}
+
+"#,
+        ))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 10206);
+        assert_eq!(log.output_tokens, 7);
+        assert_eq!(log.total_tokens, 10213);
     }
 
     #[tokio::test]

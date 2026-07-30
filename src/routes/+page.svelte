@@ -7,6 +7,13 @@
   import DataTable from '$lib/components/DataTable.svelte';
   import { i18n } from '$lib/i18n.svelte';
   import { gatewayHealth } from '$lib/gateway-health.svelte';
+  import {
+    aggregateCacheHitRatePct,
+    cacheHitRatePct,
+    displayInputTokens,
+    formatCacheHitRatePct,
+    freshInputTokens,
+  } from '$lib/cache-tokens';
 
   let stats = $state<DashboardStats | null>(null);
   let loading = $state(true);
@@ -32,10 +39,9 @@
 
   let cacheHitRate = $derived.by(() => {
     if (!stats || !stats.recent_requests || stats.recent_requests.length === 0) return 0;
-    const hitCount = stats.recent_requests.filter(
-      (r) => (r.cache_read_tokens ?? 0) > 0
-    ).length;
-    return Math.round((hitCount / stats.recent_requests.length) * 100);
+    // Token-weighted: cache_read / prompt (Anthropic prompt = input+cache_*;
+    // OpenAI prompt = input which already includes cache).
+    return aggregateCacheHitRatePct(stats.recent_requests);
   });
 
   // Dynamic Agent requests distribution from recent requests
@@ -219,7 +225,7 @@
           </svg>
         </div>
         <div class="perf-card-body">
-          <span class="perf-card-value font-mono">{cacheHitRate}%</span>
+          <span class="perf-card-value font-mono">{formatCacheHitRatePct(cacheHitRate)}%</span>
           <span class="perf-card-label">{i18n.t('dashboard.cache_hit_rate')}</span>
         </div>
       </div>
@@ -384,33 +390,42 @@
             <div class="detail-section">
               <h4 class="detail-section-title">{i18n.t('dashboard.detail_token_distribution')}</h4>
               <div class="token-breakdown-container">
-                <div class="token-progress-bar">
-                  {#if (row.cache_read_tokens ?? 0) > 0}
+                {#if row.total_tokens != null || row.input_tokens != null}
+                  {@const cacheRead = row.cache_read_tokens ?? 0}
+                  {@const freshIn = freshInputTokens(row)}
+                  {@const out = row.output_tokens ?? 0}
+                  {@const tot = Math.max(1, row.total_tokens || freshIn + cacheRead + out)}
+                  {@const cachePct = Math.round((cacheRead / tot) * 100)}
+                  {@const freshPct = Math.round((freshIn / tot) * 100)}
+                  {@const outPct = Math.round((out / tot) * 100)}
+                  <div class="token-progress-bar">
+                    {#if cacheRead > 0}
+                      <div 
+                        class="token-bar token-bar--cache" 
+                        style:width="{(cacheRead / tot) * 100}%"
+                        title={i18n.tParams('dashboard.legend_cache_hit', { tokens: String(cacheRead), pct: String(cachePct) })}
+                      ></div>
+                    {/if}
                     <div 
-                      class="token-bar token-bar--cache" 
-                      style:width="{(row.cache_read_tokens / row.total_tokens) * 100}%"
-                      title={i18n.tParams('dashboard.legend_cache_hit', { tokens: String(row.cache_read_tokens), pct: String(Math.round((row.cache_read_tokens / row.total_tokens) * 100)) })}
+                      class="token-bar token-bar--input" 
+                      style:width="{(freshIn / tot) * 100}%"
+                      title={i18n.tParams('dashboard.legend_input', { tokens: String(freshIn), pct: String(freshPct) })}
                     ></div>
-                  {/if}
-                  <div 
-                    class="token-bar token-bar--input" 
-                    style:width="{((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100}%"
-                    title={i18n.tParams('dashboard.legend_input', { tokens: String(row.input_tokens - (row.cache_read_tokens ?? 0)), pct: String(Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100)) })}
-                  ></div>
-                  <div 
-                    class="token-bar token-bar--output" 
-                    style:width="{(row.output_tokens / row.total_tokens) * 100}%"
-                    title={i18n.tParams('dashboard.legend_output', { tokens: String(row.output_tokens), pct: String(Math.round((row.output_tokens / row.total_tokens) * 100)) })}
-                  ></div>
-                </div>
-                
-                <div class="token-legend">
-                  {#if (row.cache_read_tokens ?? 0) > 0}
-                    <span class="legend-item"><span class="legend-dot legend-dot--cache"></span>{i18n.tParams('dashboard.legend_cache_hit', { tokens: String(row.cache_read_tokens), pct: String(Math.round((row.cache_read_tokens / row.total_tokens) * 100)) })}</span>
-                  {/if}
-                  <span class="legend-item"><span class="legend-dot legend-dot--input"></span>{i18n.tParams('dashboard.legend_input', { tokens: String(row.input_tokens - (row.cache_read_tokens ?? 0)), pct: String(Math.round(((row.input_tokens - (row.cache_read_tokens ?? 0)) / row.total_tokens) * 100)) })}</span>
-                  <span class="legend-item"><span class="legend-dot legend-dot--output"></span>{i18n.tParams('dashboard.legend_output', { tokens: String(row.output_tokens), pct: String(Math.round((row.output_tokens / row.total_tokens) * 100)) })}</span>
-                </div>
+                    <div 
+                      class="token-bar token-bar--output" 
+                      style:width="{(out / tot) * 100}%"
+                      title={i18n.tParams('dashboard.legend_output', { tokens: String(out), pct: String(outPct) })}
+                    ></div>
+                  </div>
+                  
+                  <div class="token-legend">
+                    {#if cacheRead > 0}
+                      <span class="legend-item"><span class="legend-dot legend-dot--cache"></span>{i18n.tParams('dashboard.legend_cache_hit', { tokens: String(cacheRead), pct: String(cachePct) })}</span>
+                    {/if}
+                    <span class="legend-item"><span class="legend-dot legend-dot--input"></span>{i18n.tParams('dashboard.legend_input', { tokens: String(freshIn), pct: String(freshPct) })}</span>
+                    <span class="legend-item"><span class="legend-dot legend-dot--output"></span>{i18n.tParams('dashboard.legend_output', { tokens: String(out), pct: String(outPct) })}</span>
+                  </div>
+                {/if}
               </div>
             </div>
             
@@ -441,7 +456,8 @@
                     <span class="perf-label">{i18n.t('dashboard.perf_cache_status')}</span>
                     <span class="perf-value">
                       {#if (row.cache_read_tokens ?? 0) > 0}
-                        <span class="badge-cache badge-cache--hit">{i18n.tParams('dashboard.perf_cache_hit', { pct: String(Math.round((row.cache_read_tokens / row.input_tokens) * 100)) })}</span>
+                        {@const hitPct = formatCacheHitRatePct(cacheHitRatePct(row) ?? 0)}
+                        <span class="badge-cache badge-cache--hit">{i18n.tParams('dashboard.perf_cache_hit', { pct: hitPct })}</span>
                       {:else}
                         <span class="badge-cache badge-cache--miss">{i18n.t('dashboard.perf_cache_miss')}</span>
                       {/if}

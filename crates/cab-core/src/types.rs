@@ -291,13 +291,20 @@ pub struct RequestLog {
     pub agent: String,
     pub provider: String,
     pub model: String,
+    /// Non-cached-read prompt tokens only (excludes cache **read**).
+    /// On Anthropic this also excludes cache **write**; on OpenAI write usually
+    /// still sits inside this count as a billing overlay.
     pub input_tokens: i64,
+    /// Completion tokens only (no cache component).
     pub output_tokens: i64,
+    /// `input + cache_read + cache_creation + output`.
     pub total_tokens: i64,
-    /// Input tokens served from the upstream prefix cache (billed at a discount).
+    /// Input tokens served from the upstream prefix cache (cache **hit** / read).
     #[serde(default)]
     pub cache_read_tokens: i64,
-    /// Input tokens written to the upstream prefix cache this turn.
+    /// Tokens written into the upstream prefix cache this turn (cache **write**).
+    /// Billing leg — on OpenAI this usually overlays the non-read portion of
+    /// `prompt_tokens`; on Anthropic it is disjoint from `input_tokens`.
     #[serde(default)]
     pub cache_creation_tokens: i64,
     pub latency_ms: i64,
@@ -590,4 +597,87 @@ pub struct StrategyBoardStrategy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StrategyBoardResult {
     pub strategies: Vec<StrategyBoardStrategy>,
+}
+
+/// Normalize protocol usage into CAB's storage convention.
+///
+/// Fields:
+/// - `input` = prompt tokens **not read from cache**
+/// - `output` = completion tokens
+/// - `cache_read` = prefix-cache **hit** (read from cache)
+/// - `cache_creation` = prefix-cache **write** (written into cache this turn)
+///
+/// Important: cache **write** is a billing leg, not always a disjoint prompt slice.
+/// - Anthropic (`reported_input_includes_cache = false`): `input`, `cache_read`,
+///   and `cache_creation` partition the prompt →
+///   `total = input + cache_read + cache_creation + output`.
+/// - OpenAI Chat/Responses (`true`): wire `prompt`/`input` already includes
+///   cache reads; `cache_write_tokens` are usually an overlay on the non-read
+///   portion (still inside `prompt`). Only subtract `cache_read` →
+///   `total = input + cache_read + output` (== wire prompt + output).
+pub fn normalize_stored_tokens(
+    reported_input: i64,
+    reported_output: i64,
+    cache_read: i64,
+    cache_creation: i64,
+    reported_input_includes_cache: bool,
+) -> NormalizedTokens {
+    let cache_read = cache_read.max(0);
+    let cache_creation = cache_creation.max(0);
+    let output_tokens = reported_output.max(0);
+    let reported_input = reported_input.max(0);
+
+    if reported_input_includes_cache {
+        let input_tokens = (reported_input - cache_read).max(0);
+        NormalizedTokens {
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: cache_read,
+            cache_creation_tokens: cache_creation,
+            total_tokens: input_tokens + cache_read + output_tokens,
+        }
+    } else {
+        let input_tokens = reported_input;
+        NormalizedTokens {
+            input_tokens,
+            output_tokens,
+            cache_read_tokens: cache_read,
+            cache_creation_tokens: cache_creation,
+            total_tokens: input_tokens + cache_read + cache_creation + output_tokens,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NormalizedTokens {
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_creation_tokens: i64,
+    pub total_tokens: i64,
+}
+
+#[cfg(test)]
+mod token_normalize_tests {
+    use super::normalize_stored_tokens;
+
+    #[test]
+    fn openai_only_strips_cache_read_from_prompt() {
+        // prompt=100 includes read=40; write=10 is overlay inside the other 60.
+        let n = normalize_stored_tokens(100, 5, 40, 10, true);
+        assert_eq!(n.input_tokens, 60);
+        assert_eq!(n.cache_read_tokens, 40);
+        assert_eq!(n.cache_creation_tokens, 10);
+        assert_eq!(n.output_tokens, 5);
+        assert_eq!(n.total_tokens, 105); // prompt + output; write not added again
+    }
+
+    #[test]
+    fn anthropic_exclusive_parts_sum_into_total() {
+        let n = normalize_stored_tokens(25, 12, 42, 9, false);
+        assert_eq!(n.input_tokens, 25);
+        assert_eq!(n.cache_read_tokens, 42);
+        assert_eq!(n.cache_creation_tokens, 9);
+        assert_eq!(n.total_tokens, 25 + 42 + 9 + 12);
+    }
 }

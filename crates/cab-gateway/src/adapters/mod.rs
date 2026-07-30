@@ -230,18 +230,21 @@ pub async fn handle_proxied_request(
                 }
                 final_response = Response::from_parts(parts, axum::body::Body::from(body_bytes));
 
-                // Anthropic-style APIs report input_tokens excluding cached tokens,
-                // so total_tokens must include cache_read/creation_tokens.
-                // OpenAI-style APIs include cached tokens within input_tokens already.
-                let is_anthropic_style = usage_json.as_ref().is_some_and(|u| {
-                    u.get("cache_read_input_tokens").is_some()
-                        || u.get("cache_creation_input_tokens").is_some()
-                });
-                let total_tokens = if is_anthropic_style {
-                    input_tokens + cache_read_tokens + cache_creation_tokens + output_tokens
-                } else {
-                    input_tokens + output_tokens
-                };
+                // Wire formats differ (OpenAI prompt includes cache; Anthropic does not).
+                // Persist the CAB-normalized disjoint layout.
+                let includes_cache = usage_json.as_ref().is_some_and(usage_input_includes_cache);
+                let normalized = cab_core::normalize_stored_tokens(
+                    input_tokens,
+                    output_tokens,
+                    cache_read_tokens,
+                    cache_creation_tokens,
+                    includes_cache,
+                );
+                input_tokens = normalized.input_tokens;
+                output_tokens = normalized.output_tokens;
+                cache_read_tokens = normalized.cache_read_tokens;
+                cache_creation_tokens = normalized.cache_creation_tokens;
+                let total_tokens = normalized.total_tokens;
 
                 let log = RequestLog {
                     id: log_id,
@@ -365,43 +368,87 @@ async fn apply_session_affinity(
     resolved
 }
 
+/// True when the upstream `usage.input`/`prompt_tokens` already includes cache.
+fn usage_input_includes_cache(usage: &serde_json::Value) -> bool {
+    // Anthropic exclusive-input keys → reported input does NOT include cache.
+    if usage.get("cache_read_input_tokens").is_some()
+        || usage.get("cache_creation_input_tokens").is_some()
+    {
+        return false;
+    }
+    // OpenAI Chat / Responses detail objects → reported prompt/input includes cache.
+    if usage.get("prompt_tokens_details").is_some() || usage.get("input_tokens_details").is_some() {
+        return true;
+    }
+    // Chat Completions without details: prompt_tokens is still the inclusive total.
+    usage.get("prompt_tokens").is_some()
+}
+
 /// Pull cache-read / cache-creation token counts out of an upstream `usage`
-/// object, covering both Anthropic (`cache_*_input_tokens`) and OpenAI
-/// (`prompt_tokens_details.cached_tokens`) shapes.
+/// object using each protocol's official field names (no cross-protocol aliases).
 fn extract_cache_tokens(usage: &serde_json::Value) -> (i64, i64) {
-    let cache_read = usage
-        .get("cache_read_input_tokens")
-        .or_else(|| usage.get("cache_read_tokens"))
-        .or_else(|| {
-            usage
-                .get("prompt_tokens_details")
-                .and_then(|details| details.get("cached_tokens"))
-        })
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0)
-        .max(0);
-    let cache_creation = usage
-        .get("cache_creation_input_tokens")
-        .or_else(|| usage.get("cache_creation_tokens"))
-        .and_then(|v| v.as_i64())
-        .unwrap_or(0)
-        .max(0);
-    (cache_read, cache_creation)
+    // Anthropic Messages
+    if usage.get("cache_read_input_tokens").is_some()
+        || usage.get("cache_creation_input_tokens").is_some()
+    {
+        let cache_read = usage
+            .get("cache_read_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        let cache_creation = usage
+            .get("cache_creation_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        return (cache_read, cache_creation);
+    }
+
+    // OpenAI Responses: input_tokens_details.{cached_tokens, cache_write_tokens}
+    if let Some(details) = usage.get("input_tokens_details") {
+        let cache_read = details
+            .get("cached_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        let cache_creation = details
+            .get("cache_write_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        return (cache_read, cache_creation);
+    }
+
+    // OpenAI Chat Completions: prompt_tokens_details.{cached_tokens, cache_write_tokens}
+    if let Some(details) = usage.get("prompt_tokens_details") {
+        let cache_read = details
+            .get("cached_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        let cache_creation = details
+            .get("cache_write_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0)
+            .max(0);
+        return (cache_read, cache_creation);
+    }
+
+    (0, 0)
 }
 
 /// Best-effort request cost in USD from catalog pricing (per-1M-token rates).
 ///
-/// Handles the two cache accounting conventions: Anthropic reports `input_tokens`
-/// *excluding* cached tokens, while OpenAI's `prompt_tokens` *includes* them. When
-/// the catalog has no explicit cache-read price, cached input is billed at ~10% of
-/// the input rate (the typical prefix-cache discount); cache writes at ~1.25x input.
+/// - Anthropic: `input`, `cache_read`, `cache_creation` are disjoint prompt legs.
+/// - OpenAI: `input` still contains write tokens; bill `(input - write)` at the
+///   base input rate and `write` at ~1.25× so the overlay is not double-counted.
 fn compute_cost_usd(
-    usage: Option<&serde_json::Value>,
     model: &cab_core::types::Model,
     input_tokens: i64,
     output_tokens: i64,
     cache_read: i64,
     cache_creation: i64,
+    input_includes_cache_write: bool,
 ) -> f64 {
     let per_million =
         |tokens: i64, price: f64| (tokens.max(0) as f64) / 1_000_000.0 * price.max(0.0);
@@ -409,19 +456,13 @@ fn compute_cost_usd(
     let output_price = model.output_cost.unwrap_or(0.0);
     let cache_read_price = cab_core::cache_read_cost_from_model(model).unwrap_or(input_price * 0.1);
 
-    let anthropic_style = usage
-        .map(|u| {
-            u.get("cache_read_input_tokens").is_some()
-                || u.get("cache_creation_input_tokens").is_some()
-        })
-        .unwrap_or(false);
-    let full_input = if anthropic_style {
-        input_tokens
+    let base_input = if input_includes_cache_write {
+        (input_tokens - cache_creation).max(0)
     } else {
-        (input_tokens - cache_read).max(0)
+        input_tokens
     };
 
-    per_million(full_input, input_price)
+    per_million(base_input, input_price)
         + per_million(cache_read, cache_read_price)
         + per_million(cache_creation, input_price * 1.25)
         + per_million(output_tokens, output_price)
@@ -436,18 +477,20 @@ fn build_usage_record(
     output_tokens: i64,
     model: &cab_core::types::Model,
 ) -> Option<UsageRecord> {
-    if input_tokens == 0 && output_tokens == 0 {
+    // Caller passes CAB-normalized input_tokens (excludes cache read).
+    let (cache_read, cache_creation) = usage.map(extract_cache_tokens).unwrap_or((0, 0));
+    if input_tokens == 0 && output_tokens == 0 && cache_read == 0 && cache_creation == 0 {
         return None;
     }
 
-    let (cache_read, cache_creation) = usage.map(extract_cache_tokens).unwrap_or((0, 0));
+    let input_includes_cache_write = usage.is_some_and(usage_input_includes_cache);
     let cost_usd = compute_cost_usd(
-        usage,
         model,
         input_tokens,
         output_tokens,
         cache_read,
         cache_creation,
+        input_includes_cache_write,
     );
 
     Some(UsageRecord {

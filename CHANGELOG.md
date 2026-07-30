@@ -5,6 +5,24 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2026-07-30
+
+### Added
+
+- **One-line CLI install**: `curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash` installs `cab-cli` + `cab-srv` (+ UI) into `~/.cab/bin`. Release CI packages `cab-<os>-<arch>.tar.gz` / `.zip` assets; docs mirror at `https://xiongdi.github.io/cab/install.sh`.
+- **`cab-cli update`**: download the latest (or `--version`) CLI release archive, replace binaries/UI, and restart the service (`--check` to only report).
+
+### Changed
+
+- **Normalized token storage**: request logs / usage records store `input_tokens` without cache **read**; `cache_read_tokens` and `cache_creation_tokens` (write) are separate. OpenAI wire `prompt`/`input` still includes reads — only the read portion is stripped on ingest; write remains a billing overlay. Anthropic keeps the three prompt legs disjoint.
+- **Frontend cache hit rate**: token-weighted `cache_read / prompt`, protocol-aware display input, two decimal places (e.g. `99.31%`). Usage summary input totals include cache legs for display.
+
+### Fixed
+
+- **`cab-srv` preferred local `build/` UI** over packaged `/usr/share/cab/ui`, so refreshing `:3125` during development no longer serves a stale system UI.
+- **Artificial Analysis catalog status**: persist AA JSON cache on sync and prefer SQLite for `synced_at`; AA sync still runs when models.dev download fails.
+- **Upstream usage parsing**: OpenAI Chat prefers `prompt_tokens`/`completion_tokens` over zeroed LongCat aliases; Responses reads nested `response.usage`; cache details from official `*_tokens_details` fields.
+
 ## [0.8.6] - 2026-07-29
 
 ### Changed

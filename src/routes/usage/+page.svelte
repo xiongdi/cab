@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
+  import { displayInputTokens, displayOutputTokens } from '$lib/cache-tokens';
   import type { UsageSummary, UsageRecord, Column } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import DataTable from '$lib/components/DataTable.svelte';
@@ -66,13 +67,13 @@
         key: 'input_tokens',
         label: i18n.t('usage.col_input'),
         sortable: true,
-        render: (v: number) => v.toLocaleString(),
+        render: (_v: number, row: UsageRecord) => displayInputTokens(row).toLocaleString(),
       },
       {
         key: 'output_tokens',
         label: i18n.t('usage.col_output'),
         sortable: true,
-        render: (v: number) => v.toLocaleString(),
+        render: (_v: number, row: UsageRecord) => displayOutputTokens(row).toLocaleString(),
       },
       {
         key: 'cost_usd',

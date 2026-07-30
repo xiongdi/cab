@@ -20,14 +20,13 @@ impl ProtocolAdapter for OpenAiResponsesAdapter {
     }
 
     fn extract_usage(&self, usage: &serde_json::Value) -> (i64, i64) {
+        // OpenAI Responses API `ResponseUsage`: input_tokens / output_tokens.
         let input = usage
             .get("input_tokens")
-            .or_else(|| usage.get("prompt_tokens"))
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let output = usage
             .get("output_tokens")
-            .or_else(|| usage.get("completion_tokens"))
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         (input, output)

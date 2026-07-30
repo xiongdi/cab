@@ -61,7 +61,16 @@ graph TD
 
 ## Getting Started
 
-**Install a release:** see the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) on [GitHub Releases](https://github.com/xiongdi/cab/releases).
+**One-line CLI install** (Linux / macOS / Git Bash):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
+# or: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+cab-cli status
+cab-cli update          # upgrade later
+```
+
+**Desktop installers:** see the [official docs](https://xiongdi.github.io/cab/getting-started/install/) ([中文](https://xiongdi.github.io/cab/zh-cn/getting-started/install/)) or [GitHub Releases](https://github.com/xiongdi/cab/releases).
 
 ### Prerequisites
 

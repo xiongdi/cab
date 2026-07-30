@@ -1019,7 +1019,10 @@ pub fn usage_summary(conn: &Connection, since: &str) -> Result<UsageSummary, Str
     let mut summary = UsageSummary::default();
 
     conn.query_row(
-        "SELECT COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0)
+        "SELECT COUNT(*),
+                COALESCE(SUM(input_tokens + cache_read_tokens + cache_creation_tokens),0),
+                COALESCE(SUM(output_tokens),0),
+                COALESCE(SUM(cost_usd),0)
          FROM usage_records WHERE timestamp >= ?1",
         rusqlite::params![since],
         |row| {
@@ -1034,7 +1037,10 @@ pub fn usage_summary(conn: &Connection, since: &str) -> Result<UsageSummary, Str
 
     let mut stmt = conn
         .prepare(
-            "SELECT provider_id, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0)
+            "SELECT provider_id, COUNT(*),
+                    COALESCE(SUM(input_tokens + cache_read_tokens + cache_creation_tokens),0),
+                    COALESCE(SUM(output_tokens),0),
+                    COALESCE(SUM(cost_usd),0)
              FROM usage_records WHERE timestamp >= ?1 GROUP BY provider_id",
         )
         .map_err(|e| e.to_string())?;
@@ -1058,7 +1064,10 @@ pub fn usage_summary(conn: &Connection, since: &str) -> Result<UsageSummary, Str
 
     let mut stmt = conn
         .prepare(
-            "SELECT model_id, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0)
+            "SELECT model_id, COUNT(*),
+                    COALESCE(SUM(input_tokens + cache_read_tokens + cache_creation_tokens),0),
+                    COALESCE(SUM(output_tokens),0),
+                    COALESCE(SUM(cost_usd),0)
              FROM usage_records WHERE timestamp >= ?1 GROUP BY model_id",
         )
         .map_err(|e| e.to_string())?;
@@ -1082,7 +1091,10 @@ pub fn usage_summary(conn: &Connection, since: &str) -> Result<UsageSummary, Str
 
     let mut stmt = conn
         .prepare(
-            "SELECT agent_id, COUNT(*), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COALESCE(SUM(cost_usd),0)
+            "SELECT agent_id, COUNT(*),
+                    COALESCE(SUM(input_tokens + cache_read_tokens + cache_creation_tokens),0),
+                    COALESCE(SUM(output_tokens),0),
+                    COALESCE(SUM(cost_usd),0)
              FROM usage_records WHERE timestamp >= ?1 GROUP BY agent_id",
         )
         .map_err(|e| e.to_string())?;

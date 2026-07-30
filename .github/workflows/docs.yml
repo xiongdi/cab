@@ -36,6 +36,9 @@ jobs:
         working-directory: docs
         run: npm ci
 
+      - name: Sync curl installer into docs public/
+        run: cp scripts/install.sh docs/public/install.sh
+
       - name: Build site
         working-directory: docs
         run: npm run build

@@ -1,9 +1,9 @@
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
-    artificial_analysis_models_url, ensure_aa_model_map_file, models_dev_catalog_path,
-    models_dev_catalog_url, refresh_aa_model_map_exact_matches,
-    resolve_artificial_analysis_api_key,
+    BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
+    artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
+    models_dev_catalog_path, models_dev_catalog_url, refresh_aa_model_map_exact_matches,
+    resolve_artificial_analysis_api_key, write_catalog_file,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
@@ -39,9 +39,14 @@ pub async fn sync_catalogs(
     pool: &InMemoryStore,
     client: &reqwest::Client,
 ) -> Result<serde_json::Value, CabError> {
-    let catalog = sync_models_dev_catalog(client).await?;
-    sync_artificial_analysis_catalog(pool, client).await?;
-    Ok(catalog)
+    // Always attempt AA sync, even when models.dev download fails. Otherwise a
+    // transient models.dev outage leaves Artificial Analysis stuck on the last
+    // JSON cache / SQLite snapshot and the settings UI never advances synced_at.
+    let catalog_result = sync_models_dev_catalog(client).await;
+    if let Err(e) = sync_artificial_analysis_catalog(pool, client).await {
+        tracing::warn!("Artificial Analysis sync failed: {e}");
+    }
+    catalog_result
 }
 
 pub async fn sync_models_dev_catalog(
@@ -188,6 +193,24 @@ pub async fn sync_artificial_analysis_catalog(
         } else {
             tracing::info!("Saved {} AA benchmark records to SQLite", models.len());
         }
+    }
+
+    // Also refresh the on-disk JSON cache. Catalog status endpoints and
+    // aa-model-map exact-match refresh still read this file; without rewriting
+    // it after a successful API sync, the UI keeps showing the old synced_at.
+    let cache_file = BenchmarkCatalogFile {
+        source: "artificial-analysis".to_string(),
+        synced_at: synced_at.clone(),
+        models: models.clone(),
+    };
+    let cache_path = artificial_analysis_models_path();
+    if let Err(e) = write_catalog_file(&cache_path, &cache_file) {
+        tracing::warn!(
+            "Failed to cache AA benchmarks to {}: {e}",
+            cache_path.display()
+        );
+    } else {
+        tracing::info!("Cached AA benchmarks to {}", cache_path.display());
     }
 
     if let Err(e) = ensure_aa_model_map_file() {

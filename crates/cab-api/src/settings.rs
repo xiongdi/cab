@@ -6,8 +6,9 @@ use cab_core::CabError;
 use cab_core::types::UpdateSettings;
 use cab_core::{
     CatalogSourceStatus, aa_model_map_status, artificial_analysis_catalog_status,
-    models_dev_catalog_status,
+    artificial_analysis_models_path, artificial_analysis_models_url, models_dev_catalog_status,
 };
+use cab_db::InMemoryStore;
 use serde::Serialize;
 
 use crate::ApiState;
@@ -25,6 +26,37 @@ pub struct SyncCatalogResponse {
     pub sources: Vec<CatalogSourceStatus>,
 }
 
+/// Prefer SQLite AA rows (updated on every successful API sync). Fall back to the
+/// legacy JSON cache so older installs still report status before the first
+/// post-migration sync rewrites the file.
+fn artificial_analysis_status(pool: &InMemoryStore) -> CatalogSourceStatus {
+    if let Some(sqlite_pool) = pool.sqlite()
+        && let Ok(conn) = sqlite_pool.get()
+        && let Ok((records, synced_at)) = cab_db::sqlite::load_aa_benchmarks(&conn)
+        && !records.is_empty()
+    {
+        return CatalogSourceStatus {
+            id: "artificial-analysis".to_string(),
+            name: "Artificial Analysis".to_string(),
+            url: artificial_analysis_models_url().to_string(),
+            cache_path: artificial_analysis_models_path().display().to_string(),
+            available: true,
+            synced_at,
+            providers: None,
+            models: Some(records.len()),
+        };
+    }
+    artificial_analysis_catalog_status()
+}
+
+fn catalog_sources(pool: &InMemoryStore) -> Vec<CatalogSourceStatus> {
+    vec![
+        models_dev_catalog_status(),
+        artificial_analysis_status(pool),
+        aa_model_map_status(),
+    ]
+}
+
 pub async fn get_settings(State(state): State<ApiState>) -> Result<impl IntoResponse, CabError> {
     let settings = cab_db::settings::get(&state.pool)
         .await
@@ -33,14 +65,10 @@ pub async fn get_settings(State(state): State<ApiState>) -> Result<impl IntoResp
 }
 
 pub async fn get_catalog_status(
-    State(_state): State<ApiState>,
+    State(state): State<ApiState>,
 ) -> Result<impl IntoResponse, CabError> {
     Ok(Json(CatalogStatusResponse {
-        sources: vec![
-            models_dev_catalog_status(),
-            artificial_analysis_catalog_status(),
-            aa_model_map_status(),
-        ],
+        sources: catalog_sources(&state.pool),
     }))
 }
 
@@ -55,10 +83,10 @@ pub async fn sync_catalog(State(state): State<ApiState>) -> Result<impl IntoResp
         success: true,
         applied_models,
         providers,
-        sources: vec![
-            models_dev_catalog_status(),
-            artificial_analysis_catalog_status(),
-        ],
+        sources: catalog_sources(&state.pool)
+            .into_iter()
+            .filter(|s| s.id != "aa-model-map")
+            .collect(),
     }))
 }
 

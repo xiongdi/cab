@@ -3,7 +3,32 @@ title: Install
 description: Download and install CAB for Windows, macOS, and Linux.
 ---
 
-Download pre-built desktop installers from [GitHub Releases](https://github.com/xiongdi/cab/releases). To build from source, see the [repository README](https://github.com/xiongdi/cab#getting-started).
+## CLI (recommended for headless / servers)
+
+One-line install of `cab-cli` + `cab-srv` (+ dashboard UI) from GitHub Releases:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
+# mirror: curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+```
+
+This installs into `~/.cab/bin`, adds it to your shell `PATH`, and runs `cab-cli service install --scope user`.
+
+```bash
+cab-cli status
+cab-cli update              # upgrade to the latest release
+cab-cli update --check      # only check for a newer version
+cab-cli update --version 0.8.6
+```
+
+Options for the installer:
+
+```bash
+curl -fsSL …/install.sh | bash -s -- --version 0.8.6
+curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
+```
+
+Desktop GUI installers remain available below (and on [GitHub Releases](https://github.com/xiongdi/cab/releases)). To build from source, see the [repository README](https://github.com/xiongdi/cab#getting-started).
 
 ## System requirements
 

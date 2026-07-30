@@ -410,7 +410,7 @@ export const translations = {
       detail_output_tokens_title: '输出 Token',
       diag_terminal_title: 'gateway-diagnostic-terminal.log',
       diag_error_prefix: '[ERROR] Gateway invocation failed with HTTP {code}',
-      cache_hit_tooltip: '{cached} 缓存 / {total} 输入 token',
+      cache_hit_tooltip: '{cached} 缓存 / {total} prompt token',
     },
     usage: {
       title: '用量统计',
@@ -990,7 +990,7 @@ export const translations = {
       detail_output_tokens_title: 'Output Tokens',
       diag_terminal_title: 'gateway-diagnostic-terminal.log',
       diag_error_prefix: '[ERROR] Gateway invocation failed with HTTP {code}',
-      cache_hit_tooltip: '{cached} cached / {total} input tokens',
+      cache_hit_tooltip: '{cached} cached / {total} prompt tokens',
     },
     usage: {
       title: 'Usage',

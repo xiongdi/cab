@@ -136,9 +136,39 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Package CLI archive (cab-cli + cab-srv + ui)
+        shell: bash
+        run: |
+          chmod +x scripts/package-cli.sh scripts/install.sh
+          if [[ "${{ matrix.platform }}" == macos* ]]; then OS=darwin
+          elif [[ "${{ matrix.platform }}" == windows* ]]; then OS=windows
+          else OS=linux
+          fi
+          ./scripts/package-cli.sh "$OS" "${{ matrix.arch }}" dist/cli
+
+      - name: Upload CLI archive to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ matrix.platform }}" == macos* ]]; then OS=darwin
+          elif [[ "${{ matrix.platform }}" == windows* ]]; then OS=windows
+          else OS=linux
+          fi
+          ARCH="${{ matrix.arch }}"
+          if [[ "$OS" == "windows" ]]; then
+            ASSET="dist/cli/cab-${OS}-${ARCH}.zip"
+          else
+            ASSET="dist/cli/cab-${OS}-${ARCH}.tar.gz"
+          fi
+          gh release upload "${{ github.ref_name }}" "$ASSET" --clobber
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: cab-gui-${{ matrix.platform }}-${{ matrix.arch }}
-          path: ${{ matrix.path }}
+          path: |
+            ${{ matrix.path }}
+            dist/cli/*
           if-no-files-found: warn

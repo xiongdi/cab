@@ -17,13 +17,13 @@ pub use affinity::{
 pub use benchmark_catalog::{
     AaModelMapFile, BenchmarkCatalog, BenchmarkCatalogFile, CatalogSourceStatus,
     ModelsDevCatalogFile, aa_model_map_path, aa_model_map_status,
-    artificial_analysis_catalog_status, artificial_analysis_models_path, catalog_root_dir,
-    embedded_aa_model_map, ensure_aa_model_map_file, load_aa_model_map,
-    load_artificial_analysis_catalog, load_models_dev_catalog_file, models_dev_catalog_path,
-    models_dev_catalog_status, models_dev_catalog_url, models_dev_lab_logo_url,
-    models_dev_provider_logo_url, refresh_aa_model_map_exact_matches,
-    resolve_artificial_analysis_api_key, resolve_intelligence_indices, resolve_performance_metrics,
-    save_aa_model_map,
+    artificial_analysis_catalog_status, artificial_analysis_models_path,
+    artificial_analysis_models_url, catalog_root_dir, embedded_aa_model_map,
+    ensure_aa_model_map_file, load_aa_model_map, load_artificial_analysis_catalog,
+    load_models_dev_catalog_file, models_dev_catalog_path, models_dev_catalog_status,
+    models_dev_catalog_url, models_dev_lab_logo_url, models_dev_provider_logo_url,
+    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
+    resolve_intelligence_indices, resolve_performance_metrics, save_aa_model_map,
 };
 pub use config::CabConfig;
 pub use error::{CabError, redact_secrets};
@@ -52,6 +52,6 @@ pub use tool_weights::{
     ToolSchemaCost, ToolWeightSnapshot, ToolWeightTracker, estimate_tokens, tool_schema_costs,
 };
 pub use types::{
-    ordered_api_keys, provider_has_available_key, provider_has_configured_key,
-    select_preferred_api_key,
+    NormalizedTokens, normalize_stored_tokens, ordered_api_keys, provider_has_available_key,
+    provider_has_configured_key, select_preferred_api_key,
 };

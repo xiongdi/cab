@@ -20,14 +20,15 @@ impl ProtocolAdapter for OpenAiChatAdapter {
     }
 
     fn extract_usage(&self, usage: &serde_json::Value) -> (i64, i64) {
+        // OpenAI Chat Completions `CompletionUsage`: prompt_tokens / completion_tokens.
+        // Do not fall back to Responses/Anthropic field names — some compat providers
+        // emit both, with input_tokens/output_tokens stuck at 0.
         let input = usage
             .get("prompt_tokens")
-            .or_else(|| usage.get("input_tokens"))
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         let output = usage
             .get("completion_tokens")
-            .or_else(|| usage.get("output_tokens"))
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
         (input, output)

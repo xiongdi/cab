@@ -117,10 +117,10 @@ fn looks_like_frontend(dir: &std::path::Path) -> bool {
 ///
 /// Priority:
 /// 1. `CAB_FRONTEND_DIR`
-/// 2. `{exe_dir}/ui`
-/// 3. `{exe_dir}/../ui` (Tauri Resources layout: `bin/` + sibling `ui/`)
-/// 4. `/usr/share/cab/ui` (Linux .deb)
-/// 5. `{cwd}/build` (dev)
+/// 2. `{cwd}/build` (local `npm run build` — must beat the packaged system UI)
+/// 3. `{exe_dir}/ui`
+/// 4. `{exe_dir}/../ui` (Tauri Resources layout: `bin/` + sibling `ui/`)
+/// 5. `/usr/share/cab/ui` (Linux .deb)
 pub fn resolve_frontend_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("CAB_FRONTEND_DIR") {
         let path = PathBuf::from(dir);
@@ -131,6 +131,13 @@ pub fn resolve_frontend_dir() -> Option<PathBuf> {
             path = %path.display(),
             "CAB_FRONTEND_DIR set but does not look like a frontend build"
         );
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        let build = cwd.join("build");
+        if looks_like_frontend(&build) {
+            return Some(build);
+        }
     }
 
     if let Ok(exe) = std::env::current_exe()
@@ -146,13 +153,6 @@ pub fn resolve_frontend_dir() -> Option<PathBuf> {
     let deb_ui = PathBuf::from("/usr/share/cab/ui");
     if looks_like_frontend(&deb_ui) {
         return Some(deb_ui);
-    }
-
-    if let Ok(cwd) = std::env::current_dir() {
-        let build = cwd.join("build");
-        if looks_like_frontend(&build) {
-            return Some(build);
-        }
     }
 
     None

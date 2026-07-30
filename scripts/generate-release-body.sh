@@ -69,6 +69,15 @@ ${CHANGELOG_SECTION}
 
 ## Download & install / 下载与安装
 
+### CLI (curl | bash)
+
+\`\`\`bash
+curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
+cab-cli update
+\`\`\`
+
+Archives on this release: \`cab-linux-x64.tar.gz\`, \`cab-linux-arm64.tar.gz\`, \`cab-darwin-x64.tar.gz\`, \`cab-darwin-arm64.tar.gz\`, \`cab-windows-x64.zip\`, \`cab-windows-arm64.zip\`.
+
 ### Windows
 
 | Device | File | Notes |

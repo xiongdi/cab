@@ -3,7 +3,32 @@ title: 安装
 description: 在 Windows、macOS 和 Linux 上下载并安装 CAB。
 ---
 
-从 [GitHub Releases](https://github.com/xiongdi/cab/releases) 下载预编译桌面安装包。若需从源码构建，请参阅 [仓库 README](https://github.com/xiongdi/cab#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)。
+## CLI（无头 / 服务器推荐）
+
+从 GitHub Releases 一键安装 `cab-cli` + `cab-srv`（含仪表盘 UI）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/xiongdi/cab/main/scripts/install.sh | bash
+# 镜像：curl -fsSL https://xiongdi.github.io/cab/install.sh | bash
+```
+
+默认安装到 `~/.cab/bin`，写入 shell `PATH`，并执行 `cab-cli service install --scope user`。
+
+```bash
+cab-cli status
+cab-cli update              # 升级到最新版
+cab-cli update --check      # 仅检查是否有新版本
+cab-cli update --version 0.8.6
+```
+
+安装脚本可选参数：
+
+```bash
+curl -fsSL …/install.sh | bash -s -- --version 0.8.6
+curl -fsSL …/install.sh | bash -s -- --no-service --no-modify-path
+```
+
+桌面安装包见下方（以及 [GitHub Releases](https://github.com/xiongdi/cab/releases)）。从源码构建请参阅 [仓库 README](https://github.com/xiongdi/cab#%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B)。
 
 ## 系统要求
 

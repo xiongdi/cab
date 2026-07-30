@@ -169,6 +169,13 @@ pub fn get_cab_srv_executable_path() -> Result<PathBuf, String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "Home directory not set".to_string())?;
+    let cab_bin = PathBuf::from(&home)
+        .join(".cab")
+        .join("bin")
+        .join(srv_target_name);
+    if cab_bin.exists() {
+        return Ok(cab_bin);
+    }
     let fallback_bin = PathBuf::from(home)
         .join(".local")
         .join("bin")

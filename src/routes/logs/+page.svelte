@@ -13,6 +13,7 @@
   import { i18n } from '$lib/i18n.svelte';
   import { JsonView, darkStyles, allExpanded } from '@humanspeak/svelte-json-view-lite';
   import { themeManager } from '$lib/theme.svelte';
+  import { cacheHitRatePct, displayInputTokens, displayOutputTokens, formatCacheHitRatePct, freshInputTokens, promptTokens } from '$lib/cache-tokens';
 
   let isDarkTheme = $derived(
     themeManager.current === 'system'
@@ -133,14 +134,16 @@
       label: i18n.t('dashboard.inputs'),
       sortable: true,
       align: 'right' as const,
-      render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
+      render: (_v: number, row: RequestLog) =>
+        `<span class="mono">${displayInputTokens(row).toLocaleString()}</span>`,
     },
     {
       key: 'output_tokens',
       label: i18n.t('dashboard.outputs'),
       sortable: true,
       align: 'right' as const,
-      render: (v: number) => `<span class="mono">${v?.toLocaleString() ?? '0'}</span>`,
+      render: (_v: number, row: RequestLog) =>
+        `<span class="mono">${displayOutputTokens(row).toLocaleString()}</span>`,
     },
     {
       key: 'cache_read_tokens',
@@ -149,19 +152,19 @@
       align: 'right' as const,
       render: (v: number, row: RequestLog) => {
         const cacheRead = v ?? 0;
-        const total = (row.input_tokens ?? 0);
-        if (total <= 0 || cacheRead <= 0) {
+        const prompt = promptTokens(row);
+        const pct = cacheHitRatePct(row);
+        if (prompt <= 0 || cacheRead <= 0 || pct == null) {
           return '<span class="mono" style="color:var(--text-muted)">—</span>';
         }
-        const pct = (cacheRead / total) * 100;
         const color = pct >= 50 ? 'var(--success)' : pct > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
         const tooltip = i18n
           .tParams('logs.cache_hit_tooltip', {
             cached: cacheRead.toLocaleString(),
-            total: total.toLocaleString(),
+            total: prompt.toLocaleString(),
           })
           .replace(/"/g, '&quot;');
-        return `<span class="mono" style="color:${color}" title="${tooltip}">${pct.toFixed(2)}%</span>`;
+        return `<span class="mono" style="color:${color}" title="${tooltip}">${formatCacheHitRatePct(pct)}%</span>`;
       },
     },
     {
@@ -403,24 +406,29 @@
         <div class="detail-section">
           <div class="detail-section-title">{i18n.t('logs.detail_tokens')}</div>
           <!-- Token breakdown capsule bar -->
-          <div class="token-ratio-bar">
-            {#if (row.input_tokens || 0) > 0}
-              <div class="bar-segment input" style="flex: {row.input_tokens};" title={i18n.t('logs.detail_input_tokens_title')}></div>
-            {/if}
-            {#if (row.cache_read_tokens || 0) > 0}
-              <div class="bar-segment cache" style="flex: {row.cache_read_tokens};" title={i18n.t('logs.detail_cache_read_title')}></div>
-            {/if}
-            {#if (row.output_tokens || 0) > 0}
-              <div class="bar-segment output" style="flex: {row.output_tokens};" title={i18n.t('logs.detail_output_tokens_title')}></div>
-            {/if}
-          </div>
+          {#if true}
+            {@const freshIn = freshInputTokens(row)}
+            {@const cacheRead = row.cache_read_tokens || 0}
+            {@const out = row.output_tokens || 0}
+            <div class="token-ratio-bar">
+              {#if freshIn > 0}
+                <div class="bar-segment input" style="flex: {freshIn};" title={i18n.t('logs.detail_input_tokens_title')}></div>
+              {/if}
+              {#if cacheRead > 0}
+                <div class="bar-segment cache" style="flex: {cacheRead};" title={i18n.t('logs.detail_cache_read_title')}></div>
+              {/if}
+              {#if out > 0}
+                <div class="bar-segment output" style="flex: {out};" title={i18n.t('logs.detail_output_tokens_title')}></div>
+              {/if}
+            </div>
+          {/if}
           <div class="detail-row">
             <span class="detail-label">{i18n.t('dashboard.inputs')}</span>
-            <span class="detail-value mono">{row.input_tokens?.toLocaleString() ?? '0'}</span>
+            <span class="detail-value mono">{displayInputTokens(row).toLocaleString()}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">{i18n.t('dashboard.outputs')}</span>
-            <span class="detail-value mono">{row.output_tokens?.toLocaleString() ?? '0'}</span>
+            <span class="detail-value mono">{displayOutputTokens(row).toLocaleString()}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">{i18n.t('logs.cache_hit')}</span>

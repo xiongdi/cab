@@ -214,6 +214,9 @@ export interface RequestLog {
   latency_ms: number;
   status_code: number;
   error_message?: string;
+  /** Client-facing path: `/v1/messages` | `/v1/chat/completions` | `/v1/responses`. */
+  path?: string;
+  stream?: boolean;
   request_body?: string;
   response_body?: string;
 }
