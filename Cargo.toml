@@ -26,3 +26,9 @@ toml = "1.1"
 futures = "0.3.32"
 bytes = "1.11.1"
 axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+
+[profile.ci]
+inherits = "release"
+lto = false
+codegen-units = 16
+strip = false

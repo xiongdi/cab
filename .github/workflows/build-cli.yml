@@ -34,43 +34,10 @@ jobs:
               --notes-file .github/release-body.md
           fi
 
-  build-cli:
+  build-frontend:
     needs: prepare-release
     if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped')
-    name: Build (${{ matrix.platform }} / ${{ matrix.arch }})
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: 'macos-latest'
-            os: darwin
-            arch: x64
-            cargo_target: 'x86_64-apple-darwin'
-          - platform: 'macos-latest'
-            os: darwin
-            arch: arm64
-            cargo_target: 'aarch64-apple-darwin'
-          - platform: 'windows-latest'
-            os: windows
-            arch: x64
-            cargo_target: ''
-          - platform: 'windows-latest'
-            os: windows
-            arch: arm64
-            cargo_target: 'aarch64-pc-windows-msvc'
-          # Ubuntu 22.04 keeps glibc ≤ 2.35 for older distros.
-          - platform: 'ubuntu-22.04'
-            os: linux
-            arch: x64
-            cargo_target: ''
-          - platform: 'ubuntu-22.04-arm'
-            os: linux
-            arch: arm64
-            cargo_target: ''
-
-    runs-on: ${{ matrix.platform }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -84,6 +51,67 @@ jobs:
       - name: Install dependencies
         run: vp install
 
+      - name: Build Frontend
+        run: |
+          npx svelte-kit sync
+          vp build
+
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: cab-ui
+          path: build/
+          if-no-files-found: error
+
+  build-cli:
+    needs: [prepare-release, build-frontend]
+    if: always() && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.build-frontend.result == 'success' || needs.build-frontend.result == 'skipped')
+    name: Build (${{ matrix.os }} / ${{ matrix.arch }})
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ubuntu latest: x64 native + arm64 cross via cross
+          - platform: 'ubuntu-latest'
+            os: linux
+            arch: x64
+            cargo_target: ''
+            use_cross: false
+          - platform: 'ubuntu-latest'
+            os: linux
+            arch: arm64
+            cargo_target: 'aarch64-unknown-linux-gnu'
+            use_cross: true
+          # Windows latest: x64 native + arm64 cross
+          - platform: 'windows-latest'
+            os: windows
+            arch: x64
+            cargo_target: ''
+            use_cross: false
+          - platform: 'windows-latest'
+            os: windows
+            arch: arm64
+            cargo_target: 'aarch64-pc-windows-msvc'
+            use_cross: false
+          # macOS latest (Apple Silicon): arm64 native + x64 cross
+          - platform: 'macos-latest'
+            os: darwin
+            arch: arm64
+            cargo_target: ''
+            use_cross: false
+          - platform: 'macos-latest'
+            os: darwin
+            arch: x64
+            cargo_target: 'x86_64-apple-darwin'
+            use_cross: false
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -92,35 +120,48 @@ jobs:
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch }}
 
-      - name: Install macOS target
-        if: matrix.cargo_target != '' && startsWith(matrix.platform, 'macos')
+      # Install cross-compilation target toolchain
+      - name: Install cross target
+        if: matrix.cargo_target != ''
         run: rustup target add ${{ matrix.cargo_target }}
 
-      - name: Install Windows ARM64 target
-        if: matrix.cargo_target == 'aarch64-pc-windows-msvc'
-        run: rustup target add aarch64-pc-windows-msvc
-
-      - name: Build Frontend
+      # Install cross via pre-built binary (2-3 min faster than cargo install)
+      - name: Install cross
+        if: matrix.use_cross
+        shell: bash
         run: |
-          npx svelte-kit sync
-          vp build
+          cd /usr/local/cargo/bin
+          curl -sSfL https://github.com/cross-rs/cross/releases/download/v0.2.5/cross-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          chmod +x cross
+
+      # Download pre-built frontend artifact
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: cab-ui
+          path: build/
 
       - name: Build cab binary
         shell: bash
         env:
           CAB_CARGO_TARGET: ${{ matrix.cargo_target }}
+          USE_CROSS: ${{ matrix.use_cross }}
         run: |
           TARGET_ARGS=()
           if [[ -n "${CAB_CARGO_TARGET}" ]]; then
             TARGET_ARGS=(--target "${CAB_CARGO_TARGET}")
           fi
-          cargo build --release -p cab "${TARGET_ARGS[@]}"
+          if [[ "${USE_CROSS}" == "true" ]]; then
+            cross build --profile ci -p cab "${TARGET_ARGS[@]}"
+          else
+            cargo build --profile ci -p cab "${TARGET_ARGS[@]}"
+          fi
           EXT=""
           if [[ "${{ matrix.os }}" == "windows" ]]; then EXT=".exe"; fi
           if [[ -n "${CAB_CARGO_TARGET}" ]]; then
-            SRC="target/${CAB_CARGO_TARGET}/release/cab${EXT}"
+            SRC="target/${CAB_CARGO_TARGET}/ci/cab${EXT}"
           else
-            SRC="target/release/cab${EXT}"
+            SRC="target/ci/cab${EXT}"
           fi
           mkdir -p resources/bin
           cp "$SRC" "resources/bin/cab${EXT}"
