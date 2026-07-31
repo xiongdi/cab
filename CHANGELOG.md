@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6] - 2026-07-31
+
+### Changed
+
+- **Linux release binaries are fully static (musl)**. Builds target `x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`, so prebuilt packages no longer depend on host glibc (fixes `GLIBC_2.39 not found` on Deepin, Debian 12, Ubuntu 22.04, etc.). Install docs updated accordingly.
+
 ## [0.9.5] - 2026-07-30
 
 ### Changed

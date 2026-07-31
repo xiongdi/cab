@@ -63,6 +63,8 @@ cab update
 
 Archives on this release: \`cab-linux-x64.tar.gz\`, \`cab-linux-arm64.tar.gz\`, \`cab-darwin-x64.tar.gz\`, \`cab-darwin-arm64.tar.gz\`, \`cab-windows-x64.zip\`, \`cab-windows-arm64.zip\`.
 
+Linux archives are **fully static (musl)** and do not require a particular glibc version.
+
 Desktop \`.dmg\` / \`.msi\` / AppImage installers are no longer shipped (use the CLI + browser dashboard).
 
 ---

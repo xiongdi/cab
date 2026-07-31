@@ -71,15 +71,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu latest: x64 native + arm64 cross via gcc linker
+          # Linux: fully static musl (no glibc version floor)
           - platform: 'ubuntu-latest'
             os: linux
             arch: x64
-            cargo_target: ''
+            cargo_target: 'x86_64-unknown-linux-musl'
           - platform: 'ubuntu-latest'
             os: linux
             arch: arm64
-            cargo_target: 'aarch64-unknown-linux-gnu'
+            cargo_target: 'aarch64-unknown-linux-musl'
           # Windows latest: x64 native + arm64 cross
           - platform: 'windows-latest'
             os: windows
@@ -112,17 +112,22 @@ jobs:
         with:
           key: ${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.cargo_target }}
 
-      # Install cross-compilation target toolchain
       - name: Install cross target
         if: matrix.cargo_target != ''
         run: rustup target add ${{ matrix.cargo_target }}
 
-      # Install Linux ARM64 cross-linker (gcc) — avoids Docker overhead of `cross`
-      - name: Install Linux ARM64 linker
-        if: matrix.cargo_target == 'aarch64-unknown-linux-gnu'
+      # musl linker + aws-lc-sys build deps (cmake/ninja/perl)
+      - name: Install Linux musl toolchain
+        if: endsWith(matrix.cargo_target, '-linux-musl')
+        uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.cargo_target }}
+
+      - name: Install Linux musl build deps
+        if: endsWith(matrix.cargo_target, '-linux-musl')
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu
+          sudo apt-get install -y -qq cmake ninja-build perl pkg-config
 
       # Download pre-built frontend artifact
       - name: Download frontend artifact
@@ -136,11 +141,6 @@ jobs:
         env:
           CAB_CARGO_TARGET: ${{ matrix.cargo_target }}
         run: |
-          # Set linker for Linux ARM64 cross-compilation
-          if [[ "${CAB_CARGO_TARGET}" == "aarch64-unknown-linux-gnu" ]]; then
-            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
-          fi
-
           TARGET_ARGS=()
           if [[ -n "${CAB_CARGO_TARGET}" ]]; then
             TARGET_ARGS=(--target "${CAB_CARGO_TARGET}")
@@ -158,6 +158,25 @@ jobs:
           cp "$SRC" "resources/bin/cab${EXT}"
           rm -rf resources/ui
           cp -R build resources/ui
+
+      - name: Verify Linux binary is statically linked
+        if: matrix.os == 'linux'
+        shell: bash
+        run: |
+          BIN=resources/bin/cab
+          file "$BIN"
+          LDD_OUT="$(ldd "$BIN" 2>&1 || true)"
+          echo "$LDD_OUT"
+          if ! echo "$LDD_OUT" | grep -Eiq 'not a dynamic|statically linked'; then
+            echo "ERROR: expected a statically linked musl binary" >&2
+            exit 1
+          fi
+          if readelf -d "$BIN" 2>/dev/null | grep -q 'Shared library:'; then
+            echo "ERROR: binary has DT_NEEDED shared libraries" >&2
+            readelf -d "$BIN" | grep 'Shared library:' || true
+            exit 1
+          fi
+          "$BIN" --version
 
       - name: Package CLI archive
         shell: bash
