@@ -1,7 +1,10 @@
 use crate::router::ResolvedModel;
 use axum::response::Response;
 use cab_core::types::ApiKeyConfig;
-use cab_core::{CabError, ordered_api_keys, resolve_quota_reset_at};
+use cab_core::{
+    CabError, RATE_LIMIT_MAX_RETRIES, ordered_api_keys, rate_limit_backoff_delay,
+    resolve_quota_reset_at,
+};
 use reqwest::Client;
 
 /// Request info needed for fallback execution.
@@ -238,101 +241,123 @@ pub async fn execute_with_fallback(
                     request.stream
                 };
 
-                match crate::proxy::proxy_request(
-                    client,
-                    &upstream_url,
-                    &api_key,
-                    &endpoint.protocol,
-                    rewritten_body,
-                    &request.headers,
-                    upstream_stream,
-                )
-                .await
-                {
-                    Ok(response) => {
-                        clear_recovered_quota_if_needed(
-                            pool,
-                            &resolved.provider_id,
-                            &resolved.api_keys,
-                            &api_key,
-                        )
-                        .await;
-                        pool.health.record_success(&resolved.provider_id);
+                let mut rate_limit_attempt: u32 = 0;
+                loop {
+                    match crate::proxy::proxy_request(
+                        client,
+                        &upstream_url,
+                        &api_key,
+                        &endpoint.protocol,
+                        rewritten_body.clone(),
+                        &request.headers,
+                        upstream_stream,
+                    )
+                    .await
+                    {
+                        Ok(response) => {
+                            clear_recovered_quota_if_needed(
+                                pool,
+                                &resolved.provider_id,
+                                &resolved.api_keys,
+                                &api_key,
+                            )
+                            .await;
+                            pool.health.record_success(&resolved.provider_id);
 
-                        let final_response =
-                            convert_success_response(response, resolved, request, endpoint).await;
-                        return Ok((
-                            final_response,
-                            resolved.provider_name.clone(),
-                            resolved.model.name.clone(),
-                        ));
-                    }
-                    Err(CabError::ProviderError {
-                        status,
-                        body,
-                        retry_after: _,
-                    }) if status == 400 => {
-                        tracing::warn!(
-                            "Provider {} endpoint {} returned {status} for model {}: {body}",
-                            resolved.provider_name,
-                            endpoint.url,
-                            resolved.model.name
-                        );
-                        endpoint_error = Some(CabError::ProviderError {
+                            let final_response =
+                                convert_success_response(response, resolved, request, endpoint)
+                                    .await;
+                            return Ok((
+                                final_response,
+                                resolved.provider_name.clone(),
+                                resolved.model.name.clone(),
+                            ));
+                        }
+                        Err(CabError::ProviderError {
                             status,
-                            body: body.clone(),
-                            retry_after: None,
-                        });
-                    }
-                    Err(CabError::ProviderError {
-                        status: 429,
-                        body,
-                        retry_after,
-                    }) => {
-                        mark_key_rate_limited(
-                            pool,
-                            &resolved.provider_id,
-                            &api_key,
-                            retry_after,
-                            &body,
-                        )
-                        .await;
-                        tracing::warn!(
-                            "Provider {} API key returned 429 — trying next key if available",
-                            resolved.provider_name,
-                        );
-                        model_error = Some(CabError::ProviderError {
+                            body,
+                            retry_after: _,
+                        }) if status == 400 => {
+                            tracing::warn!(
+                                "Provider {} endpoint {} returned {status} for model {}: {body}",
+                                resolved.provider_name,
+                                endpoint.url,
+                                resolved.model.name
+                            );
+                            endpoint_error = Some(CabError::ProviderError {
+                                status,
+                                body: body.clone(),
+                                retry_after: None,
+                            });
+                            break;
+                        }
+                        Err(CabError::ProviderError {
                             status: 429,
                             body,
                             retry_after,
-                        });
-                        continue 'keys;
-                    }
-                    Err(CabError::ProviderError {
-                        status,
-                        body,
-                        retry_after: _,
-                    }) if status >= 500 => {
-                        tracing::warn!(
-                            "Provider {} endpoint {} returned {status}, trying next endpoint: {body}",
-                            resolved.provider_name,
-                            endpoint.url
-                        );
-                        endpoint_error = Some(CabError::ProviderError {
+                        }) => {
+                            if rate_limit_attempt < RATE_LIMIT_MAX_RETRIES
+                                && let Some(delay) =
+                                    rate_limit_backoff_delay(rate_limit_attempt, retry_after)
+                            {
+                                tracing::warn!(
+                                    provider = %resolved.provider_name,
+                                    attempt = rate_limit_attempt + 1,
+                                    delay_ms = delay.as_millis() as u64,
+                                    "Provider returned 429 — exponential backoff before retry"
+                                );
+                                tokio::time::sleep(delay).await;
+                                rate_limit_attempt += 1;
+                                continue;
+                            }
+
+                            mark_key_rate_limited(
+                                pool,
+                                &resolved.provider_id,
+                                &api_key,
+                                retry_after,
+                                &body,
+                            )
+                            .await;
+                            tracing::warn!(
+                                "Provider {} API key returned 429 after {rate_limit_attempt} backoff retries — trying next key if available",
+                                resolved.provider_name,
+                            );
+                            model_error = Some(CabError::ProviderError {
+                                status: 429,
+                                body,
+                                retry_after,
+                            });
+                            continue 'keys;
+                        }
+                        Err(CabError::ProviderError {
                             status,
                             body,
-                            retry_after: None,
-                        });
+                            retry_after: _,
+                        }) if status >= 500 => {
+                            tracing::warn!(
+                                "Provider {} endpoint {} returned {status}, trying next endpoint: {body}",
+                                resolved.provider_name,
+                                endpoint.url
+                            );
+                            endpoint_error = Some(CabError::ProviderError {
+                                status,
+                                body,
+                                retry_after: None,
+                            });
+                            break;
+                        }
+                        Err(CabError::Proxy(msg)) => {
+                            tracing::warn!(
+                                "Provider {} endpoint {} proxy error, trying next endpoint: {msg}",
+                                resolved.provider_name,
+                                endpoint.url
+                            );
+                            endpoint_error = Some(CabError::Proxy(msg));
+                            break;
+                        }
+                        Err(e) => return Err(e),
                     }
-                    Err(CabError::Proxy(msg)) => {
-                        tracing::warn!(
-                            "Provider {} endpoint {} proxy error, trying next endpoint: {msg}",
-                            resolved.provider_name,
-                            endpoint.url
-                        );
-                        endpoint_error = Some(CabError::Proxy(msg));
-                    }
-                    Err(e) => return Err(e),
                 }
             }
 
@@ -539,11 +564,32 @@ data: [DONE]\n\n",
     }
 
     async fn rate_limited() -> impl IntoResponse {
+        // Long Retry-After (> honor window) so tests failover without sleeping.
         (
             StatusCode::TOO_MANY_REQUESTS,
-            [("retry-after", "5")],
+            [("retry-after", "60")],
             "quota",
         )
+    }
+
+    async fn rate_limited_then_ok(
+        State(recorder): State<Recorder>,
+        body: Bytes,
+    ) -> axum::response::Response {
+        use axum::response::IntoResponse;
+        let json = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+        recorder.bodies.lock().unwrap().push(json);
+        let hits = recorder.bodies.lock().unwrap().len();
+        if hits == 1 {
+            return (StatusCode::TOO_MANY_REQUESTS, "rate limited once").into_response();
+        }
+        Json(serde_json::json!({
+            "id": "chatcmpl_1",
+            "model": "native-model",
+            "choices": [{"message": {"role": "assistant", "content": "recovered"}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 7}
+        }))
+        .into_response()
     }
 
     fn endpoint(id: &str, protocol: &str, url: &str) -> ProviderEndpoint {
@@ -996,6 +1042,52 @@ data: [DONE]\n\n",
         assert_eq!(routed_model, "deepseek/deepseek-v4-flash");
         let json = response_json(response).await;
         assert_eq!(json["choices"][0]["message"]["content"], "openai answer");
+    }
+
+    #[tokio::test]
+    async fn provider_429_retries_same_key_with_backoff_then_succeeds() {
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(rate_limited_then_ok))
+                .with_state(recorder.clone()),
+            recorder.clone(),
+        )
+        .await;
+
+        let primary = model(
+            "meituan/longcat-2.0",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &server.base_url)],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"auto","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "chat/completions".into(),
+            shape_requests: false,
+        };
+
+        let (response, provider, routed_model) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            &[],
+            &request,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(provider, "Provider One");
+        assert_eq!(routed_model, "meituan/longcat-2.0");
+        assert!(
+            recorder.bodies.lock().unwrap().len() >= 2,
+            "expected initial 429 then a successful retry"
+        );
+        let json = response_json(response).await;
+        assert_eq!(json["choices"][0]["message"]["content"], "recovered");
     }
 
     #[tokio::test]

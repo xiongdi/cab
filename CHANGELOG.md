@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7] - 2026-07-31
+
+### Changed
+
+- **Upstream 429 handling uses exponential backoff before cooling a key**. Same key/endpoint retries up to 4 times (0.5s–8s, honors short `Retry-After`); only then marks a brief cooldown (default 60s, down from 1h) and falls back to the next key or model. Docs updated.
+
 ## [0.9.6] - 2026-07-31
 
 ### Changed
