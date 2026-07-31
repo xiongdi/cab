@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.8] - 2026-07-31
+
+### Fixed
+
+- **Dashboard favicon**: ship `favicon.ico` / `favicon.svg` and link them from `app.html`, so `/favicon.ico` no longer falls back to `index.html`.
+
 ## [0.9.7] - 2026-07-31
 
 ### Changed
