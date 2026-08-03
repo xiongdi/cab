@@ -648,6 +648,29 @@ pub fn normalize_stored_tokens(
     }
 }
 
+/// Detect Anthropic-format `usage` whose `input_tokens` already includes the
+/// cache-hit portion.
+///
+/// Spec-compliant Anthropic providers report `input`, `cache_read` and
+/// `cache_creation` as disjoint legs. Some relays (e.g. OpenAI-style backends
+/// behind `/v1/messages`) violate this and report the total prompt as
+/// `input_tokens` while also emitting `cache_read_input_tokens` — summing them
+/// then double-counts the cache read.
+///
+/// The signature of the inclusive layout is: cache legs non-zero and `input`
+/// at least as large as them. When `input < cache_read` the input cannot
+/// contain the whole cache read, so the layout must already be disjoint.
+pub fn anthropic_input_includes_cache(
+    reported_input: i64,
+    cache_read: i64,
+    cache_creation: i64,
+) -> bool {
+    if cache_read <= 0 && cache_creation <= 0 {
+        return false;
+    }
+    reported_input >= cache_read + cache_creation
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NormalizedTokens {
     pub input_tokens: i64,
@@ -659,7 +682,7 @@ pub struct NormalizedTokens {
 
 #[cfg(test)]
 mod token_normalize_tests {
-    use super::normalize_stored_tokens;
+    use super::{anthropic_input_includes_cache, normalize_stored_tokens};
 
     #[test]
     fn openai_only_strips_cache_read_from_prompt() {
@@ -679,5 +702,28 @@ mod token_normalize_tests {
         assert_eq!(n.cache_read_tokens, 42);
         assert_eq!(n.cache_creation_tokens, 9);
         assert_eq!(n.total_tokens, 25 + 42 + 9 + 12);
+    }
+
+    #[test]
+    fn anthropic_inclusive_input_is_recognized() {
+        // Relay reports total prompt as input while cache read is separate.
+        assert!(anthropic_input_includes_cache(29047, 28928, 0));
+        assert!(anthropic_input_includes_cache(100, 40, 10));
+    }
+
+    #[test]
+    fn disjoint_anthropic_input_is_not_inclusive() {
+        // LongCat-style: input is only the non-cached leg.
+        assert!(!anthropic_input_includes_cache(1217, 79232, 0));
+        // No cache legs at all.
+        assert!(!anthropic_input_includes_cache(100, 0, 0));
+    }
+
+    #[test]
+    fn inclusive_anthropic_input_normalizes_without_double_count() {
+        let n = normalize_stored_tokens(29047, 64, 28928, 0, true);
+        assert_eq!(n.input_tokens, 119);
+        assert_eq!(n.cache_read_tokens, 28928);
+        assert_eq!(n.total_tokens, 29111); // 119 + 28928 + 64
     }
 }

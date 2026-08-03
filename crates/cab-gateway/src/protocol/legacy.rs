@@ -906,6 +906,7 @@ impl<S> TokenTrackingStream<S> {
         let cache_read = details
             .and_then(|d| d.get("cached_tokens"))
             .and_then(|v| v.as_i64())
+            .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(|v| v.as_i64()))
             .unwrap_or(self.log.cache_read_tokens);
         let cache_creation = details
             .and_then(|d| d.get("cache_write_tokens"))
@@ -962,7 +963,9 @@ impl<S> TokenTrackingStream<S> {
 
     /// Anthropic Messages `Usage` only (`input_tokens` / `output_tokens` + cache_*).
     ///
-    /// Wire input already excludes cache — matches CAB storage directly.
+    /// Wire input normally excludes cache — but some relays report the total
+    /// prompt (inclusive of cache reads); detect that layout and normalize it
+    /// back to CAB's disjoint storage so cache reads are never double-counted.
     fn apply_anthropic_usage(&mut self, usage: &serde_json::Value) {
         let mut reported_input = self.log.input_tokens;
         if let Some(v) = usage.get("input_tokens").and_then(|v| v.as_i64()) {
@@ -988,7 +991,7 @@ impl<S> TokenTrackingStream<S> {
             reported_output,
             cache_read,
             cache_creation,
-            false,
+            cab_core::anthropic_input_includes_cache(reported_input, cache_read, cache_creation),
         );
         self.log.input_tokens = n.input_tokens;
         self.log.output_tokens = n.output_tokens;
@@ -1519,6 +1522,105 @@ data: {"type":"message_stop"}
         assert_eq!(log.latency_ms, 42);
         assert_eq!(log.agent, "claude-code");
         assert_eq!(log.status, 200);
+    }
+
+    #[tokio::test]
+    async fn token_tracking_anthropic_normalizes_inclusive_input() {
+        // Relay reports the total prompt as input_tokens (29047) alongside a
+        // separate cache_read (28928); CAB must store disjoint legs so the
+        // cache read is not double-counted.
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-anthropic-inclusive".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "claude-code".into(),
+            provider: "OpenCode Go".into(),
+            model: "deepseek/deepseek-v4-flash".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 42,
+            status: 200,
+            error: None,
+            path: "/v1/messages".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_start","message":{"usage":{"input_tokens":29047,"output_tokens":1,"cache_read_input_tokens":28928}}}
+"#,
+            )),
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":64}}
+data: {"type":"message_stop"}
+"#,
+            )),
+        ]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 119); // 29047 - 28928
+        assert_eq!(log.cache_read_tokens, 28928);
+        assert_eq!(log.output_tokens, 64);
+        assert_eq!(log.total_tokens, 119 + 28928 + 64); // no double count
+    }
+
+    #[tokio::test]
+    async fn token_tracking_openai_chat_maps_deepseek_cache_hit() {
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-deepseek-cache".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "opencode".into(),
+            provider: "deepseek".into(),
+            model: "deepseek-chat".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/chat/completions".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![Ok(Bytes::from_static(
+            br#"data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":5,"prompt_cache_hit_tokens":40,"prompt_cache_miss_tokens":60}}
+data: [DONE]
+"#,
+        ))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 60); // prompt(100) - cache hit(40)
+        assert_eq!(log.cache_read_tokens, 40);
+        assert_eq!(log.output_tokens, 5);
+        assert_eq!(log.total_tokens, 105);
     }
 
     #[tokio::test]

@@ -370,11 +370,25 @@ async fn apply_session_affinity(
 
 /// True when the upstream `usage.input`/`prompt_tokens` already includes cache.
 fn usage_input_includes_cache(usage: &serde_json::Value) -> bool {
-    // Anthropic exclusive-input keys → reported input does NOT include cache.
+    // Anthropic exclusive-input keys → reported input usually does NOT include
+    // cache. Some relays still report the total prompt as `input_tokens` while
+    // also emitting cache_* keys; detect that inclusive layout by the numbers.
     if usage.get("cache_read_input_tokens").is_some()
         || usage.get("cache_creation_input_tokens").is_some()
     {
-        return false;
+        let input = usage
+            .get("input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cache_read = usage
+            .get("cache_read_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        let cache_creation = usage
+            .get("cache_creation_input_tokens")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0);
+        return cab_core::anthropic_input_includes_cache(input, cache_read, cache_creation);
     }
     // OpenAI Chat / Responses detail objects → reported prompt/input includes cache.
     if usage.get("prompt_tokens_details").is_some() || usage.get("input_tokens_details").is_some() {
@@ -432,6 +446,12 @@ fn extract_cache_tokens(usage: &serde_json::Value) -> (i64, i64) {
             .unwrap_or(0)
             .max(0);
         return (cache_read, cache_creation);
+    }
+
+    // DeepSeek-style Chat Completions: top-level prompt_cache_hit_tokens.
+    if let Some(hit) = usage.get("prompt_cache_hit_tokens") {
+        let cache_read = hit.as_i64().unwrap_or(0).max(0);
+        return (cache_read, 0);
     }
 
     (0, 0)

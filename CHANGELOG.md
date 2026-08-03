@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.11] - 2026-08-03
+
+### Fixed
+
+- **Request-log cache tokens double-counted**: some Anthropic-format relays (e.g. opencode.ai Console Go) report the total prompt as `usage.input_tokens` while also emitting `cache_read_input_tokens`, which is non-compliant with Anthropic's disjoint-input convention. The gateway now detects that layout and normalizes the stored legs so `total_tokens = non-cached input + cache read + output` instead of adding the cache read twice. This also fixes the per-request cost estimate, which previously billed the cached portion at full input rate.
+- **DeepSeek cache hits not recorded for OpenAI-chat upstreams**: `usage.prompt_cache_hit_tokens` is now mapped to cache-read tokens, so cache hits show up in request logs instead of being counted as plain input.
+
 ## [0.9.10] - 2026-08-03
 
 ### Fixed

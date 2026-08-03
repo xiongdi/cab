@@ -1250,6 +1250,10 @@ pub fn decode_openai_chat_response(body: &Value) -> IrResponse {
                         .and_then(|u| u.get("prompt_tokens_details"))
                         .and_then(|d| d.get("cached_tokens"))
                 })
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("prompt_cache_hit_tokens"))
+                })
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
             cache_creation_tokens: body
@@ -1342,8 +1346,12 @@ pub fn decode_responses_response(body: &Value) -> IrResponse {
                 .or_else(|| body.get("usage").and_then(|u| u.get("cache_read_tokens")))
                 .or_else(|| {
                     body.get("usage")
-                        .and_then(|u| u.get("prompt_tokens_details"))
+                        .and_then(|u| u.get("input_tokens_details"))
                         .and_then(|d| d.get("cached_tokens"))
+                })
+                .or_else(|| {
+                    body.get("usage")
+                        .and_then(|u| u.get("prompt_cache_hit_tokens"))
                 })
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0),
