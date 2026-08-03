@@ -1,7 +1,7 @@
 use super::scope::{
     ServiceConfig, ServiceScope, clear_service_config, default_cab_home_for_scope,
     get_cab_executable_path, get_working_dir, require_admin_for_system,
-    resolve_frontend_dir_for_install, run_cmd, save_service_config,
+    resolve_frontend_dir_for_install, run_cmd, run_cmd_silent, save_service_config,
 };
 use std::fs;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -39,14 +39,10 @@ pub fn install_service(scope: ServiceScope) -> Result<(), String> {
         cab_home.display()
     );
 
-    // System install already runs elevated — start now so the installer needs only one UAC prompt.
-    if scope == ServiceScope::System {
-        match super::start_daemon() {
-            Ok(()) => println!("System service started."),
-            Err(e) => println!("Warning: installed but failed to start: {e}"),
-        }
-    } else {
-        println!("Start with: cab start");
+    // Start now (user: LaunchAgent RunAtLoad + idempotent start; system: one elevated prompt).
+    match super::start_daemon() {
+        Ok(()) => println!("{} service started.", scope.as_str()),
+        Err(e) => println!("Warning: installed but failed to start: {e}\n  Run: cab start"),
     }
     Ok(())
 }
@@ -516,11 +512,12 @@ fn macos_bootstrap_user(plist: &str) -> Result<(), String> {
     let uid = macos_current_uid()?;
     let domain = format!("gui/{uid}");
     let label = format!("{domain}/com.cab.cab-srv");
-    let _ = run_cmd("launchctl", &["bootout", &domain, plist]);
-    let _ = run_cmd("launchctl", &["unload", plist]);
+    // bootout/unload often fail when nothing is loaded — keep stderr quiet.
+    let _ = run_cmd_silent("launchctl", &["bootout", &domain, plist]);
+    let _ = run_cmd_silent("launchctl", &["unload", plist]);
     if run_cmd("launchctl", &["bootstrap", &domain, plist]).is_ok() {
-        let _ = run_cmd("launchctl", &["enable", &label]);
-        let _ = run_cmd("launchctl", &["kickstart", "-k", &label]);
+        let _ = run_cmd_silent("launchctl", &["enable", &label]);
+        // RunAtLoad already starts the job; do not kickstart -k (that kills the fresh process).
         return Ok(());
     }
     run_cmd("launchctl", &["load", "-w", plist])
@@ -528,11 +525,11 @@ fn macos_bootstrap_user(plist: &str) -> Result<(), String> {
 
 #[cfg(target_os = "macos")]
 fn macos_bootstrap_system(plist: &str) -> Result<(), String> {
-    let _ = run_cmd("launchctl", &["bootout", "system", plist]);
-    let _ = run_cmd("launchctl", &["unload", plist]);
+    let _ = run_cmd_silent("launchctl", &["bootout", "system", plist]);
+    let _ = run_cmd_silent("launchctl", &["unload", plist]);
     if run_cmd("launchctl", &["bootstrap", "system", plist]).is_ok() {
-        let _ = run_cmd("launchctl", &["enable", "system/com.cab.cab-srv"]);
-        let _ = run_cmd("launchctl", &["kickstart", "-k", "system/com.cab.cab-srv"]);
+        let _ = run_cmd_silent("launchctl", &["enable", "system/com.cab.cab-srv"]);
+        // RunAtLoad already starts the job; avoid kickstart -k restart.
         return Ok(());
     }
     run_cmd("launchctl", &["load", "-w", plist])
@@ -774,7 +771,11 @@ fn uninstall_user() -> Result<(), String> {
     if let Ok(home) = std::env::var("HOME") {
         let plist = PathBuf::from(home).join("Library/LaunchAgents/com.cab.cab-srv.plist");
         let s = plist.to_string_lossy().to_string();
-        let _ = run_cmd("launchctl", &["unload", &s]);
+        if let Ok(uid) = macos_current_uid() {
+            let domain = format!("gui/{uid}");
+            let _ = run_cmd_silent("launchctl", &["bootout", &domain, &s]);
+        }
+        let _ = run_cmd_silent("launchctl", &["unload", &s]);
         let _ = fs::remove_file(plist);
     }
     Ok(())
@@ -784,8 +785,8 @@ fn uninstall_user() -> Result<(), String> {
 fn uninstall_system() -> Result<(), String> {
     let plist = PathBuf::from("/Library/LaunchDaemons/com.cab.cab-srv.plist");
     let s = plist.to_string_lossy().to_string();
-    let _ = run_cmd("launchctl", &["bootout", "system", &s]);
-    let _ = run_cmd("launchctl", &["unload", &s]);
+    let _ = run_cmd_silent("launchctl", &["bootout", "system", &s]);
+    let _ = run_cmd_silent("launchctl", &["unload", &s]);
     let _ = fs::remove_file(plist);
     Ok(())
 }

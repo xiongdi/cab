@@ -151,9 +151,10 @@ try {
 
     if (-not $NoService) {
         Write-Muted 'Installing user service…'
+        # `service install` bootstraps + starts. A second `cab start` is redundant
+        # and on macOS previously printed false launchctl errors / restarted the daemon.
         & $cabDst service install --scope user
         if ($LASTEXITCODE -eq 0) {
-            & $cabDst start
             Write-Muted 'Gateway: http://127.0.0.1:3125'
         } else {
             Write-Muted 'Service install skipped/failed — run later:'

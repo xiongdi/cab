@@ -1,4 +1,6 @@
-use super::scope::{ServiceScope, load_service_config, require_admin_for_system, run_cmd};
+use super::scope::{
+    ServiceScope, load_service_config, require_admin_for_system, run_cmd, run_cmd_silent,
+};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::path::PathBuf;
@@ -160,30 +162,49 @@ fn start_user() -> Result<(), String> {
         .unwrap_or_else(|| "501".into());
     let domain = format!("gui/{uid}");
     let label = format!("{domain}/com.cab.cab-srv");
-    if run_cmd("launchctl", &["bootstrap", &domain, &s]).is_err() {
-        let _ = run_cmd("launchctl", &["load", "-w", &s]);
+
+    // Idempotent: after `service install`, the job is already bootstrapped via RunAtLoad.
+    // Re-running bootstrap/load prints "Input/output error" and kickstart -k restarts the daemon.
+    if is_active_user() {
+        let _ = run_cmd_silent("launchctl", &["enable", &label]);
+        if run_cmd_silent("launchctl", &["kickstart", &label]).is_err() {
+            let _ = run_cmd_silent("launchctl", &["start", "com.cab.cab-srv"]);
+        }
+        return Ok(());
     }
-    let _ = run_cmd("launchctl", &["enable", &label]);
-    if run_cmd("launchctl", &["kickstart", "-k", &label]).is_err() {
-        run_cmd("launchctl", &["start", "com.cab.cab-srv"])?;
+
+    if run_cmd("launchctl", &["bootstrap", &domain, &s]).is_err() {
+        run_cmd("launchctl", &["load", "-w", &s])?;
+    }
+    let _ = run_cmd_silent("launchctl", &["enable", &label]);
+    // No -k: do not kill a process that RunAtLoad just started.
+    if run_cmd_silent("launchctl", &["kickstart", &label]).is_err() {
+        let _ = run_cmd_silent("launchctl", &["start", "com.cab.cab-srv"]);
     }
     Ok(())
 }
 #[cfg(target_os = "macos")]
 fn start_system() -> Result<(), String> {
     let plist = "/Library/LaunchDaemons/com.cab.cab-srv.plist";
-    if run_cmd("launchctl", &["bootstrap", "system", plist]).is_err() {
-        let _ = run_cmd("launchctl", &["load", "-w", plist]);
+    if is_active_system() {
+        let _ = run_cmd_silent("launchctl", &["enable", "system/com.cab.cab-srv"]);
+        if run_cmd_silent("launchctl", &["kickstart", "system/com.cab.cab-srv"]).is_err() {
+            let _ = run_cmd_silent("launchctl", &["start", "com.cab.cab-srv"]);
+        }
+        return Ok(());
     }
-    let _ = run_cmd("launchctl", &["enable", "system/com.cab.cab-srv"]);
-    if run_cmd("launchctl", &["kickstart", "-k", "system/com.cab.cab-srv"]).is_err() {
-        run_cmd("launchctl", &["start", "com.cab.cab-srv"])?;
+    if run_cmd("launchctl", &["bootstrap", "system", plist]).is_err() {
+        run_cmd("launchctl", &["load", "-w", plist])?;
+    }
+    let _ = run_cmd_silent("launchctl", &["enable", "system/com.cab.cab-srv"]);
+    if run_cmd_silent("launchctl", &["kickstart", "system/com.cab.cab-srv"]).is_err() {
+        let _ = run_cmd_silent("launchctl", &["start", "com.cab.cab-srv"]);
     }
     Ok(())
 }
 #[cfg(target_os = "macos")]
 fn stop_user() -> Result<(), String> {
-    let _ = run_cmd("launchctl", &["stop", "com.cab.cab-srv"]);
+    let _ = run_cmd_silent("launchctl", &["stop", "com.cab.cab-srv"]);
     if let Ok(home) = std::env::var("HOME") {
         let plist = PathBuf::from(home).join("Library/LaunchAgents/com.cab.cab-srv.plist");
         let s = plist.to_string_lossy().to_string();
@@ -195,17 +216,17 @@ fn stop_user() -> Result<(), String> {
             .map(|u| u.trim().to_string())
             .unwrap_or_else(|| "501".into());
         let domain = format!("gui/{uid}");
-        let _ = run_cmd("launchctl", &["bootout", &domain, &s]);
-        let _ = run_cmd("launchctl", &["unload", &s]);
+        let _ = run_cmd_silent("launchctl", &["bootout", &domain, &s]);
+        let _ = run_cmd_silent("launchctl", &["unload", &s]);
     }
     Ok(())
 }
 #[cfg(target_os = "macos")]
 fn stop_system() -> Result<(), String> {
     let plist = "/Library/LaunchDaemons/com.cab.cab-srv.plist";
-    let _ = run_cmd("launchctl", &["kill", "SIGTERM", "system/com.cab.cab-srv"]);
-    let _ = run_cmd("launchctl", &["bootout", "system", plist]);
-    let _ = run_cmd("launchctl", &["unload", plist]);
+    let _ = run_cmd_silent("launchctl", &["kill", "SIGTERM", "system/com.cab.cab-srv"]);
+    let _ = run_cmd_silent("launchctl", &["bootout", "system", plist]);
+    let _ = run_cmd_silent("launchctl", &["unload", plist]);
     Ok(())
 }
 #[cfg(target_os = "macos")]

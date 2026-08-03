@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] - 2026-08-03
+
+### Fixed
+
+- **macOS one-line install LaunchAgent noise / false failures**: `cab service install` no longer prints `launchctl` “Input/output error” for expected `bootout`/`unload` when nothing is loaded, and no longer `kickstart -k` right after `bootstrap` (which killed the fresh `RunAtLoad` process and forced extra restarts). `cab start` is idempotent when the agent is already loaded. `install.sh` / `install.ps1` no longer call a redundant `cab start` after `service install`.
+- **`cab status` false “HTTP API unreachable” after install**: API probe timeout raised from 500ms to 2s so brief catalog-sync SQLite contention does not look like a dead daemon.
+
 ## [0.9.8] - 2026-07-31
 
 ### Fixed

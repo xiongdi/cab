@@ -271,8 +271,10 @@ echo "${MUTED}Binary:${NC} cab"
 if [[ "$NO_SERVICE" != "true" ]]; then
   if [[ -x "${BIN_DIR}/cab" || -x "${BIN_DIR}/cab.exe" ]]; then
     echo "${MUTED}Installing user service…${NC}"
+    # `service install` bootstraps + starts (RunAtLoad). Do not call `cab start`
+    # afterward on macOS — a second bootstrap/kickstart -k prints false errors
+    # and restarts the just-launched daemon.
     if "${BIN_DIR}/cab" service install --scope user; then
-      "${BIN_DIR}/cab" start || true
       echo "${MUTED}Gateway:${NC} http://127.0.0.1:3125"
     else
       echo "${MUTED}Service install skipped/failed — run later:${NC}"

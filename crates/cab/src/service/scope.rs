@@ -356,3 +356,22 @@ pub fn run_cmd(cmd: &str, args: &[&str]) -> Result<(), String> {
         ))
     }
 }
+
+/// Like [`run_cmd`], but discards stdout/stderr. Use for expected-to-fail cleanup
+/// (e.g. `launchctl bootout` when nothing is loaded) so install UX stays clean.
+pub fn run_cmd_silent(cmd: &str, args: &[&str]) -> Result<(), String> {
+    let status = std::process::Command::new(cmd)
+        .args(args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| format!("Failed to execute command '{cmd}': {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Command '{cmd} {}' exited with non-zero status: {status}",
+            args.join(" ")
+        ))
+    }
+}
