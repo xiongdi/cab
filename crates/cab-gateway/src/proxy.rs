@@ -17,7 +17,7 @@ pub async fn proxy_request(
     client: &Client,
     upstream_url: &str,
     api_key: &str,
-    _protocol: &str,
+    protocol: &str,
     body: Bytes,
     headers: &HeaderMap,
     stream: bool,
@@ -34,6 +34,12 @@ pub async fn proxy_request(
     // Set authorization header
     if !api_key.is_empty() {
         req = req.header("authorization", format!("Bearer {api_key}"));
+
+        // Anthropic-compatible endpoints expect the key as `x-api-key`;
+        // some (e.g. opencode.ai Console Go) reject `Authorization: Bearer` alone.
+        if protocol == "anthropic" {
+            req = req.header("x-api-key", api_key);
+        }
 
         // Forward anthropic-version if the client sent it
         if let Some(v) = headers.get("anthropic-version") {
@@ -255,7 +261,7 @@ mod tests {
         );
         headers.insert("anthropic-version", HeaderValue::from_static("2024-01-01"));
 
-        // anthropic protocol — Bearer auth, anthropic-version forwarded
+        // anthropic protocol — Bearer + x-api-key auth, anthropic-version forwarded
         let response = proxy_request(
             &Client::new(),
             &format!("{}/post", server.base_url),
@@ -270,7 +276,7 @@ mod tests {
         let json = json_from_response(response).await;
 
         assert_eq!(json["authorization"], "Bearer anthropic-key");
-        assert_eq!(json["x_api_key"], serde_json::Value::Null);
+        assert_eq!(json["x_api_key"], "anthropic-key");
         assert_eq!(json["anthropic_version"], "2024-01-01");
         assert_eq!(json["content_type"], "application/custom+json");
     }
