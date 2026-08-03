@@ -1,9 +1,23 @@
 //! Subscription key quota tracking: parse rate-limit headers and detect recovery windows.
 
 use chrono::{DateTime, Utc};
+use std::time::Duration;
 
 /// Default recovery window when upstream does not provide Retry-After.
-pub const DEFAULT_QUOTA_RESET_SECS: i64 = 3600;
+/// Kept short so a burst 429 does not lock a sole provider for an hour.
+pub const DEFAULT_QUOTA_RESET_SECS: i64 = 60;
+
+/// Max 429 retries on the same key/endpoint after the first failure (1 + N attempts).
+pub const RATE_LIMIT_MAX_RETRIES: u32 = 4;
+
+/// Base delay for exponential backoff when Retry-After is absent.
+pub const RATE_LIMIT_BASE_DELAY_MS: u64 = 500;
+
+/// Cap on exponential backoff delay.
+pub const RATE_LIMIT_MAX_DELAY_MS: u64 = 8_000;
+
+/// Honor Retry-After only when the wait is at most this long; otherwise failover.
+pub const RATE_LIMIT_MAX_HONOR_RETRY_AFTER_MS: u64 = 15_000;
 
 /// True when the key is still inside a recorded quota recovery window.
 pub fn is_key_rate_limited(key: &crate::types::ApiKeyConfig) -> bool {
@@ -18,6 +32,30 @@ pub fn resolve_quota_reset_at(retry_after: Option<DateTime<Utc>>, body: &str) ->
     retry_after
         .or_else(|| parse_quota_reset_from_body(body))
         .unwrap_or_else(|| Utc::now() + chrono::Duration::seconds(DEFAULT_QUOTA_RESET_SECS))
+}
+
+/// Delay before the next same-key 429 retry.
+///
+/// `attempt` is 0-based for the first retry after the initial 429.
+/// Returns `None` when Retry-After is longer than [`RATE_LIMIT_MAX_HONOR_RETRY_AFTER_MS`]
+/// (caller should cool the key and failover instead of waiting).
+pub fn rate_limit_backoff_delay(
+    attempt: u32,
+    retry_after: Option<DateTime<Utc>>,
+) -> Option<Duration> {
+    if let Some(reset_at) = retry_after {
+        let wait_ms = (reset_at - Utc::now()).num_milliseconds().max(0) as u64;
+        if wait_ms > RATE_LIMIT_MAX_HONOR_RETRY_AFTER_MS {
+            return None;
+        }
+        return Some(Duration::from_millis(wait_ms));
+    }
+
+    let shift = attempt.min(4);
+    let delay = RATE_LIMIT_BASE_DELAY_MS
+        .saturating_mul(1u64 << shift)
+        .min(RATE_LIMIT_MAX_DELAY_MS);
+    Some(Duration::from_millis(delay))
 }
 
 /// Parse standard rate-limit headers from an upstream error response.
@@ -186,5 +224,43 @@ mod tests {
         let fallback = resolve_quota_reset_at(None, "not-json");
         let delta = (fallback - Utc::now()).num_seconds();
         assert!((DEFAULT_QUOTA_RESET_SECS - 10..=DEFAULT_QUOTA_RESET_SECS + 10).contains(&delta));
+    }
+
+    #[test]
+    fn exponential_backoff_sequence_without_retry_after() {
+        assert_eq!(
+            rate_limit_backoff_delay(0, None),
+            Some(Duration::from_millis(500))
+        );
+        assert_eq!(
+            rate_limit_backoff_delay(1, None),
+            Some(Duration::from_millis(1_000))
+        );
+        assert_eq!(
+            rate_limit_backoff_delay(2, None),
+            Some(Duration::from_millis(2_000))
+        );
+        assert_eq!(
+            rate_limit_backoff_delay(3, None),
+            Some(Duration::from_millis(4_000))
+        );
+        assert_eq!(
+            rate_limit_backoff_delay(4, None),
+            Some(Duration::from_millis(8_000))
+        );
+        assert_eq!(
+            rate_limit_backoff_delay(5, None),
+            Some(Duration::from_millis(8_000))
+        );
+    }
+
+    #[test]
+    fn honors_short_retry_after_and_rejects_long() {
+        let short = Utc::now() + chrono::Duration::seconds(2);
+        let delay = rate_limit_backoff_delay(0, Some(short)).expect("short wait");
+        assert!(delay.as_millis() <= 2_500);
+
+        let long = Utc::now() + chrono::Duration::seconds(60);
+        assert!(rate_limit_backoff_delay(0, Some(long)).is_none());
     }
 }

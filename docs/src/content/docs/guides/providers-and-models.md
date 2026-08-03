@@ -20,7 +20,7 @@ Each provider row shows:
 3. Enter one or more API keys (CAB supports multiple keys per provider for rotation).
 4. Enable the provider.
 
-CAB selects keys in configuration order, skipping keys in 429 cooldown.
+CAB selects keys in configuration order, skipping keys in 429 cooldown. On upstream **429**, CAB first retries the same key with exponential backoff (honoring a short `Retry-After` when present); after retries are exhausted it cools the key briefly and falls back to the next key or model.
 
 ## Models page
 

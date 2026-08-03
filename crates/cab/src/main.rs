@@ -322,9 +322,10 @@ fn api_client() -> Result<(reqwest::Client, String, u16), String> {
 async fn check_api_alive(port: u16) -> bool {
     let client = reqwest::Client::new();
     let url = format!("http://127.0.0.1:{}/api/settings", port);
+    // Catalog sync can hold SQLite briefly after install; 500ms was too aggressive.
     match client
         .get(&url)
-        .timeout(std::time::Duration::from_millis(500))
+        .timeout(std::time::Duration::from_secs(2))
         .send()
         .await
     {

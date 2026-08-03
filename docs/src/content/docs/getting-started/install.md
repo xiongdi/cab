@@ -48,11 +48,11 @@ Desktop `.dmg` / `.msi` / AppImage packages are **not** shipped (0.9+). Use the 
 
 ## System requirements
 
-| Platform    | Minimum version | Architectures                         | Notes                                     |
-| ----------- | --------------- | ------------------------------------- | ----------------------------------------- |
-| **Windows** | Windows 7+      | x64, ARM64                            | No WebView required; dashboard in browser |
-| **macOS**   | 10.15 Catalina+ | Intel (x86_64), Apple Silicon (arm64) | Separate archive per architecture         |
-| **Linux**   | glibc 2.35+     | x64, ARM64                            | Built on Ubuntu 22.04; e.g. Ubuntu 22.04+ |
+| Platform    | Minimum version   | Architectures                         | Notes                                                                          |
+| ----------- | ----------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| **Windows** | Windows 7+        | x64, ARM64                            | No WebView required; dashboard in browser                                      |
+| **macOS**   | 10.15 Catalina+   | Intel (x86_64), Apple Silicon (arm64) | Separate archive per architecture                                              |
+| **Linux**   | any (musl static) | x64, ARM64                            | Fully static; no glibc version requirement (Alpine, Deepin, Debian, Ubuntu, …) |
 
 Build from source with `cargo run -p cab --bin cab -- serve` for release testing, or use a pre-built archive from GitHub Releases. For daily development, follow the two-terminal workflow in [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md).
 

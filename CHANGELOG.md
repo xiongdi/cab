@@ -5,6 +5,31 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9] - 2026-08-03
+
+### Fixed
+
+- **macOS one-line install LaunchAgent noise / false failures**: `cab service install` no longer prints `launchctl` “Input/output error” for expected `bootout`/`unload` when nothing is loaded, and no longer `kickstart -k` right after `bootstrap` (which killed the fresh `RunAtLoad` process and forced extra restarts). `cab start` is idempotent when the agent is already loaded. `install.sh` / `install.ps1` no longer call a redundant `cab start` after `service install`.
+- **`cab status` false “HTTP API unreachable” after install**: API probe timeout raised from 500ms to 2s so brief catalog-sync SQLite contention does not look like a dead daemon.
+
+## [0.9.8] - 2026-07-31
+
+### Fixed
+
+- **Dashboard favicon**: ship `favicon.ico` / `favicon.svg` and link them from `app.html`, so `/favicon.ico` no longer falls back to `index.html`.
+
+## [0.9.7] - 2026-07-31
+
+### Changed
+
+- **Upstream 429 handling uses exponential backoff before cooling a key**. Same key/endpoint retries up to 4 times (0.5s–8s, honors short `Retry-After`); only then marks a brief cooldown (default 60s, down from 1h) and falls back to the next key or model. Docs updated.
+
+## [0.9.6] - 2026-07-31
+
+### Changed
+
+- **Linux release binaries are fully static (musl)**. Builds target `x86_64-unknown-linux-musl` / `aarch64-unknown-linux-musl`, so prebuilt packages no longer depend on host glibc (fixes `GLIBC_2.39 not found` on Deepin, Debian 12, Ubuntu 22.04, etc.). Install docs updated accordingly.
+
 ## [0.9.5] - 2026-07-30
 
 ### Changed

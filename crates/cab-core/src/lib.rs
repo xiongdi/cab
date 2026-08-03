@@ -46,7 +46,8 @@ pub use routing::{
     raw_effective_token_cost, raw_effective_token_cost_for_model,
 };
 pub use subscription_quota::{
-    DEFAULT_QUOTA_RESET_SECS, extract_retry_after, is_key_rate_limited, resolve_quota_reset_at,
+    DEFAULT_QUOTA_RESET_SECS, RATE_LIMIT_MAX_RETRIES, extract_retry_after, is_key_rate_limited,
+    rate_limit_backoff_delay, resolve_quota_reset_at,
 };
 pub use tool_weights::{
     ToolSchemaCost, ToolWeightSnapshot, ToolWeightTracker, estimate_tokens, tool_schema_costs,

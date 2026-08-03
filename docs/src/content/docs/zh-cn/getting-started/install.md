@@ -47,11 +47,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -NoService -NoMo
 
 ## 系统要求
 
-| 平台        | 最低版本        | 架构                                  | 说明                         |
-| ----------- | --------------- | ------------------------------------- | ---------------------------- |
-| **Windows** | Windows 7+      | x64、ARM64                            | 无需 WebView；仪表盘在浏览器 |
-| **macOS**   | 10.15 Catalina+ | Intel (x86_64)、Apple Silicon (arm64) | 按架构提供独立归档           |
-| **Linux**   | glibc 2.35+     | x64、ARM64                            | 在 Ubuntu 22.04 构建         |
+| 平台        | 最低版本          | 架构                                  | 说明                                                               |
+| ----------- | ----------------- | ------------------------------------- | ------------------------------------------------------------------ |
+| **Windows** | Windows 7+        | x64、ARM64                            | 无需 WebView；仪表盘在浏览器                                       |
+| **macOS**   | 10.15 Catalina+   | Intel (x86_64)、Apple Silicon (arm64) | 按架构提供独立归档                                                 |
+| **Linux**   | 任意（musl 静态） | x64、ARM64                            | 全静态链接，无 glibc 版本要求（Alpine、Deepin、Debian、Ubuntu 等） |
 
 发布测试可用 `cargo run -p cab --bin cab -- serve`，或使用 GitHub Releases 预编译包。日常开发请遵循 [AGENTS.md](https://github.com/xiongdi/cab/blob/main/AGENTS.md) 双终端流程。
 
