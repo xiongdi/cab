@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.12] - 2026-08-05
+
+### Fixed
+
+- **`cab update` / `cab start` / `cab stop` stale-unit warning on Linux**: systemd printed `Warning: The unit file ... changed on disk. Run 'systemctl --user daemon-reload' to reload units.` whenever the `cab-srv.service` unit file was rewritten after the last reload (e.g. by a prior `cab service install` or an upgrade). The gateway now runs `systemctl [--user] daemon-reload` before every start/stop, so the warning can no longer appear.
+
 ## [0.9.11] - 2026-08-03
 
 ### Fixed
