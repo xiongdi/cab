@@ -114,20 +114,38 @@ fn print_log_file(log_file: &std::path::Path, lines: u32, follow: bool) -> Resul
 #[cfg(target_os = "linux")]
 fn start_user() -> Result<(), String> {
     println!("Starting cab-srv (user systemd)...");
+    reload_user_units();
     run_cmd("systemctl", &["--user", "start", "cab-srv"])
 }
 #[cfg(target_os = "linux")]
 fn start_system() -> Result<(), String> {
     println!("Starting cab-srv (system systemd)...");
+    reload_system_units();
     run_cmd("systemctl", &["start", "cab-srv"])
 }
 #[cfg(target_os = "linux")]
 fn stop_user() -> Result<(), String> {
+    reload_user_units();
     run_cmd("systemctl", &["--user", "stop", "cab-srv"])
 }
 #[cfg(target_os = "linux")]
 fn stop_system() -> Result<(), String> {
+    reload_system_units();
     run_cmd("systemctl", &["stop", "cab-srv"])
+}
+
+/// `systemctl --user daemon-reload` before acting on the unit. A unit file
+/// rewritten since the last reload (e.g. by `cab service install` or an
+/// upgrade) otherwise makes systemctl warn
+/// "unit file ... changed on disk. Run 'systemctl --user daemon-reload'".
+#[cfg(target_os = "linux")]
+fn reload_user_units() {
+    let _ = run_cmd_silent("systemctl", &["--user", "daemon-reload"]);
+}
+
+#[cfg(target_os = "linux")]
+fn reload_system_units() {
+    let _ = run_cmd_silent("systemctl", &["daemon-reload"]);
 }
 #[cfg(target_os = "linux")]
 fn is_active_user() -> bool {
