@@ -1,7 +1,9 @@
+#[cfg(target_os = "macos")]
+use super::scope::run_cmd_silent;
 use super::scope::{
     ServiceConfig, ServiceScope, clear_service_config, default_cab_home_for_scope,
     get_cab_executable_path, get_working_dir, require_admin_for_system,
-    resolve_frontend_dir_for_install, run_cmd, run_cmd_silent, save_service_config,
+    resolve_frontend_dir_for_install, run_cmd, save_service_config,
 };
 use std::fs;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
