@@ -906,7 +906,11 @@ impl<S> TokenTrackingStream<S> {
         let cache_read = details
             .and_then(|d| d.get("cached_tokens"))
             .and_then(|v| v.as_i64())
-            .or_else(|| usage.get("prompt_cache_hit_tokens").and_then(|v| v.as_i64()))
+            .or_else(|| {
+                usage
+                    .get("prompt_cache_hit_tokens")
+                    .and_then(|v| v.as_i64())
+            })
             .unwrap_or(self.log.cache_read_tokens);
         let cache_creation = details
             .and_then(|d| d.get("cache_write_tokens"))
