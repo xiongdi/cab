@@ -71,6 +71,7 @@ struct OpenAiChatStreamConverter {
     message_started: bool,
     thinking_block_started: bool,
     thinking_block_index: u32,
+    thinking_signature_emitted: bool,
     text_block_started: bool,
     text_block_index: u32,
     next_block_index: u32,
@@ -92,6 +93,7 @@ impl OpenAiChatStreamConverter {
             message_started: false,
             thinking_block_started: false,
             thinking_block_index: 0,
+            thinking_signature_emitted: false,
             text_block_started: false,
             text_block_index: 0,
             next_block_index: 0,
@@ -295,12 +297,33 @@ impl OpenAiChatStreamConverter {
         self.ensure_message_started();
         self.thinking_block_index = self.allocate_block_index();
         self.thinking_block_started = true;
+        self.thinking_signature_emitted = false;
         self.pending.push(anthropic_stream_event(
             "content_block_start",
             serde_json::json!({
                 "type": "content_block_start",
                 "index": self.thinking_block_index,
                 "content_block": {"type": "thinking", "thinking": ""}
+            }),
+        ));
+    }
+
+    fn ensure_thinking_signature(&mut self) {
+        if !self.thinking_block_started || self.thinking_signature_emitted {
+            return;
+        }
+        self.thinking_signature_emitted = true;
+        // Anthropic clients (Claude Code) require a signature_delta before
+        // content_block_stop to retain the thinking block for later turns.
+        // OpenAI-compat providers only send reasoning text — mint a stable-looking
+        // opaque signature so tool-call multi-turns can replay CoT upstream.
+        let signature = format!("cab_{}", uuid::Uuid::new_v4().simple());
+        self.pending.push(anthropic_stream_event(
+            "content_block_delta",
+            serde_json::json!({
+                "type": "content_block_delta",
+                "index": self.thinking_block_index,
+                "delta": {"type": "signature_delta", "signature": signature}
             }),
         ));
     }
@@ -408,6 +431,7 @@ impl OpenAiChatStreamConverter {
             .unwrap_or(0);
 
         if self.thinking_block_started {
+            self.ensure_thinking_signature();
             self.pending.push(anthropic_stream_event(
                 "content_block_stop",
                 serde_json::json!({"type": "content_block_stop", "index": self.thinking_block_index}),
@@ -1239,6 +1263,29 @@ mod tests {
     }
 
     #[test]
+    fn anthropic_to_openai_chat_request_injects_empty_reasoning_for_tool_calls() {
+        // Claude Code strips unsigned thinking; multi-turn tool history arrives
+        // without it. DeepSeek still requires the reasoning_content field.
+        let body = serde_json::json!({
+            "model": "deepseek/deepseek-v4-flash",
+            "messages": [
+                {"role": "assistant", "content": [
+                    {"type": "tool_use", "id": "toolu_1", "name": "Read", "input": {"file_path": "/tmp/a"}}
+                ]},
+                {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "file data"}]}
+            ]
+        });
+
+        let converted = anthropic_to_openai_chat_request(&body);
+
+        assert_eq!(converted["messages"][0]["reasoning_content"], "");
+        assert_eq!(
+            converted["messages"][0]["tool_calls"][0]["function"]["name"],
+            "Read"
+        );
+    }
+
+    #[test]
     fn openai_chat_to_anthropic_messages_maps_reasoning_content_to_thinking() {
         let body = serde_json::json!({
             "id": "chatcmpl_1",
@@ -1283,6 +1330,8 @@ data: [DONE]\n\n";
         assert!(sse.contains(r#""type":"thinking""#));
         assert!(sse.contains(r#""type":"thinking_delta""#));
         assert!(sse.contains(r#""thinking":"Think""#));
+        assert!(sse.contains(r#""type":"signature_delta""#));
+        assert!(sse.contains(r#""signature":"cab_"#));
         assert!(sse.contains(r#""text":"Hi""#));
     }
 

@@ -67,6 +67,7 @@ struct AnthropicSseEmitter {
     pending: Vec<Bytes>,
     message_started: bool,
     thinking_index: Option<u32>,
+    thinking_signature_emitted: bool,
     text_index: Option<u32>,
     next_index: u32,
     tools: HashMap<String, ToolTracker>,
@@ -82,6 +83,7 @@ impl AnthropicSseEmitter {
             pending: Vec::new(),
             message_started: false,
             thinking_index: None,
+            thinking_signature_emitted: false,
             text_index: None,
             next_index: 0,
             tools: HashMap::new(),
@@ -176,11 +178,29 @@ impl AnthropicSseEmitter {
                 serde_json::json!({"type": "thinking", "thinking": ""}),
             );
             self.thinking_index = Some(idx);
+            self.thinking_signature_emitted = false;
         }
         self.output_tokens = self.output_tokens.saturating_add(text.len() as u64);
         self.push_delta(
             self.thinking_index.unwrap(),
             serde_json::json!({"type": "thinking_delta", "thinking": text}),
+        );
+    }
+
+    fn ensure_thinking_signature(&mut self) {
+        let Some(idx) = self.thinking_index else {
+            return;
+        };
+        if self.thinking_signature_emitted {
+            return;
+        }
+        self.thinking_signature_emitted = true;
+        self.push_delta(
+            idx,
+            serde_json::json!({
+                "type": "signature_delta",
+                "signature": format!("cab_{}", uuid::Uuid::new_v4().simple())
+            }),
         );
     }
 
@@ -253,8 +273,11 @@ impl AnthropicSseEmitter {
         for index in stop_indices {
             self.stop_block(index);
         }
-        if let Some(idx) = self.thinking_index {
-            self.stop_block(idx);
+        if self.thinking_index.is_some() {
+            self.ensure_thinking_signature();
+            if let Some(idx) = self.thinking_index {
+                self.stop_block(idx);
+            }
         }
         if let Some(idx) = self.text_index {
             self.stop_block(idx);

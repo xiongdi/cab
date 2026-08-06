@@ -230,6 +230,12 @@ pub async fn execute_with_fallback(
                     if request.shape_requests {
                         crate::shaping::shape_request(&mut converted_val, &endpoint.protocol);
                     }
+                    // Always repair tool-call thinking/reasoning fields — independent
+                    // of cache shaping — so DeepSeek V4 tool multi-turns succeed.
+                    crate::shaping::ensure_tool_call_reasoning(
+                        &mut converted_val,
+                        &endpoint.protocol,
+                    );
                     if let Ok(new_body_bytes) = serde_json::to_vec(&converted_val) {
                         rewritten_body = bytes::Bytes::from(new_body_bytes);
                     }

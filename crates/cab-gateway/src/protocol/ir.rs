@@ -731,9 +731,15 @@ fn ir_block_to_anthropic_value(block: &IrBlock) -> Value {
         IrBlock::Text { text } => serde_json::json!({"type": "text", "text": text}),
         IrBlock::Thinking { text, signature } => {
             let mut obj = serde_json::json!({"type": "thinking", "thinking": text});
-            if let Some(sig) = signature {
-                obj["signature"] = Value::String(sig.clone());
-            }
+            // Claude Code drops thinking blocks that lack a signature when
+            // replaying the conversation. Providers that emit reasoning without
+            // Anthropic signatures (OpenAI-compat / Console Go) need a synthetic
+            // one so the agent round-trips CoT into later turns.
+            let sig = signature
+                .clone()
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| format!("cab_{}", uuid::Uuid::new_v4().simple()));
+            obj["signature"] = Value::String(sig);
             obj
         }
         IrBlock::Image { media_type, source } => match source {
@@ -914,9 +920,11 @@ fn ir_message_to_openai_messages(msg: &IrMessage) -> Vec<Value> {
         if !text_parts.is_empty() {
             assistant["content"] = Value::String(text_parts.join(""));
         }
-        if !reasoning_parts.is_empty() {
-            assistant["reasoning_content"] = Value::String(reasoning_parts.join(""));
-        }
+        // DeepSeek-style thinking models require `reasoning_content` on every
+        // assistant tool-call turn when replaying history. Claude Code (and
+        // similar agents) often strip unsigned thinking blocks, so we always
+        // emit the field — real text when available, otherwise empty string.
+        assistant["reasoning_content"] = Value::String(reasoning_parts.join(""));
         out.push(assistant);
     } else if msg.role == "assistant" {
         let mut assistant = serde_json::json!({

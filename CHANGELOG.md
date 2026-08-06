@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.13] - 2026-08-06
+
+### Fixed
+
+- **DeepSeek V4 / thinking-mode tool multi-turns via Claude Code**: OpenAI-chat upstreams (e.g. DeepSeek) require `reasoning_content` on every assistant tool-call turn when replaying history, but Claude Code strips unsigned thinking blocks so later turns arrive without it and upstream returns HTTP 400. The gateway now (1) emits a synthetic `signature` / `signature_delta` when converting OpenAI-compat reasoning into Anthropic thinking so Claude Code retains CoT across turns, (2) always maps thinking ↔ `reasoning_content` (empty string when stripped), and (3) injects missing `reasoning_content` on openai-chat tool-call history independent of cache shaping.
+
 ## [0.9.12] - 2026-08-05
 
 ### Fixed

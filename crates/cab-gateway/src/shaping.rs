@@ -33,6 +33,49 @@ pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
     }
 }
 
+/// Ensure DeepSeek-style thinking models accept multi-turn tool history.
+///
+/// When Claude Code strips thinking blocks, OpenAI-chat tool-call assistant
+/// turns lack `reasoning_content`. Upstream then returns HTTP 400:
+/// "The `reasoning_content` in the thinking mode must be passed back".
+/// Call this on every forwarded body (not only when cache shaping is on).
+///
+/// Anthropic wire format is left alone: inventing unsigned/fake-signed thinking
+/// blocks can break the real Anthropic API, while OpenAI-chat empty
+/// `reasoning_content` is the documented fix for DeepSeek tool multi-turns.
+pub fn ensure_tool_call_reasoning(body: &mut Value, endpoint_protocol: &str) {
+    if endpoint_protocol == "openai-chat" {
+        ensure_openai_chat_reasoning(body);
+    }
+}
+
+fn ensure_openai_chat_reasoning(body: &mut Value) {
+    let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for msg in messages.iter_mut() {
+        let Some(obj) = msg.as_object_mut() else {
+            continue;
+        };
+        if obj.get("role").and_then(Value::as_str) != Some("assistant") {
+            continue;
+        }
+        let has_tool_calls = obj
+            .get("tool_calls")
+            .and_then(Value::as_array)
+            .is_some_and(|t| !t.is_empty());
+        if !has_tool_calls {
+            continue;
+        }
+        if !obj.contains_key("reasoning_content") {
+            obj.insert(
+                "reasoning_content".to_string(),
+                Value::String(String::new()),
+            );
+        }
+    }
+}
+
 fn normalize_system_messages(messages: &mut Vec<Value>) {
     messages.retain(|msg| {
         let is_target = msg.get("role").and_then(Value::as_str) == Some("system")
@@ -342,5 +385,40 @@ mod tests {
             messages[2]["content"],
             "gitStatus: modified files\n\n# currentDate\nToday's date is 2026/06/29."
         );
+    }
+
+    #[test]
+    fn ensure_openai_chat_reasoning_injects_empty_for_tool_calls() {
+        let mut body = json!({
+            "messages": [
+                {
+                    "role": "assistant",
+                    "tool_calls": [{
+                        "id": "c1",
+                        "type": "function",
+                        "function": {"name": "Read", "arguments": "{}"}
+                    }]
+                },
+                {"role": "assistant", "content": "done"}
+            ]
+        });
+        ensure_tool_call_reasoning(&mut body, "openai-chat");
+        assert_eq!(body["messages"][0]["reasoning_content"], "");
+        assert!(body["messages"][1].get("reasoning_content").is_none());
+    }
+
+    #[test]
+    fn ensure_anthropic_noops() {
+        let mut body = json!({
+            "messages": [{
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "id": "t1", "name": "Read", "input": {}}
+                ]
+            }]
+        });
+        let before = body.clone();
+        ensure_tool_call_reasoning(&mut body, "anthropic");
+        assert_eq!(body, before);
     }
 }
