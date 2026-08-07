@@ -91,6 +91,10 @@ fn resolve_bin_dir() -> Result<PathBuf, String> {
     }
     let dir = install_root().join("bin");
     fs::create_dir_all(&dir).map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    let old_exe = dir.join(format!("cab{}.old", exe_suffix()));
+    if old_exe.exists() {
+        let _ = fs::remove_file(&old_exe);
+    }
     Ok(dir)
 }
 
@@ -249,45 +253,62 @@ fn install_file(src: &Path, dst: &Path) -> Result<(), String> {
     if let Some(parent) = dst.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
-    // Write to a temp sibling then rename — safer while the binary may be running.
-    let tmp = dst.with_extension("updating");
-    fs::copy(src, &tmp).map_err(|e| format!("copy {} → {}: {e}", src.display(), tmp.display()))?;
+
+    // Try direct copy first (works if target binary is not running/locked).
+    if fs::copy(src, dst).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(mut perms) = fs::metadata(dst).map(|m| m.permissions()) {
+                perms.set_mode(0o755);
+                let _ = fs::set_permissions(dst, perms);
+            }
+        }
+        return Ok(());
+    }
+
+    // On Windows (and Unix when binary is in use), rename existing binary first.
+    // Operating systems allow renaming open/running executables within the same directory.
+    let old = dst.with_extension("exe.old");
+    if old.exists() {
+        let _ = fs::remove_file(&old);
+    }
+
+    if dst.exists() {
+        if let Err(rename_err) = fs::rename(dst, &old) {
+            #[cfg(windows)]
+            {
+                let status = std::process::Command::new("cmd")
+                    .args(["/C", "copy", "/Y"])
+                    .arg(src)
+                    .arg(dst)
+                    .status();
+                if status.map(|s| s.success()).unwrap_or(false) {
+                    return Ok(());
+                }
+            }
+            return Err(format!(
+                "replace {}: rename failed ({rename_err}) and file is locked (stop the service and retry)",
+                dst.display()
+            ));
+        }
+    }
+
+    if let Err(e) = fs::copy(src, dst) {
+        let _ = fs::rename(&old, dst);
+        return Err(format!("copy {} → {}: {e}", src.display(), dst.display()));
+    }
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&tmp)
-            .map_err(|e| format!("stat {}: {e}", tmp.display()))?
-            .permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(&tmp, perms).map_err(|e| format!("chmod {}: {e}", tmp.display()))?;
+        if let Ok(mut perms) = fs::metadata(dst).map(|m| m.permissions()) {
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(dst, perms);
+        }
     }
-    fs::rename(&tmp, dst).or_else(|_| {
-        // Windows may refuse rename over a running exe — try shell copy which
-        // uses different sharing semantics and can overwrite an in-use binary.
-        #[cfg(windows)]
-        {
-            let status = std::process::Command::new("cmd")
-                .args(["/C", "copy", "/Y"])
-                .arg(src)
-                .arg(dst)
-                .status()
-                .map_err(|e| format!("cmd copy failed: {e}"))?;
-            if status.success() {
-                return Ok(());
-            }
-        }
-        #[cfg(not(windows))]
-        {
-            let _ = &dst;
-        }
-        // Last resort: direct copy (works on Unix; on Windows may fail if locked).
-        fs::copy(src, dst).map(|_| ()).map_err(|e| {
-            format!(
-                "replace {}: {e} (stop the service and retry if the file is locked)",
-                dst.display()
-            )
-        })
-    })?;
+
+    let _ = fs::remove_file(&old);
     Ok(())
 }
 
@@ -314,12 +335,13 @@ fn schedule_post_exit_replace(
     ui_src: &Path,
     ui_dir: &Path,
     tmp_dir: &Path,
-    version: &str,
+    _version: &str,
 ) -> Result<(), String> {
     let cab_exe = bin_dir.join(bin_name);
     let cab_ui = ui_dir;
     let staging_bin = tmp_dir.join(bin_name);
     let staging_ui = tmp_dir.join("ui");
+    let log_file = tmp_dir.join("cab-update-apply.log");
 
     // Copy new binary + UI into the staging dir ( survives the current process ).
     fs::copy(new_src, &staging_bin).map_err(|e| format!("stage binary: {e}"))?;
@@ -330,30 +352,34 @@ fn schedule_post_exit_replace(
         copy_dir_recursive(ui_src, &staging_ui)?;
     }
 
+    let self_pid = std::process::id();
+
     // Generate a batch script that will replace + restart after exit.
     let script_path = tmp_dir.join("cab-update-apply.cmd");
     let script_content = format!(
         "@echo off\r\n\
          chcp 65001 >nul\r\n\
          timeout /t 2 /nobreak >nul\r\n\
-         net start \"Task Scheduler\" >nul 2>&1\r\n\
-         schtasks /End /TN CAB\\cab-srv /F >nul 2>&1\r\n\
+         schtasks /End /TN CAB\\cab-srv >nul 2>&1\r\n\
+         taskkill /F /IM cab.exe /FI \"PID ne {}\" >nul 2>&1\r\n\
          timeout /t 1 /nobreak >nul\r\n\
-         copy /Y \"{}\" \"{}\" >nul\r\n\
+         copy /Y \"{}\" \"{}\" >\"{}\" 2>&1\r\n\
          if exist \"{}\" (\r\n\
-         rmdir /s /q \"{}\" >nul 2>&1\r\n\
-         xcopy /E /I /Y \"{}\" \"{}\" >nul\r\n\
+         rmdir /s /q \"{}\" >>\"{}\" 2>&1\r\n\
+         xcopy /E /I /Y \"{}\" \"{}\" >>\"{}\" 2>&1\r\n\
          )\r\n\
          schtasks /Run /TN CAB\\cab-srv >nul 2>&1\r\n\
-         echo CAB {} installed successfully.\r\n\
          del /q \"%~f0\" >nul 2>&1\r\n",
+        self_pid,
         staging_bin.display(),
         cab_exe.display(),
+        log_file.display(),
         staging_ui.display(),
         cab_ui.display(),
+        log_file.display(),
         staging_ui.display(),
         cab_ui.display(),
-        version,
+        log_file.display(),
     );
     fs::write(&script_path, script_content).map_err(|e| format!("write apply script: {e}"))?;
 
@@ -432,11 +458,12 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
     let bin_src = payload.join(&bin_name);
     let ui_src = payload.join("ui");
 
+    let target_bin = bin_dir.join(&bin_name);
+    let install_res = install_file(&bin_src, &target_bin);
+
     #[cfg(windows)]
-    {
-        // On Windows we cannot replace the currently running executable.
-        // Stage the new binary + UI and schedule a post-exit batch script
-        // that will perform the swap after this process has exited.
+    if install_res.is_err() {
+        println!("Direct replacement locked, scheduling background post-exit replace...");
         let ui_exists = ui_src.is_dir();
         schedule_post_exit_replace(
             &bin_dir,
@@ -447,37 +474,32 @@ pub async fn run_update(check_only: bool, version: Option<String>) -> Result<(),
             &tmp,
             remote,
         )?;
-        // Also write install.json so the update metadata reflects the new version.
         write_install_meta(remote, platform, &bin_dir, &ui_dir);
         println!("Staged update for CAB {remote}. Service will be restarted automatically.");
         println!("CAB {remote} ready. Run: cab status");
         return Ok(());
     }
 
-    #[cfg(not(windows))]
-    {
-        install_file(&bin_src, &bin_dir.join(&bin_name))?;
+    install_res?;
 
-        if ui_src.is_dir() {
-            if ui_dir.exists() {
-                fs::remove_dir_all(&ui_dir)
-                    .map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
-            }
-            copy_dir_recursive(&ui_src, &ui_dir)?;
-            println!("Updated UI → {}", ui_dir.display());
+    if ui_src.is_dir() {
+        if ui_dir.exists() {
+            fs::remove_dir_all(&ui_dir).map_err(|e| format!("clear {}: {e}", ui_dir.display()))?;
         }
-
-        write_install_meta(remote, platform, &bin_dir, &ui_dir);
-        let _ = fs::remove_dir_all(&tmp);
-
-        println!("Updated binary in {}", bin_dir.display());
-        match crate::service::start_daemon() {
-            Ok(()) => println!("Service restarted."),
-            Err(e) => println!("Warning: could not restart service: {e}"),
-        }
-        println!("CAB {remote} ready. Run: cab status");
-        Ok(())
+        copy_dir_recursive(&ui_src, &ui_dir)?;
+        println!("Updated UI → {}", ui_dir.display());
     }
+
+    write_install_meta(remote, platform, &bin_dir, &ui_dir);
+    let _ = fs::remove_dir_all(&tmp);
+
+    println!("Updated binary in {}", bin_dir.display());
+    match crate::service::start_daemon() {
+        Ok(()) => println!("Service restarted."),
+        Err(e) => println!("Warning: could not restart service: {e}"),
+    }
+    println!("CAB {remote} ready. Run: cab status");
+    Ok(())
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {

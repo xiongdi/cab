@@ -106,15 +106,40 @@ pub async fn resolve_route(
     let request_profile = request_body
         .map(|body| build_request_profile(body, agent))
         .unwrap_or_else(|| build_request_profile(&serde_json::json!({}), agent));
-    // Step 0: In auto mode, agent.model_id is a routing strategy managed by CAB.
-    if let Ok(Some(agent_config)) = catalog.agent(agent).await
-        && agent_config.mode == "auto"
-        && let Some(ref configured_route_id) = agent_config.model_id
-        && !configured_route_id.is_empty()
-        && let Some(resolved) =
-            resolve_route_by_id(catalog, agent, configured_route_id, &request_profile).await?
-    {
-        return Ok(resolved);
+
+    // Step 0a: In manual mode, agent.model_id is a pinned model — resolve it directly.
+    if let Ok(Some(agent_config)) = catalog.agent(agent).await {
+        if agent_config.mode == "manual" {
+            if let Some(ref model_id) = agent_config.model_id {
+                if !model_id.is_empty() {
+                    if let Some(resolved) = resolve_model_by_name(catalog, model_id).await? {
+                        return Ok(ResolvedRoute {
+                            model: resolved.model,
+                            provider_id: resolved.provider_id,
+                            api_keys: resolved.api_keys,
+                            endpoint_candidates: resolved.endpoint_candidates,
+                            provider_api_key: resolved.provider_api_key,
+                            model_protocol: resolved.model_protocol,
+                            provider_name: resolved.provider_name,
+                            provider_routing: resolved.provider_routing,
+                            fallback_models: vec![],
+                        });
+                    }
+                }
+            }
+        }
+
+        // Step 0b: In auto mode, agent.model_id is a routing strategy managed by CAB.
+        if agent_config.mode == "auto"
+            && let Some(ref configured_route_id) = agent_config.model_id
+            && !configured_route_id.is_empty()
+            && let Some(resolved) =
+                resolve_route_by_id(catalog, agent, configured_route_id, &request_profile).await?
+        {
+            return Ok(resolved);
+        }
+    } else if let Ok(None) = catalog.agent(agent).await {
+        // agent not found — continue with normal resolution below
     }
 
     // Step 1: Check routes for this agent (glob matching)

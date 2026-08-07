@@ -60,12 +60,47 @@ pub fn upstream_protocol_for_models_dev_model(
     provider: &ModelsDevProvider,
     model: &ModelsDevModel,
 ) -> String {
+    // OpenAI reasoning models (GPT-5.6 Luna/Sol/Terra, o-series, etc.) require the
+    // Responses API for proper reasoning effort, reasoning items, and tool-call
+    // interleaving. The Chat Completions API lacks first-class reasoning support
+    // for these models, producing malformed SSE (keep-alive comments, empty {})
+    // when routed through an Anthropic endpoint on reseller gateways.
+    if model.reasoning.unwrap_or(false) && is_openai_served_model(provider, model) {
+        return "openai-responses".to_string();
+    }
     if let Some(override_meta) = model.extra.get("provider")
         && let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str())
     {
         return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
     }
     protocol_for_models_dev_provider(provider)
+}
+
+/// Detect whether a model is served via OpenAI's native API surface — either
+/// through a model-level `provider.npm` override (e.g. opencode-go reselling
+/// `gpt-5.6-luna` with `{"provider": {"npm": "@ai-sdk/openai"}}`) or the
+/// provider-level npm. Used to decide whether a reasoning model should use the
+/// OpenAI Responses API instead of Chat Completions.
+///
+/// IMPORTANT: `@ai-sdk/openai-compatible` is for OpenAI-compatible APIs
+/// (DeepSeek, vLLM, etc.) that only support Chat Completions — it must NOT
+/// match here, otherwise non-OpenAI reasoning models get misrouted to the
+/// Responses API they don't support.
+fn is_openai_served_model(provider: &ModelsDevProvider, model: &ModelsDevModel) -> bool {
+    if let Some(override_meta) = model.extra.get("provider")
+        && let Some(npm) = override_meta.get("npm").and_then(|value| value.as_str())
+    {
+        let npm_lower = npm.to_ascii_lowercase();
+        if npm_lower == "@ai-sdk/openai" {
+            return true;
+        }
+    }
+    let provider_npm = provider
+        .npm
+        .as_deref()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    provider_npm == "@ai-sdk/openai"
 }
 
 fn protocol_from_npm_and_api(npm: Option<&str>, api: Option<&str>) -> String {
@@ -881,6 +916,87 @@ mod resolve_canonical_model_name_tests {
         );
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &chat_model),
+            "openai-chat"
+        );
+    }
+
+    #[test]
+    fn openai_reasoning_model_uses_responses_protocol() {
+        let provider: ModelsDevProvider = serde_json::from_value(serde_json::json!({
+            "name": "OpenCode Go",
+            "api": "https://opencode.ai/zen/go/v1",
+            "npm": "@ai-sdk/openai-compatible",
+            "models": {}
+        }))
+        .unwrap();
+        // gpt-5.6-luna on opencode-go carries a model-level provider.npm override
+        // pointing at @ai-sdk/openai AND has reasoning=true → must use Responses API.
+        let reasoning_model: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "gpt-5.6-luna",
+            "reasoning": true,
+            "provider": { "npm": "@ai-sdk/openai" }
+        }))
+        .unwrap();
+        // Non-reasoning OpenAI model stays on openai-chat.
+        let non_reasoning: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "gpt-4.1-mini",
+            "reasoning": false,
+            "provider": { "npm": "@ai-sdk/openai" }
+        }))
+        .unwrap();
+
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &reasoning_model),
+            "openai-responses"
+        );
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &non_reasoning),
+            "openai-chat"
+        );
+    }
+
+    #[test]
+    fn native_openai_provider_reasoning_model_uses_responses_protocol() {
+        // The openai provider itself uses @ai-sdk/openai as its npm.
+        let provider: ModelsDevProvider = serde_json::from_value(serde_json::json!({
+            "name": "OpenAI",
+            "api": "https://api.openai.com/v1",
+            "npm": "@ai-sdk/openai",
+            "models": {}
+        }))
+        .unwrap();
+        let reasoning_model: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "gpt-5.6-luna",
+            "reasoning": true
+        }))
+        .unwrap();
+
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &reasoning_model),
+            "openai-responses"
+        );
+    }
+
+    #[test]
+    fn openai_compatible_provider_reasoning_model_stays_on_chat() {
+        // DeepSeek V4 Flash is a reasoning model, but it's served via
+        // @ai-sdk/openai-compatible (not @ai-sdk/openai). The Responses API
+        // is OpenAI-specific — DeepSeek only supports Chat Completions.
+        let provider: ModelsDevProvider = serde_json::from_value(serde_json::json!({
+            "name": "OpenCode Go",
+            "api": "https://opencode.ai/zen/go/v1",
+            "npm": "@ai-sdk/openai-compatible",
+            "models": {}
+        }))
+        .unwrap();
+        let reasoning_model: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "deepseek-v4-flash",
+            "reasoning": true
+        }))
+        .unwrap();
+
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &reasoning_model),
             "openai-chat"
         );
     }

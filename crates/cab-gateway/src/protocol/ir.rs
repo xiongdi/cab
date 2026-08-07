@@ -1118,6 +1118,28 @@ pub fn encode_responses_request(ir: &IrRequest) -> Value {
         encode_openai_tool_choice(&ir.tool_choice),
     );
     for (k, v) in &ir.extensions {
+        // Convert Anthropic `thinking` to OpenAI Responses `reasoning.effort`.
+        // The Responses API does not understand `thinking` — passing it through
+        // verbatim causes upstream 400 errors on reseller gateways.
+        if k == "thinking" {
+            if let Some(thinking_obj) = v.as_object()
+                && thinking_obj.get("type").and_then(|t| t.as_str()) == Some("enabled")
+            {
+                let budget = thinking_obj
+                    .get("budget_tokens")
+                    .and_then(|b| b.as_u64())
+                    .unwrap_or(4096);
+                let effort = match budget {
+                    0 => continue,
+                    b if b <= 2048 => "low",
+                    b if b <= 8192 => "medium",
+                    b if b <= 32768 => "high",
+                    _ => "max",
+                };
+                obj.insert("reasoning".into(), serde_json::json!({"effort": effort}));
+            }
+            continue;
+        }
         obj.insert(k.clone(), v.clone());
     }
     Value::Object(obj)

@@ -5,6 +5,17 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.14] - 2026-08-07
+
+### Added
+
+- **OpenAI reasoning models via the Responses API**: models served through the native OpenAI surface (`@ai-sdk/openai`, e.g. GPT-5.6 Luna/Sol/Terra, o-series) now route via the OpenAI Responses protocol, which is the only API that properly handles reasoning effort, reasoning items, and tool-call interleaving. Anthropic `thinking` is converted to `reasoning.effort` (budget → low/medium/high/max); `@ai-sdk/openai-compatible` models (DeepSeek, vLLM…) stay on Chat Completions.
+- **Manual-mode model pinning**: in manual mode, an agent's configured `model_id` now pins a specific model directly (resolved by name), instead of being treated as a routing strategy.
+
+### Fixed
+
+- **`cab update` self-replacement on Windows**: binary swap now tries a direct copy first, then renames the running binary to `cab.exe.old` and copies the new one in; the post-exit apply script kills leftover `cab.exe` processes via `taskkill /F` (excluding the updater itself), writes an apply log, and cleans up stale `.old` files.
+
 ## [0.9.13] - 2026-08-06
 
 ### Fixed

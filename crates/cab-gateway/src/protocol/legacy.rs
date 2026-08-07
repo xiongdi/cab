@@ -1923,6 +1923,44 @@ data: [DONE]
     }
 
     #[test]
+    fn convert_request_anthropic_thinking_becomes_responses_reasoning_effort() {
+        use crate::protocol::{PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, convert_request};
+        let body = serde_json::json!({
+            "model": "gpt-5.6-luna",
+            "max_tokens": 256,
+            "thinking": {"type": "enabled", "budget_tokens": 1024},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let converted = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &body);
+        // thinking must NOT be passed through verbatim — Responses API rejects it.
+        assert!(converted.get("thinking").is_none());
+        // It should be converted to reasoning.effort.
+        assert_eq!(converted["reasoning"]["effort"], "low");
+
+        // Larger budget maps to higher effort.
+        let big = serde_json::json!({
+            "model": "gpt-5.6-luna",
+            "max_tokens": 256,
+            "thinking": {"type": "enabled", "budget_tokens": 16384},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let converted_big = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &big);
+        assert_eq!(converted_big["reasoning"]["effort"], "high");
+
+        // Disabled thinking → no reasoning field.
+        let disabled = serde_json::json!({
+            "model": "gpt-5.6-luna",
+            "max_tokens": 256,
+            "thinking": {"type": "disabled"},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let converted_disabled =
+            convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &disabled);
+        assert!(converted_disabled.get("reasoning").is_none());
+        assert!(converted_disabled.get("thinking").is_none());
+    }
+
+    #[test]
     fn responses_to_anthropic_messages_maps_function_call_output() {
         let body = serde_json::json!({
             "id": "resp_1",

@@ -134,13 +134,20 @@ pub async fn handle_proxied_request(
         .iter()
         .any(|e| e.protocol == client_protocol && e.enabled);
 
-    let upstream_protocol = if has_native_endpoint {
-        client_protocol
-    } else {
-        endpoint_meta
-            .as_ref()
-            .and_then(|ep| ep.upstream_protocol.as_deref())
-            .unwrap_or(client_protocol)
+    // OpenAI reasoning models (upstream_protocol = openai-responses) must NOT
+    // shortcut to the native anthropic endpoint — it can't handle reasoning
+    // effort, reasoning items, or tool-call interleaving, producing malformed
+    // SSE. For all other protocols, prefer the native endpoint (no conversion)
+    // when available, falling back to the model's upstream_protocol.
+    let model_upstream_protocol = endpoint_meta
+        .as_ref()
+        .and_then(|ep| ep.upstream_protocol.as_deref());
+
+    let upstream_protocol = match model_upstream_protocol {
+        Some("openai-responses") => "openai-responses",
+        _ if has_native_endpoint => client_protocol,
+        Some(proto) => proto,
+        None => client_protocol,
     };
 
     let endpoint_candidates = pick_endpoints_for_protocol(&provider, upstream_protocol);

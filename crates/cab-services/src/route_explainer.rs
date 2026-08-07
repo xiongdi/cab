@@ -230,7 +230,18 @@ pub async fn explain(pool: &InMemoryStore, request: &RouteExplainRequest) -> Rou
                 agent_config.mode, agent_config.model_id
             ),
         );
-        if agent_config.mode == "auto"
+        if agent_config.mode == "manual" {
+            if let Some(ref model_id) = agent_config.model_id {
+                if !model_id.is_empty() {
+                    push_step(
+                        &mut steps,
+                        "agent_manual_pin",
+                        true,
+                        format!("agent pinned to model: {model_id}"),
+                    );
+                }
+            }
+        } else if agent_config.mode == "auto"
             && let Some(ref route_id) = agent_config.model_id
             && !route_id.is_empty()
         {

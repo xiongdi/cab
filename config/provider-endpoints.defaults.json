@@ -655,6 +655,13 @@
       "default_protocol": "openai-chat",
       "endpoints": [
         {
+          "protocol": "openai-responses",
+          "url": "https://opencode.ai/zen/go/v1",
+          "label": "OpenAI Responses",
+          "priority": 65,
+          "enabled": true
+        },
+        {
           "protocol": "openai-chat",
           "url": "https://opencode.ai/zen/go/v1",
           "label": "OpenAI Chat Completions",
