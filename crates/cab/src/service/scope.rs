@@ -255,7 +255,7 @@ fn relaunch_current_process_elevated() -> Result<i32, String> {
             .args(["-NoProfile", "-Command", &ps])
             .status()
             .map_err(|e| format!("Failed to request UAC elevation: {e}"))?;
-        return Ok(status.code().unwrap_or(1));
+        Ok(status.code().unwrap_or(1))
     }
 
     #[cfg(target_os = "linux")]
@@ -359,6 +359,8 @@ pub fn run_cmd(cmd: &str, args: &[&str]) -> Result<(), String> {
 
 /// Like [`run_cmd`], but discards stdout/stderr. Use for expected-to-fail cleanup
 /// (e.g. `launchctl bootout` when nothing is loaded) so install UX stays clean.
+/// Only used on Linux (systemctl) and macOS (launchctl) — absent on Windows.
+#[cfg(not(target_os = "windows"))]
 pub fn run_cmd_silent(cmd: &str, args: &[&str]) -> Result<(), String> {
     let status = std::process::Command::new(cmd)
         .args(args)

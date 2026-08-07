@@ -1,6 +1,6 @@
-use super::scope::{
-    ServiceScope, load_service_config, require_admin_for_system, run_cmd, run_cmd_silent,
-};
+#[cfg(not(target_os = "windows"))]
+use super::scope::run_cmd_silent;
+use super::scope::{ServiceScope, load_service_config, require_admin_for_system, run_cmd};
 
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 use std::path::PathBuf;

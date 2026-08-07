@@ -109,24 +109,22 @@ pub async fn resolve_route(
 
     // Step 0a: In manual mode, agent.model_id is a pinned model — resolve it directly.
     if let Ok(Some(agent_config)) = catalog.agent(agent).await {
-        if agent_config.mode == "manual" {
-            if let Some(ref model_id) = agent_config.model_id {
-                if !model_id.is_empty() {
-                    if let Some(resolved) = resolve_model_by_name(catalog, model_id).await? {
-                        return Ok(ResolvedRoute {
-                            model: resolved.model,
-                            provider_id: resolved.provider_id,
-                            api_keys: resolved.api_keys,
-                            endpoint_candidates: resolved.endpoint_candidates,
-                            provider_api_key: resolved.provider_api_key,
-                            model_protocol: resolved.model_protocol,
-                            provider_name: resolved.provider_name,
-                            provider_routing: resolved.provider_routing,
-                            fallback_models: vec![],
-                        });
-                    }
-                }
-            }
+        if agent_config.mode == "manual"
+            && let Some(ref model_id) = agent_config.model_id
+            && !model_id.is_empty()
+            && let Some(resolved) = resolve_model_by_name(catalog, model_id).await?
+        {
+            return Ok(ResolvedRoute {
+                model: resolved.model,
+                provider_id: resolved.provider_id,
+                api_keys: resolved.api_keys,
+                endpoint_candidates: resolved.endpoint_candidates,
+                provider_api_key: resolved.provider_api_key,
+                model_protocol: resolved.model_protocol,
+                provider_name: resolved.provider_name,
+                provider_routing: resolved.provider_routing,
+                fallback_models: vec![],
+            });
         }
 
         // Step 0b: In auto mode, agent.model_id is a routing strategy managed by CAB.

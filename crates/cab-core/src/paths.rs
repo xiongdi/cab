@@ -34,11 +34,11 @@ pub fn default_system_cab_home() -> PathBuf {
     {
         let program_data =
             std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".into());
-        return PathBuf::from(program_data).join("cab");
+        PathBuf::from(program_data).join("cab")
     }
     #[cfg(target_os = "macos")]
     {
-        return PathBuf::from("/Library/Application Support/cab");
+        PathBuf::from("/Library/Application Support/cab")
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {

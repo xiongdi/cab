@@ -267,7 +267,7 @@ fn open_browser(url: &str) -> Result<(), String> {
             .args(["/C", "start", "", url])
             .status()
             .map_err(|e| format!("failed to open browser: {e}"))?;
-        return Ok(());
+        Ok(())
     }
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {

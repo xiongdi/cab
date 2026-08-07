@@ -274,24 +274,24 @@ fn install_file(src: &Path, dst: &Path) -> Result<(), String> {
         let _ = fs::remove_file(&old);
     }
 
-    if dst.exists() {
-        if let Err(rename_err) = fs::rename(dst, &old) {
-            #[cfg(windows)]
-            {
-                let status = std::process::Command::new("cmd")
-                    .args(["/C", "copy", "/Y"])
-                    .arg(src)
-                    .arg(dst)
-                    .status();
-                if status.map(|s| s.success()).unwrap_or(false) {
-                    return Ok(());
-                }
+    if dst.exists()
+        && let Err(rename_err) = fs::rename(dst, &old)
+    {
+        #[cfg(windows)]
+        {
+            let status = std::process::Command::new("cmd")
+                .args(["/C", "copy", "/Y"])
+                .arg(src)
+                .arg(dst)
+                .status();
+            if status.map(|s| s.success()).unwrap_or(false) {
+                return Ok(());
             }
-            return Err(format!(
-                "replace {}: rename failed ({rename_err}) and file is locked (stop the service and retry)",
-                dst.display()
-            ));
         }
+        return Err(format!(
+            "replace {}: rename failed ({rename_err}) and file is locked (stop the service and retry)",
+            dst.display()
+        ));
     }
 
     if let Err(e) = fs::copy(src, dst) {

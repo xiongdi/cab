@@ -64,6 +64,7 @@ pub fn uninstall_service() -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn env_lines(cfg: &ServiceConfig) -> String {
     let mut lines = format!("Environment=CAB_HOME={}\n", cfg.cab_home.display());
     if let Some(fe) = &cfg.frontend_dir {
@@ -873,7 +874,7 @@ fn install_user(
             "/F",
         ],
     ) {
-        Ok(()) => return Ok(()),
+        Ok(()) => Ok(()),
         Err(e) => {
             // If the task already exists (delete failed) and is still registered,
             // the updated VBS/CMD files are already in place — the existing task
@@ -885,9 +886,9 @@ fn install_user(
                 );
                 return Ok(());
             }
-            return Err(format!(
+            Err(format!(
                 "Failed to register scheduled task (XML: {xml_err}; /TR: {e})"
-            ));
+            ))
         }
     }
 }
