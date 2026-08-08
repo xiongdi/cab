@@ -68,18 +68,19 @@
     <div class="logo">
       <div class="logo-icon">
         <svg
-          width="20"
-          height="20"
+          width="18"
+          height="18"
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          aria-hidden="true"
         >
-          <path d="M12 2L2 7l10 5 10-5-10-5z" />
-          <path d="M2 17l10 5 10-5" />
-          <path d="M2 12l10 5 10-5" />
+          <!-- The CAB mark: sky-blue open "C" + white vertical bar, exactly the
+               favicon glyph scaled to the sidebar, so every surface shows one
+               consistent identity (favicon, docs, dashboard). -->
+          <path
+            d="M6 16.5V7.5h3.4c2.6 0 4.1 1.3 4.1 3.4 0 1.5-.8 2.6-2 3l2.6 2.6h-3L9 14.2v2.3H6zm3.4-5.3c1.1 0 1.7-.6 1.7-1.5s-.6-1.5-1.7-1.5h-1v3h1z"
+            fill="#38bdf8"
+          />
+          <path d="M14.6 16.5V7.5H18v9h-3.4z" fill="#ffffff" />
         </svg>
       </div>
       <div class="logo-text">
