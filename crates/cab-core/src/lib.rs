@@ -10,6 +10,7 @@ pub mod routing;
 pub mod subscription_quota;
 pub mod tool_weights;
 pub mod types;
+pub mod vision;
 
 pub use affinity::{
     PrefixShape, PrefixShapeTracker, SessionAffinity, SessionPin, prefix_shape, session_key,
@@ -56,3 +57,4 @@ pub use types::{
     NormalizedTokens, anthropic_input_includes_cache, normalize_stored_tokens, ordered_api_keys,
     provider_has_available_key, provider_has_configured_key, select_preferred_api_key,
 };
+pub use vision::{model_supports_vision, request_requires_vision};

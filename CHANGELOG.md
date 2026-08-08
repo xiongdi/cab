@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-08
+
+### Added
+
+- **Vision-capable model routing**: CAB now detects when a request embeds an image (Anthropic `image` blocks, OpenAI `image_url` parts, OpenAI Responses `input` items, Gemini `contents[].parts`, or a `data:image/` URI / image URL inline in plain text) and restricts routing to models that accept image input. Text-only models are excluded even when they are the cheapest option, so screenshot / diagram / UI-mockup requests no longer land on a model that rejects them (400) or produces garbage. Models.dev `architecture.modalities.input` data is authoritative; a slug-based fallback covers catalog entries without explicit modality data.
+
 ## [0.9.14] - 2026-08-07
 
 ### Added

@@ -59,6 +59,9 @@ pub struct RequestProfile {
     pub complexity: f64,
     pub estimated_input_tokens: u64,
     pub estimated_output_tokens: u64,
+    /// True when the request embeds an image, so routing must only consider
+    /// models that accept image input.
+    pub requires_vision: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,12 +103,14 @@ pub fn build_request_profile(body: &serde_json::Value, agent: &str) -> RequestPr
     let message_count = count_messages(body);
     let has_tools = body.get("tools").is_some() || body.get("functions").is_some();
     let estimated_output_tokens = estimate_output_tokens(body, message_count);
+    let requires_vision = crate::vision::request_requires_vision(body, &text);
     classify_request(
         &text,
         agent,
         message_count,
         has_tools,
         estimated_output_tokens,
+        requires_vision,
     )
 }
 
@@ -409,6 +414,33 @@ fn score_parts_for_candidate(
     score_parts(candidate.model, strategy, task, &costs)
 }
 
+/// Narrow the pool to vision-capable entries for a vision request. When nothing
+/// in the pool supports image input (e.g. the catalog knows no vision model at
+/// all), keep the pool intact so the request still reaches the best available
+/// model rather than failing with "no routes", and log loudly so the missing
+/// modalities are easy to spot.
+fn restrict_pool_to_vision<'a, T>(
+    pool: Vec<&'a T>,
+    requires_vision: bool,
+    supports_vision: impl Fn(&T) -> bool,
+    what: &str,
+) -> Vec<&'a T> {
+    if !requires_vision {
+        return pool;
+    }
+    let vision_fitting: Vec<&'a T> = pool
+        .iter()
+        .copied()
+        .filter(|entry| supports_vision(entry))
+        .collect();
+    if vision_fitting.is_empty() {
+        tracing::warn!("request requires vision but no vision-capable {what} found in pool");
+        pool
+    } else {
+        vision_fitting
+    }
+}
+
 fn score_models<'a>(
     models: &'a [Model],
     strategy: RoutingStrategy,
@@ -439,6 +471,17 @@ fn score_models<'a>(
     } else {
         context_fitting
     };
+
+    // Vision requests may only route to vision-capable models. When the catalog
+    // knows no vision model at all, keep the pool intact (the request will still
+    // reach the best available model rather than fail with "no routes") and log
+    // loudly so the missing modalities are easy to spot.
+    let pool = restrict_pool_to_vision(
+        pool,
+        profile.requires_vision,
+        crate::vision::model_supports_vision,
+        "model",
+    );
 
     let io_ratio = input_output_ratio_for_profile(profile);
 
@@ -572,6 +615,14 @@ fn score_route_candidates<'a>(
     } else {
         context_fitting
     };
+
+    // Vision requests may only route to vision-capable models (see score_models).
+    let pool = restrict_pool_to_vision(
+        pool,
+        profile.requires_vision,
+        |c| crate::vision::model_supports_vision(c.model),
+        "candidate",
+    );
 
     let io_ratio = input_output_ratio_for_profile(profile);
 
@@ -821,6 +872,7 @@ fn classify_request(
     message_count: usize,
     has_tools: bool,
     estimated_output_tokens: u64,
+    requires_vision: bool,
 ) -> RequestProfile {
     let lower = text.to_ascii_lowercase();
     let agent_lower = agent.to_ascii_lowercase();
@@ -1007,6 +1059,7 @@ fn classify_request(
         complexity,
         estimated_input_tokens,
         estimated_output_tokens,
+        requires_vision,
     }
 }
 
@@ -1073,7 +1126,7 @@ fn count_messages(body: &serde_json::Value) -> usize {
         })
 }
 
-fn extract_request_text(body: &serde_json::Value) -> String {
+pub(crate) fn extract_request_text(body: &serde_json::Value) -> String {
     let mut parts = Vec::new();
 
     if let Some(system) = body.get("system") {
@@ -1137,10 +1190,15 @@ fn push_text_part(out: &mut Vec<String>, value: &serde_json::Value) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn sample_model(name: &str, input: f64, output: f64, scores: (f64, f64, f64, f64)) -> Model {
+    pub(crate) fn sample_model(
+        name: &str,
+        input: f64,
+        output: f64,
+        scores: (f64, f64, f64, f64),
+    ) -> Model {
         Model {
             id: name.into(),
             name: name.into(),
@@ -1213,6 +1271,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [weak, strong];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1228,6 +1287,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let paid = RouteCandidate {
             model: &model,
@@ -1261,6 +1321,7 @@ mod tests {
             complexity: 0.85,
             estimated_input_tokens: 8000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [cheap, strong];
         let ranked = rank_models(&models, RoutingStrategy::Auto, &profile);
@@ -1282,6 +1343,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [cheap_dumb, expensive_genius, best_value];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1301,6 +1363,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [dim, smart];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1320,6 +1383,7 @@ mod tests {
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [pricey_smart, pricey_cheap, cheap_payg];
         let ranked = rank_models(&models, RoutingStrategy::Cheapest, &profile);
@@ -1342,6 +1406,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [fast];
         let scored = rank_models_with_scores(&models, RoutingStrategy::Speed, &profile);
@@ -1376,6 +1441,7 @@ mod tests {
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [cheap, pricey];
         let scored = rank_models_with_scores(&models, RoutingStrategy::Cheapest, &profile);
@@ -1408,6 +1474,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [high_coding_pricey, high_coding_cheap, best_coder];
         let ranked = rank_models(&models, RoutingStrategy::Intelligent, &profile);
@@ -1431,6 +1498,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [high_agentic_pricey, high_agentic_cheap, best_agent];
         let ranked = rank_models(&models, RoutingStrategy::Agentic, &profile);
@@ -1451,6 +1519,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [no_agentic, good];
         let ranked = rank_models(&models, RoutingStrategy::Agentic, &profile);
@@ -1480,6 +1549,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [slow_pricey, slow_cheap, fast];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
@@ -1504,6 +1574,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [slow_ttft, fast_ttft];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
@@ -1523,6 +1594,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let cheap = RouteCandidate {
             model: &model,
@@ -1553,6 +1625,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 100,
+            requires_vision: false,
         };
         let models = [a, b];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1569,6 +1642,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [complete, partial];
         let ranked = rank_models(&models, RoutingStrategy::Intelligent, &profile);
@@ -1589,6 +1663,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [missing, scored];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1607,6 +1682,7 @@ mod tests {
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [pricey, cheap];
         let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
@@ -1627,6 +1703,7 @@ mod tests {
             complexity: 0.5,
             estimated_input_tokens: 1000,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [slow, fast];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
@@ -1648,6 +1725,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [pricey, cheap];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
@@ -1663,6 +1741,7 @@ mod tests {
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
+            requires_vision: false,
         };
         let models = [pricey, cheap];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
@@ -1676,5 +1755,123 @@ mod tests {
         });
         let profile = build_request_profile(&body, "unknown");
         assert_eq!(profile.task, TaskKind::Math);
+    }
+
+    #[test]
+    fn build_profile_flags_vision_when_message_has_image() {
+        let body = serde_json::json!({
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "what's in this screenshot"},
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "AAAA"}}
+                ]
+            }]
+        });
+        let profile = build_request_profile(&body, "claude-code");
+        assert!(profile.requires_vision);
+    }
+
+    #[test]
+    fn build_profile_does_not_flag_plain_text() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "refactor this function"}]
+        });
+        let profile = build_request_profile(&body, "claude-code");
+        assert!(!profile.requires_vision);
+    }
+
+    fn vision_model(name: &str, cost: f64) -> Model {
+        let mut model = sample_model(name, cost, cost * 2.0, (60.0, 55.0, 45.0, 40.0));
+        model.architecture = Some(serde_json::json!({
+            "modalities": {"input": ["text", "image"], "output": ["text"]}
+        }));
+        model
+    }
+
+    fn text_model(name: &str, cost: f64) -> Model {
+        let mut model = sample_model(name, cost, cost * 2.0, (60.0, 55.0, 45.0, 40.0));
+        model.architecture = Some(serde_json::json!({
+            "modalities": {"input": ["text"], "output": ["text"]}
+        }));
+        model
+    }
+
+    #[test]
+    fn vision_request_skips_text_only_models_even_when_cheapest() {
+        // Cheap text-only model must NOT win a vision request, even under Cheapest.
+        let text_only = text_model("deepseek-v4-flash", 0.1);
+        let vision = vision_model("claude-opus-4-8", 3.0);
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.5,
+            estimated_input_tokens: 1000,
+            estimated_output_tokens: 1024,
+            requires_vision: true,
+        };
+        let models = [text_only, vision];
+        let ranked = rank_models(&models, RoutingStrategy::Cheapest, &profile);
+        assert_eq!(
+            ranked[0].name, "claude-opus-4-8",
+            "vision-capable model must be chosen over cheaper text-only model"
+        );
+        // Under Balanced, same guarantee.
+        let ranked = rank_models(&models, RoutingStrategy::Balanced, &profile);
+        assert_eq!(ranked[0].name, "claude-opus-4-8");
+    }
+
+    #[test]
+    fn non_vision_request_still_prefers_cheapest_text_model() {
+        let text_only = text_model("deepseek-v4-flash", 0.1);
+        let vision = vision_model("claude-opus-4-8", 3.0);
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.5,
+            estimated_input_tokens: 1000,
+            estimated_output_tokens: 1024,
+            requires_vision: false,
+        };
+        let models = [text_only, vision];
+        let ranked = rank_models(&models, RoutingStrategy::Cheapest, &profile);
+        assert_eq!(
+            ranked[0].name, "deepseek-v4-flash",
+            "text-only model stays eligible when no image is present"
+        );
+    }
+
+    #[test]
+    fn vision_route_candidates_filter_to_vision_models() {
+        let text_only = text_model("deepseek-v4-flash", 0.1);
+        let vision = vision_model("gemini-3-pro-preview", 2.0);
+        let profile = RequestProfile {
+            task: TaskKind::General,
+            complexity: 0.3,
+            estimated_input_tokens: 500,
+            estimated_output_tokens: 1024,
+            requires_vision: true,
+        };
+        let candidates = [
+            RouteCandidate {
+                model: &text_only,
+                service_provider_id: "cheap-provider",
+                input_cost: 0.1,
+                output_cost: 0.2,
+                cache_read_cost: None,
+            },
+            RouteCandidate {
+                model: &vision,
+                service_provider_id: "vision-provider",
+                input_cost: 2.0,
+                output_cost: 4.0,
+                cache_read_cost: None,
+            },
+        ];
+        let ranked = rank_route_candidates(&candidates, RoutingStrategy::Cheapest, &profile);
+        assert_eq!(ranked[0].1, "vision-provider");
+        assert_eq!(
+            ranked.len(),
+            1,
+            "text-only candidate must be excluded entirely"
+        );
     }
 }
