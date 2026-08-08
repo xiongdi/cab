@@ -5,6 +5,17 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-08-08
+
+### Fixed
+
+- **CI auto-publish no longer fails on tag pushes**: the `publish-release` job ran `gh release edit --draft=false` without an `actions/checkout` step, so `gh` had no git context and every release got stuck as a draft. The job now checks out the repository first, so releases auto-publish once all platform binaries are uploaded.
+
+### Changed
+
+- **Dashboard logo unified with the CAB favicon**: the sidebar used a generic stacked-cubes icon unrelated to the brand while the favicon and docs site use the sky-blue open-"C" mark. The sidebar now shows the same CAB mark, so every surface (browser tab, docs, dashboard) presents one consistent identity.
+- **README rewritten and expanded**: new front page with version/platform/downloads/license/CI badges, a 2×2 screenshot grid of the live dashboard, grouped feature overview, quick-start steps, routing-strategy table, FAQ, and per-platform install instructions. Added a full **简体中文 (README.zh-CN.md)** edition mirroring the English structure. Screenshots refreshed to the current UI.
+
 ## [0.10.0] - 2026-08-08
 
 ### Added
