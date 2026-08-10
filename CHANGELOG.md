@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-08-10
+
+### Fixed
+
+- **Dashboard "Active models" under-counted reseller-served models**: the homepage tally only counted models whose native provider was enabled with a key, so a model served through an enabled endpoint on an active reseller provider (e.g. `deepseek/deepseek-v4-flash` via `opencode-go`) showed as 0 even though it was routable. The count now mirrors `/v1/models` routing — a model is active when enabled and reachable via its native provider OR an enabled endpoint whose provider is active — so the homepage and models page agree.
+- **Streamed requests missing from usage stats**: streaming requests only wrote to `request_logs` and never inserted a `usage_records` row, so the usage page systematically under-counted input/output tokens and request counts for every streamed call (the page showed far fewer records than the request log). The gateway now records streamed requests in `usage_records` too, with the same cost calculation and cache-token layout handling as non-streamed requests.
+
 ## [0.10.1] - 2026-08-08
 
 ### Fixed
