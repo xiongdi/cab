@@ -15,7 +15,8 @@ pub async fn get_stats(store: &InMemoryStore) -> Result<DashboardStats, String> 
         .filter(|p| p.enabled && (!p.api_key.is_empty() || p.id == "provider-ollama"))
         .count() as i64;
 
-    // Active models: enabled and its provider is active
+    // Active models: enabled and reachable via its native provider OR an enabled
+    // reseller endpoint whose provider is active (mirrors `/v1/models` routing).
     let active_provider_ids: std::collections::HashSet<String> = inner
         .providers
         .values()
@@ -25,7 +26,19 @@ pub async fn get_stats(store: &InMemoryStore) -> Result<DashboardStats, String> 
     let models_count = inner
         .models
         .values()
-        .filter(|m| m.enabled && active_provider_ids.contains(&m.provider_id))
+        .filter(|m| {
+            if !m.enabled {
+                return false;
+            }
+            if active_provider_ids.contains(&m.provider_id) {
+                return true;
+            }
+            inner.model_endpoints.values().any(|ep| {
+                ep.model_id == m.name
+                    && ep.enabled
+                    && active_provider_ids.contains(&ep.provider_tag)
+            })
+        })
         .count() as i64;
 
     let mut recent_requests = inner.request_logs.clone();
@@ -178,5 +191,54 @@ mod tests {
         assert_eq!(stats.recent_requests[0].id, "log-5");
         assert_eq!(stats.requests_by_provider["p1"], 6);
         assert_eq!(stats.requests_by_model["m1"], 6);
+    }
+
+    #[tokio::test]
+    async fn dashboard_counts_models_reachable_via_reseller_endpoint() {
+        let store = InMemoryStore::new();
+        {
+            let mut data = store.inner.write().unwrap();
+            // Native provider `native` disabled with a key — not active on its own.
+            data.providers
+                .insert("native".into(), provider("native", false, "key"));
+            // Reseller provider `reseller` enabled with a key — active.
+            data.providers
+                .insert("reseller".into(), provider("reseller", true, "key"));
+            data.models.insert("m1".into(), model("m1", "native", true));
+            // Model m2 has no provider key and no endpoint → not counted.
+            data.models.insert("m2".into(), model("m2", "native", true));
+            // Enabled endpoint for m1 served by the active reseller.
+            data.model_endpoints.insert(
+                "ep1".into(),
+                crate::endpoint::ModelEndpoint {
+                    id: "ep1".into(),
+                    model_id: "m1".into(),
+                    canonical_slug: "m1".into(),
+                    provider_name: "Reseller".into(),
+                    provider_tag: "reseller".into(),
+                    native_model_id: "m1".into(),
+                    upstream_protocol: None,
+                    quantization: "fp16".into(),
+                    input_cost: Some(1.0),
+                    output_cost: Some(2.0),
+                    cache_read_cost: None,
+                    context_length: None,
+                    max_completion_tokens: None,
+                    status: 1,
+                    uptime_30m: None,
+                    uptime_5m: None,
+                    uptime_1d: None,
+                    supports_tools: true,
+                    supports_streaming: true,
+                    enabled: true,
+                    updated_at: "now".into(),
+                },
+            );
+        }
+
+        let stats = get_stats(&store).await.unwrap();
+        // Native provider is disabled, but m1 is reachable via the active reseller endpoint.
+        assert_eq!(stats.providers_count, 1);
+        assert_eq!(stats.models_count, 1);
     }
 }
