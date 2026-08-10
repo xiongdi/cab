@@ -41,7 +41,7 @@ pub use provider_defaults::{
 pub use routing::{
     BALANCED_INPUT_OUTPUT_RATIO, INPUT_CACHE_HIT_RATE, RankedModelScore, RankedRouteCandidate,
     RequestProfile, RouteCandidate, RoutingStrategy, TaskKind, blended_input_cost,
-    build_request_profile, cache_read_cost_from_model, capability_value_score,
+    build_request_profile, cache_read_cost_from_model, capability_value_score, compute_cost_usd,
     effective_token_cost, effective_token_cost_for_model, model_routable_for_strategy, rank_models,
     rank_models_with_scores, rank_route_candidates, rank_route_candidates_with_scores,
     raw_effective_token_cost, raw_effective_token_cost_for_model,

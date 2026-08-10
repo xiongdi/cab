@@ -818,12 +818,26 @@ pub fn chat_to_responses(openai_resp: &Value, model_name: &str) -> Value {
 
 use cab_core::types::RequestLog;
 
+/// Metadata needed to build the `UsageRecord` for a streamed request on Drop.
+pub struct StreamUsageMeta {
+    /// Serving provider id (e.g. `opencode-go`), not its display name.
+    pub provider_id: String,
+    /// Resolved model used for pricing.
+    pub model: cab_core::types::Model,
+}
+
 pub struct TokenTrackingStream<S> {
     inner: S,
     pool: cab_db::InMemoryStore,
     /// Full request log (all fields except token counts are pre-filled). Token
     /// counts are accumulated during streaming and the log is persisted on Drop.
     log: RequestLog,
+    /// Optional usage metadata so Drop can also record a `UsageRecord`.
+    usage_meta: Option<StreamUsageMeta>,
+    /// Whether the accumulated `log.input_tokens` still contains cache-write
+    /// tokens (OpenAI overlay layout). Updated by each `apply_*` as usage events
+    /// stream in; used to bill cost correctly in Drop.
+    input_includes_cache_write: bool,
     buffer: Vec<u8>,
     accumulated_response: Vec<u8>,
 }
@@ -834,6 +848,26 @@ impl<S> TokenTrackingStream<S> {
             inner,
             pool,
             log,
+            usage_meta: None,
+            input_includes_cache_write: false,
+            buffer: Vec::new(),
+            accumulated_response: Vec::new(),
+        }
+    }
+
+    /// Construct a tracking stream that also writes a usage record on Drop.
+    pub fn new_with_usage(
+        inner: S,
+        pool: cab_db::InMemoryStore,
+        log: RequestLog,
+        usage_meta: Option<StreamUsageMeta>,
+    ) -> Self {
+        Self {
+            inner,
+            pool,
+            log,
+            usage_meta,
+            input_includes_cache_write: false,
             buffer: Vec::new(),
             accumulated_response: Vec::new(),
         }
@@ -947,6 +981,8 @@ impl<S> TokenTrackingStream<S> {
             cache_creation,
             true,
         );
+        // OpenAI chat: input always includes cache (read + write overlay).
+        self.input_includes_cache_write = true;
         self.log.input_tokens = n.input_tokens;
         self.log.output_tokens = n.output_tokens;
         self.log.cache_read_tokens = n.cache_read_tokens;
@@ -982,6 +1018,8 @@ impl<S> TokenTrackingStream<S> {
             cache_creation,
             true,
         );
+        // OpenAI responses: input always includes cache (read + write overlay).
+        self.input_includes_cache_write = true;
         self.log.input_tokens = n.input_tokens;
         self.log.output_tokens = n.output_tokens;
         self.log.cache_read_tokens = n.cache_read_tokens;
@@ -1014,13 +1052,18 @@ impl<S> TokenTrackingStream<S> {
             .get("cache_creation_input_tokens")
             .and_then(|v| v.as_i64())
             .unwrap_or(self.log.cache_creation_tokens);
+        let input_includes_cache_write =
+            cab_core::anthropic_input_includes_cache(reported_input, cache_read, cache_creation);
         let n = cab_core::normalize_stored_tokens(
             reported_input,
             reported_output,
             cache_read,
             cache_creation,
-            cab_core::anthropic_input_includes_cache(reported_input, cache_read, cache_creation),
+            input_includes_cache_write,
         );
+        // Anthropic relay layout: disjoint when spec-compliant, inclusive when a
+        // relay reports the total prompt as `input_tokens` alongside cache legs.
+        self.input_includes_cache_write = input_includes_cache_write;
         self.log.input_tokens = n.input_tokens;
         self.log.output_tokens = n.output_tokens;
         self.log.cache_read_tokens = n.cache_read_tokens;
@@ -1068,6 +1111,8 @@ impl<S> Drop for TokenTrackingStream<S> {
         }
         let pool = self.pool.clone();
         let log = self.log.clone();
+        let usage_meta = self.usage_meta.take();
+        let input_includes_cache_write = self.input_includes_cache_write;
 
         // Update the in-memory ring buffer synchronously — no async, no race.
         // This is the canonical insert for the request log; we must NOT rely on
@@ -1084,15 +1129,57 @@ impl<S> Drop for TokenTrackingStream<S> {
             }
         }
 
+        // Build the usage record from the accumulated (CAB-normalized) tokens so
+        // streamed requests appear in the usage summary exactly like non-streamed
+        // ones. Skip when there are no billable tokens at all.
+        let usage_record = usage_meta.and_then(|meta| {
+            if log.input_tokens == 0
+                && log.output_tokens == 0
+                && log.cache_read_tokens == 0
+                && log.cache_creation_tokens == 0
+            {
+                return None;
+            }
+            let cost_usd = cab_core::compute_cost_usd(
+                &meta.model,
+                log.input_tokens,
+                log.output_tokens,
+                log.cache_read_tokens,
+                log.cache_creation_tokens,
+                input_includes_cache_write,
+            );
+            Some(cab_core::types::UsageRecord {
+                id: uuid::Uuid::new_v4().to_string(),
+                timestamp: log.timestamp.clone(),
+                provider_id: meta.provider_id.clone(),
+                model_id: log.model.clone(),
+                service_provider_id: meta.provider_id.clone(),
+                agent_id: log.agent.clone(),
+                input_tokens: log.input_tokens,
+                output_tokens: log.output_tokens,
+                cache_read_tokens: log.cache_read_tokens,
+                cache_creation_tokens: log.cache_creation_tokens,
+                cost_usd,
+                subscription: false,
+                request_id: Some(log.id.clone()),
+            })
+        });
+
         // Best-effort SQLite persist when a tokio runtime is available (the
         // normal case — streaming happens inside an active axum request).
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             handle.spawn(async move {
                 if let Some(sqlite_pool) = pool.sqlite()
                     && let Ok(conn) = sqlite_pool.get()
-                    && let Err(e) = cab_db::sqlite::append_log(&conn, &log)
                 {
-                    tracing::warn!("Failed to persist streamed log to SQLite: {e}");
+                    if let Err(e) = cab_db::sqlite::append_log(&conn, &log) {
+                        tracing::warn!("Failed to persist streamed log to SQLite: {e}");
+                    }
+                    if let Some(record) = usage_record
+                        && let Err(e) = cab_db::sqlite::insert_usage(&conn, &record)
+                    {
+                        tracing::warn!("Failed to record streamed usage: {e}");
+                    }
                 }
             });
         }
@@ -1575,6 +1662,141 @@ data: {"type":"message_stop"}
         assert_eq!(log.latency_ms, 42);
         assert_eq!(log.agent, "claude-code");
         assert_eq!(log.status, 200);
+    }
+
+    #[tokio::test]
+    async fn stream_drop_records_usage_to_sqlite() {
+        let manager = r2d2_sqlite::SqliteConnectionManager::memory();
+        let sqlite_pool = r2d2::Pool::builder()
+            .max_size(2)
+            .build(manager)
+            .expect("sqlite pool");
+        let pool = cab_db::InMemoryStore::with_sqlite(sqlite_pool);
+        let conn = pool.sqlite().unwrap().get().unwrap();
+        cab_db::sqlite::init_schema(&conn).unwrap();
+        let log_id = "log-usage-1".to_string();
+
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "claude-code".into(),
+            provider: "OpenCode Go".into(),
+            model: "deepseek/deepseek-v4-flash".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 42,
+            status: 200,
+            error: None,
+            path: "/v1/messages".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        // Anthropic disjoint layout: input excludes cache read/write.
+        let chunks = futures::stream::iter(vec![
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_start","message":{"usage":{"input_tokens":25,"output_tokens":1,"cache_read_input_tokens":42,"cache_creation_input_tokens":9}}}
+"#,
+            )),
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":15}}
+data: {"type":"message_stop"}
+"#,
+            )),
+        ]);
+        let mut stream = TokenTrackingStream::new_with_usage(
+            chunks,
+            pool.clone(),
+            initial_log,
+            Some(StreamUsageMeta {
+                provider_id: "opencode-go".into(),
+                model: cab_core::types::Model {
+                    id: "deepseek-v4-flash".into(),
+                    name: "deepseek/deepseek-v4-flash".into(),
+                    display_name: "DeepSeek V4 Flash".into(),
+                    provider_id: "deepseek".into(),
+                    protocol: "openai-chat".into(),
+                    context_length: 1,
+                    input_cost: Some(0.07),
+                    output_cost: Some(0.3),
+                    enabled: true,
+                    overall_intelligence: Some(1.0),
+                    coding_index: Some(1.0),
+                    agentic_index: Some(1.0),
+                    math_index: Some(1.0),
+                    output_speed_tps: None,
+                    time_to_first_token_secs: None,
+                    created_at: "now".into(),
+                    updated_at: "now".into(),
+                    canonical_slug: None,
+                    hugging_face_id: None,
+                    created: None,
+                    description: None,
+                    architecture: None,
+                    pricing: None,
+                    top_provider: None,
+                    per_request_limits: None,
+                    supported_parameters: None,
+                    default_parameters: None,
+                    supported_voices: None,
+                    knowledge_cutoff: None,
+                    expiration_date: None,
+                    links: None,
+                },
+            }),
+        );
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        // Wait for the spawned SQLite persist task to land.
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let conn = pool.sqlite().unwrap().get().unwrap();
+        let record: Option<cab_core::types::UsageRecord> = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id, timestamp, provider_id, model_id, service_provider_id, agent_id,
+                            input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens,
+                            cost_usd, subscription, request_id
+                     FROM usage_records WHERE request_id = ?1",
+                )
+                .unwrap();
+            let rows = stmt
+                .query_map([&log_id], |row| {
+                    Ok(cab_core::types::UsageRecord {
+                        id: row.get(0)?,
+                        timestamp: row.get(1)?,
+                        provider_id: row.get(2)?,
+                        model_id: row.get(3)?,
+                        service_provider_id: row.get(4)?,
+                        agent_id: row.get(5)?,
+                        input_tokens: row.get(6)?,
+                        output_tokens: row.get(7)?,
+                        cache_read_tokens: row.get(8)?,
+                        cache_creation_tokens: row.get(9)?,
+                        cost_usd: row.get(10)?,
+                        subscription: row.get::<_, i64>(11)? != 0,
+                        request_id: row.get(12)?,
+                    })
+                })
+                .unwrap();
+            rows.into_iter().next().map(|r| r.unwrap())
+        };
+
+        let record = record.expect("streamed request must write a usage record");
+        assert_eq!(record.provider_id, "opencode-go");
+        assert_eq!(record.model_id, "deepseek/deepseek-v4-flash");
+        assert_eq!(record.agent_id, "claude-code");
+        assert_eq!(record.input_tokens, 25);
+        assert_eq!(record.output_tokens, 15);
+        assert_eq!(record.cache_read_tokens, 42);
+        assert_eq!(record.cache_creation_tokens, 9);
+        assert_eq!(record.request_id.as_deref(), Some(log_id.as_str()));
     }
 
     #[tokio::test]

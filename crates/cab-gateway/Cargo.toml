@@ -23,3 +23,7 @@ futures = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 tokio-tungstenite = "0.24"
+
+[dev-dependencies]
+r2d2 = "0.8"
+r2d2_sqlite = "0.34"

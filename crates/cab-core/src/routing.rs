@@ -123,6 +123,39 @@ pub fn cache_read_cost_from_model(model: &Model) -> Option<f64> {
         .filter(|cost| *cost >= 0.0)
 }
 
+/// Cost of a request in USD given CAB-normalized token counts and pricing.
+///
+/// `input_tokens` is the non-cache-read prompt total. When
+/// `input_includes_cache_write` is set (OpenAI layout), cache-write tokens sit
+/// inside `input_tokens` and are billed at the input rate, so they are pulled
+/// out before the base input leg. On Anthropic (`/v1/messages`) cache write is
+/// disjoint and this flag must be `false`.
+pub fn compute_cost_usd(
+    model: &Model,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read: i64,
+    cache_creation: i64,
+    input_includes_cache_write: bool,
+) -> f64 {
+    let per_million =
+        |tokens: i64, price: f64| (tokens.max(0) as f64) / 1_000_000.0 * price.max(0.0);
+    let input_price = model.input_cost.unwrap_or(0.0);
+    let output_price = model.output_cost.unwrap_or(0.0);
+    let cache_read_price = cache_read_cost_from_model(model).unwrap_or(input_price * 0.1);
+
+    let base_input = if input_includes_cache_write {
+        (input_tokens - cache_creation).max(0)
+    } else {
+        input_tokens
+    };
+
+    per_million(base_input, input_price)
+        + per_million(cache_read, cache_read_price)
+        + per_million(cache_creation, input_price * 1.25)
+        + per_million(output_tokens, output_price)
+}
+
 pub fn blended_input_cost(input: f64, cache_read: Option<f64>) -> f64 {
     let input = input.max(0.0);
     match cache_read {

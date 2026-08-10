@@ -211,10 +211,14 @@ pub async fn handle_proxied_request(
                     response_body: None,
                 };
                 let (parts, body) = final_response.into_parts();
-                let tracking_stream = crate::protocol::TokenTrackingStream::new(
+                let tracking_stream = crate::protocol::TokenTrackingStream::new_with_usage(
                     body.into_data_stream(),
                     state.pool.clone(),
                     log,
+                    Some(crate::protocol::StreamUsageMeta {
+                        provider_id: resolved.provider_id.clone(),
+                        model: resolved.model.clone(),
+                    }),
                 );
                 final_response =
                     Response::from_parts(parts, axum::body::Body::from_stream(tracking_stream));
@@ -469,32 +473,6 @@ fn extract_cache_tokens(usage: &serde_json::Value) -> (i64, i64) {
 /// - Anthropic: `input`, `cache_read`, `cache_creation` are disjoint prompt legs.
 /// - OpenAI: `input` still contains write tokens; bill `(input - write)` at the
 ///   base input rate and `write` at ~1.25× so the overlay is not double-counted.
-fn compute_cost_usd(
-    model: &cab_core::types::Model,
-    input_tokens: i64,
-    output_tokens: i64,
-    cache_read: i64,
-    cache_creation: i64,
-    input_includes_cache_write: bool,
-) -> f64 {
-    let per_million =
-        |tokens: i64, price: f64| (tokens.max(0) as f64) / 1_000_000.0 * price.max(0.0);
-    let input_price = model.input_cost.unwrap_or(0.0);
-    let output_price = model.output_cost.unwrap_or(0.0);
-    let cache_read_price = cab_core::cache_read_cost_from_model(model).unwrap_or(input_price * 0.1);
-
-    let base_input = if input_includes_cache_write {
-        (input_tokens - cache_creation).max(0)
-    } else {
-        input_tokens
-    };
-
-    per_million(base_input, input_price)
-        + per_million(cache_read, cache_read_price)
-        + per_million(cache_creation, input_price * 1.25)
-        + per_million(output_tokens, output_price)
-}
-
 fn build_usage_record(
     usage: Option<&serde_json::Value>,
     agent: &str,
@@ -511,7 +489,7 @@ fn build_usage_record(
     }
 
     let input_includes_cache_write = usage.is_some_and(usage_input_includes_cache);
-    let cost_usd = compute_cost_usd(
+    let cost_usd = cab_core::compute_cost_usd(
         model,
         input_tokens,
         output_tokens,

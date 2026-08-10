@@ -10,7 +10,7 @@ pub use engine::{
     convert_response, convert_sse_stream, synthesize_sse_from_response,
 };
 pub use legacy::{
-    TokenTrackingStream, anthropic_to_openai, anthropic_to_openai_chat_request,
+    StreamUsageMeta, TokenTrackingStream, anthropic_to_openai, anthropic_to_openai_chat_request,
     anthropic_to_responses_request, chat_request_to_responses, chat_to_responses,
     openai_chat_to_anthropic_messages, openai_to_anthropic, responses_text_from_body,
     responses_to_anthropic_messages, responses_to_anthropic_request,
