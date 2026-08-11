@@ -303,7 +303,10 @@ pub async fn handle_proxied_request(
             Ok(final_response)
         }
         Err(e) => {
-            state.pool.health.record_failure(&resolved.provider_id);
+            // Failure accounting for the circuit breaker happens inside
+            // execute_with_fallback, where each attempted provider is recorded
+            // individually (including fallbacks). Recording only the primary
+            // here would double-count it.
             let status_code = match &e {
                 CabError::ProviderError { status, .. } => *status as i32,
                 CabError::Proxy(_) => 502,

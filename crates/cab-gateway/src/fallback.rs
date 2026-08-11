@@ -150,6 +150,18 @@ pub async fn execute_with_fallback(
     let mut last_error = CabError::Proxy("No models available".to_string());
 
     for resolved in all_models {
+        // Skip providers already tripped by the circuit breaker so a sustained
+        // upstream outage fails fast instead of waiting out connect_timeout
+        // on every request.
+        if !pool.health.is_healthy(&resolved.provider_id) {
+            tracing::debug!(
+                provider_id = %resolved.provider_id,
+                "skipping unhealthy provider during fallback execution"
+            );
+            last_error = CabError::Proxy(format!("provider {} is unhealthy", resolved.provider_id));
+            continue;
+        }
+
         if resolved.endpoint_candidates.is_empty() {
             tracing::warn!(
                 "No endpoint matches model {} protocol {}",
@@ -374,6 +386,11 @@ pub async fn execute_with_fallback(
 
         if let Some(e) = model_error {
             last_error = e;
+            // Record a failure for this provider so the circuit breaker can
+            // trip and skip it on subsequent requests. Success paths already
+            // call record_success; providers skipped via the health check or
+            // empty endpoints/keys never reach here.
+            pool.health.record_failure(&resolved.provider_id);
         }
     }
 
@@ -1158,5 +1175,110 @@ data: [DONE]\n\n",
         .await
         .unwrap_err();
         assert!(matches!(err, CabError::ProviderError { status: 429, .. }));
+    }
+
+    #[tokio::test]
+    async fn skips_unhealthy_provider_during_fallback_execution() {
+        let store = cab_db::InMemoryStore::new();
+        // The `model()` helper hardcodes provider_id "provider-1". Trip the
+        // circuit breaker so fallback must skip it.
+        for _ in 0..3 {
+            store.health.record_failure("provider-1");
+        }
+        assert!(!store.health.is_healthy("provider-1"));
+
+        let primary = model(
+            "provider/model",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", "http://127.0.0.1:1")],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(b"{}"),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "chat/completions".into(),
+            shape_requests: false,
+        };
+
+        let err = execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, CabError::Proxy(ref message) if message.contains("unhealthy")),
+            "unhealthy provider should be skipped fast, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn records_failure_for_provider_after_all_endpoints_fail() {
+        let store = cab_db::InMemoryStore::new();
+        let primary = model(
+            "provider/model",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", "http://127.0.0.1:1")],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(b"{}"),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "chat/completions".into(),
+            shape_requests: false,
+        };
+
+        // Connection to port 1 fails immediately. Each execute records one
+        // failure; three consecutive failures trip the breaker. The fourth call
+        // then skips the provider fast instead of trying the endpoint again.
+        assert!(store.health.is_healthy("provider-1"));
+        for _ in 0..3 {
+            let _ = execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)
+                .await;
+        }
+        assert!(!store.health.is_healthy("provider-1"));
+
+        let err = execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CabError::Proxy(ref message) if message.contains("unhealthy")),
+            "after tripping, provider should be skipped, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn success_resets_provider_health() {
+        let store = cab_db::InMemoryStore::new();
+        store.health.record_failure("provider-1");
+        store.health.record_failure("provider-1");
+
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(openai_success))
+                .with_state(recorder.clone()),
+            recorder,
+        )
+        .await;
+        let primary = model(
+            "provider/model",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &server.base_url)],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"provider/model","messages":[{"role":"user","content":"hi"}]}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: false,
+            path_suffix: "chat/completions".into(),
+            shape_requests: false,
+        };
+
+        execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)
+            .await
+            .unwrap();
+
+        // A successful request resets the failure counter → provider healthy again.
+        assert!(store.health.is_healthy("provider-1"));
     }
 }
