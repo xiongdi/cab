@@ -452,14 +452,20 @@ fn tools_from_openai(value: &Value) -> Vec<IrTool> {
     };
     items
         .iter()
-        .map(|tool| {
+        .filter_map(|tool| {
             let function = tool.get("function").unwrap_or(tool);
-            IrTool {
-                name: function
-                    .get("name")
-                    .and_then(|n| n.as_str())
-                    .unwrap_or_default()
-                    .to_string(),
+            let name = function
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or_default();
+            // Tools without a name (e.g. Responses-style `external_web_access`)
+            // cannot be expressed as an OpenAI `function`; drop them so a later
+            // protocol conversion never emits `function.name: ""`.
+            if name.is_empty() {
+                return None;
+            }
+            Some(IrTool {
+                name: name.to_string(),
                 description: function
                     .get("description")
                     .and_then(|d| d.as_str())
@@ -469,7 +475,7 @@ fn tools_from_openai(value: &Value) -> Vec<IrTool> {
                     .cloned()
                     .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}})),
                 strict: tool.get("strict").and_then(|v| v.as_bool()),
-            }
+            })
         })
         .collect()
 }
@@ -480,21 +486,27 @@ fn tools_from_anthropic(value: &Value) -> Vec<IrTool> {
     };
     items
         .iter()
-        .map(|tool| IrTool {
-            name: tool
+        .filter_map(|tool| {
+            let name = tool
                 .get("name")
                 .and_then(|n| n.as_str())
-                .unwrap_or_default()
-                .to_string(),
-            description: tool
-                .get("description")
-                .and_then(|d| d.as_str())
-                .map(str::to_string),
-            input_schema: tool
-                .get("input_schema")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}})),
-            strict: None,
+                .unwrap_or_default();
+            // Skip nameless tools so conversions never emit an empty `name`.
+            if name.is_empty() {
+                return None;
+            }
+            Some(IrTool {
+                name: name.to_string(),
+                description: tool
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .map(str::to_string),
+                input_schema: tool
+                    .get("input_schema")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}})),
+                strict: None,
+            })
         })
         .collect()
 }
@@ -505,21 +517,29 @@ fn tools_from_responses(value: &Value) -> Vec<IrTool> {
     };
     items
         .iter()
-        .map(|tool| IrTool {
-            name: tool
+        .filter_map(|tool| {
+            let name = tool
                 .get("name")
                 .and_then(|n| n.as_str())
-                .unwrap_or_default()
-                .to_string(),
-            description: tool
-                .get("description")
-                .and_then(|d| d.as_str())
-                .map(str::to_string),
-            input_schema: tool
-                .get("parameters")
-                .cloned()
-                .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}})),
-            strict: tool.get("strict").and_then(|v| v.as_bool()),
+                .unwrap_or_default();
+            // Responses supports special tool types (e.g. `external_web_access`)
+            // that carry no `name`; they cannot round-trip through the IR to
+            // OpenAI `function` tools, so drop them instead of emitting "".
+            if name.is_empty() {
+                return None;
+            }
+            Some(IrTool {
+                name: name.to_string(),
+                description: tool
+                    .get("description")
+                    .and_then(|d| d.as_str())
+                    .map(str::to_string),
+                input_schema: tool
+                    .get("parameters")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({"type": "object", "properties": {}})),
+                strict: tool.get("strict").and_then(|v| v.as_bool()),
+            })
         })
         .collect()
 }

@@ -79,6 +79,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn responses_nameless_tool_is_dropped_when_converting_to_openai_chat() {
+        // Codex sends Responses-style tools; a special type like
+        // `external_web_access` carries no `name` and cannot be expressed as an
+        // OpenAI `function`. It must be dropped, not emitted as `function.name: ""`.
+        let body = json!({
+            "model": "deepseek/deepseek-v4-flash",
+            "input": [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            "tools": [
+                {"type": "function", "name": "exec_command", "description": "run", "parameters": {"type": "object"}},
+                {"type": "external_web_access"}
+            ]
+        });
+        let chat = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_CHAT, &body);
+        let tools = chat["tools"].as_array().unwrap();
+        assert_eq!(tools.len(), 1, "nameless tool must be dropped: {chat}");
+        assert_eq!(tools[0]["function"]["name"], "exec_command");
+    }
+
     #[tokio::test]
     async fn anthropic_sse_to_openai_chat_emits_content_and_done() {
         use super::stream::transform_anthropic_sse_to_openai_chat;
