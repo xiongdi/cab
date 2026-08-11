@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.4] - 2026-08-11
+
+### Fixed
+
+- **Nameless Responses tools no longer break OpenAI-chat upstreams**: Codex sends Responses-style tool definitions, some of which (e.g. `external_web_access`) carry no `name`. When such a request fell back from the Responses endpoint to an OpenAI-chat endpoint, the nameless tool became `function.name: ""` and the upstream rejected the request with `Invalid 'tools[0].function.name': empty string` (400). Tool definitions without a name are now dropped during parsing, so protocol conversion never emits an empty function name.
+
 ## [0.10.3] - 2026-08-11
 
 ### Fixed
