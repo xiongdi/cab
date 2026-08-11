@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.3] - 2026-08-11
+
+### Fixed
+
+- **Sustained upstream outages no longer stall the gateway**: the HTTP client set only a total request timeout, so a provider whose connection hung would wait out the OS-level TCP timeout (~37s) before failing, then retry a second endpoint serially (~74s per request). Under concurrent/retried agent calls the gateway appeared hung. The client now has a 5-second `connect_timeout`, so unreachable upstreams fail fast.
+- **Circuit breaker now skips unhealthy providers during fallback**: providers were never recorded as failed unless the *primary* provider failed last, so a reseller whose endpoint kept failing couldn't be tripped, and `execute_with_fallback` would wait out the connect timeout on every request even after the breaker should have fired. Each attempted provider is now recorded individually, and the fallback loop skips providers the breaker has tripped — a sustained outage returns quickly instead of piling up. A tripped provider re-opens after a 30-second cooldown so it can recover after an upstream blip instead of staying broken until restart.
+
 ## [0.10.2] - 2026-08-10
 
 ### Fixed
