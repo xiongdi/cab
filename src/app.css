@@ -99,8 +99,11 @@
   --table-row-border: rgba(255, 255, 255, 0.03);
   --table-row-hover: rgba(255, 255, 255, 0.015);
   --overlay-backdrop: rgba(0, 0, 0, 0.65);
-  --toggle-track: rgba(255, 255, 255, 0.1);
-  --toggle-thumb: #ffffff;
+  /* Off: muted zinc track; On: success green (accent is white in dark — poor contrast) */
+  --toggle-track: #3f3f46;
+  --toggle-thumb: #f4f4f5;
+  --toggle-on: #22c55e;
+  --toggle-on-thumb: #ffffff;
   --badge-neutral-bg: rgba(255, 255, 255, 0.06);
   --gradient-card: linear-gradient(
     135deg,
@@ -241,8 +244,10 @@ html[data-theme='light'] {
   --table-row-border: rgba(9, 9, 11, 0.06);
   --table-row-hover: rgba(9, 9, 11, 0.02);
   --overlay-backdrop: rgba(9, 9, 11, 0.45);
-  --toggle-track: rgba(9, 9, 11, 0.12);
+  --toggle-track: rgba(9, 9, 11, 0.18);
   --toggle-thumb: #ffffff;
+  --toggle-on: #09090b;
+  --toggle-on-thumb: #ffffff;
   --badge-neutral-bg: rgba(9, 9, 11, 0.06);
   --gradient-card: linear-gradient(135deg, rgba(9, 9, 11, 0.02) 0%, rgba(9, 9, 11, 0.005) 100%);
   --gradient-card-subtle: linear-gradient(
@@ -629,11 +634,12 @@ a:hover {
 }
 
 .toggle input:checked + .toggle-slider {
-  background: var(--accent);
+  background: var(--toggle-on);
 }
 
 .toggle input:checked + .toggle-slider::before {
   transform: translateX(16px);
+  background: var(--toggle-on-thumb);
 }
 
 /* ── Tables ────────────────────────────────────────────────── */

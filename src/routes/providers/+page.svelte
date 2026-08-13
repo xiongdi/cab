@@ -13,8 +13,10 @@
   type SortKey = 'name' | 'id' | 'model_count' | 'enabled';
 
   let providers = $state<Provider[]>([]);
+  let allModels = $state<Model[]>([]);
   let providerModelNames = $state<Record<string, string[]>>({});
   let loading = $state(true);
+  let enablingAllFor = $state<string | null>(null);
   let searchQuery = $state('');
   let statusFilter = $state<'all' | 'enabled' | 'disabled'>('all');
   let keyFilter = $state<'all' | 'configured' | 'missing'>('all');
@@ -92,6 +94,36 @@
     return providerModelNames[provider.id] || [];
   }
 
+  function modelRecordsForProvider(provider: ProviderRow): Model[] {
+    const names = new Set(modelsForProvider(provider));
+    return allModels.filter(
+      (model) => model.provider_id === provider.id || names.has(model.name)
+    );
+  }
+
+  async function enableAllModels(provider: ProviderRow) {
+    const targets = modelRecordsForProvider(provider).filter((model) => !model.enabled);
+    if (targets.length === 0) {
+      toast(i18n.t('providers.enable_all_models_none'));
+      return;
+    }
+    enablingAllFor = provider.id;
+    try {
+      await Promise.all(targets.map((model) => api.models.update(model.id, { enabled: true })));
+      allModels = allModels.map((model) =>
+        targets.some((t) => t.id === model.id) ? { ...model, enabled: true } : model
+      );
+      toast.success(
+        i18n.t('providers.enable_all_models_success').replace('{count}', String(targets.length))
+      );
+      dataRevision.touchModels();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : i18n.t('providers.enable_all_models_failed'));
+    } finally {
+      enablingAllFor = null;
+    }
+  }
+
   async function loadData() {
     loading = true;
     try {
@@ -100,6 +132,7 @@
         api.models.list(),
       ]);
       providers = rawProviders;
+      allModels = rawModels;
       rebuildProviderModelNames(rawModels);
       enabledDrafts = Object.fromEntries(rawProviders.map((p) => [p.id, p.enabled]));
       keyListDrafts = Object.fromEntries(
@@ -116,6 +149,7 @@
       }
     } catch (e) {
       providers = [];
+      allModels = [];
       providerModelNames = {};
       toast.error(e instanceof Error ? e.message : i18n.t('providers.load_failed'));
     } finally {
@@ -473,6 +507,16 @@
                       <span class="model-name-chip mono">{modelName}</span>
                     {/each}
                   </div>
+                  <div class="model-actions">
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-accent"
+                      disabled={enablingAllFor === provider.id}
+                      onclick={() => enableAllModels(provider)}
+                    >
+                      {i18n.t('providers.enable_all_models')}
+                    </button>
+                  </div>
                 {:else}
                   <div class="detail-empty">{i18n.t('providers.no_models')}</div>
                 {/if}
@@ -519,13 +563,6 @@
                           type="text"
                           placeholder={i18n.t('providers.endpoint_label')}
                           bind:value={ep.label}
-                          onblur={() => autoSaveEndpoints(provider)}
-                        />
-                        <input
-                          class="input ep-priority-input"
-                          type="number"
-                          placeholder={i18n.t('providers.endpoint_priority')}
-                          bind:value={ep.priority}
                           onblur={() => autoSaveEndpoints(provider)}
                         />
                         <label
@@ -1027,20 +1064,14 @@
     margin: 0;
   }
 
-  .model-list-wrapper {
-    max-height: 240px;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--bg-elevated);
-    scrollbar-width: thin;
-  }
-
-  .model-list {
+  .model-name-list {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
     padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
   }
 
   .model-name-chip {
@@ -1050,6 +1081,12 @@
     background: var(--bg-primary);
     border: 1px solid var(--border);
     color: var(--text-secondary);
+  }
+
+  .model-actions {
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 10px;
   }
 
   .endpoint-list,
@@ -1089,14 +1126,6 @@
     min-width: 80px;
     font-size: 12px;
     padding: 4px 6px;
-  }
-
-  .ep-priority-input {
-    width: 70px;
-    min-width: 70px;
-    font-size: 12px;
-    padding: 4px 6px;
-    text-align: center;
   }
 
   .ep-enabled-toggle,

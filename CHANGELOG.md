@@ -5,6 +5,19 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.5] - 2026-08-13
+
+### Added
+
+- **Provider “Enable all models”**: the Providers page detail panel now has a one-click button under the model list to enable every model associated with that provider.
+- **`agentic` in agent auto-mode surfaces**: Agents strategy picker, `/v1/models` discovery, and OpenCode / Grok Build auto-mode config aliases now include `agentic` alongside `auto` / `balanced` / `intelligent` / `price` / `speed` (six built-in strategies).
+
+### Changed
+
+- **Agent-aware `/v1/models`**: in auto mode the gateway returns routing strategies instead of concrete models — Claude Code as `claude/cab/{strategy}`, OpenCode/Codex as `cab/{strategy}`, Grok Build as `cab-{strategy}`. Manual mode still lists enabled models (Claude Code keeps the `claude/cab/...` prefix). Strategy id aliases (`cab/…`, `cab-…`, legacy `claude-cab-auto`) normalize correctly in the route resolver.
+- **Provider endpoint UI**: weight/priority fields are removed from the endpoint editor (unused in practice); protocol, URL, label, and enable remain.
+- **Dark-theme toggle contrast**: off uses a zinc track and on uses green, so open/closed states are distinguishable when accent is white.
+
 ## [0.10.4] - 2026-08-11
 
 ### Fixed

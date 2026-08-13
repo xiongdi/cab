@@ -78,7 +78,14 @@ impl AgentIntegration for Integration {
             let mut default_id = String::from("cab-auto");
 
             if mode == "auto" {
-                for strategy_name in ["auto", "balanced", "intelligent", "price", "speed"] {
+                for strategy_name in [
+                    "auto",
+                    "balanced",
+                    "intelligent",
+                    "agentic",
+                    "price",
+                    "speed",
+                ] {
                     let model_id = format!("{CAB_MODEL_PREFIX}{strategy_name}");
                     insert_cab_model(
                         table,

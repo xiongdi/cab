@@ -148,7 +148,7 @@ pub async fn resolve_route(
 
         if matches!(
             strategy,
-            "cheapest" | "intelligent" | "balanced" | "auto" | "speed"
+            "cheapest" | "intelligent" | "balanced" | "auto" | "speed" | "agentic"
         ) && let Some(resolved) =
             resolve_by_strategy(catalog, strategy, &request_profile).await?
         {
@@ -211,10 +211,25 @@ pub async fn resolve_route(
 }
 
 fn normalize_requested_model(model_name: &str) -> String {
-    model_name
+    let stripped = model_name
         .strip_prefix("claude/cab/")
-        .unwrap_or(model_name)
-        .to_string()
+        .or_else(|| model_name.strip_prefix("cab/"))
+        .unwrap_or(model_name);
+
+    // Legacy Claude Code stub + Grok Build local keys (`cab-auto`, …).
+    if stripped == "claude-cab-auto" {
+        return "auto".to_string();
+    }
+    if let Some(rest) = stripped.strip_prefix("cab-")
+        && matches!(
+            rest,
+            "auto" | "balanced" | "intelligent" | "price" | "speed" | "cheapest" | "agentic"
+        )
+    {
+        return rest.to_string();
+    }
+
+    stripped.to_string()
 }
 
 /// Select provider+model routes using the shared routing engine (see `cab_core::routing`).
@@ -317,6 +332,7 @@ async fn resolve_route_by_id(
         "balanced" => return resolve_by_strategy(catalog, "balanced", profile).await,
         "auto" => return resolve_by_strategy(catalog, "auto", profile).await,
         "speed" => return resolve_by_strategy(catalog, "speed", profile).await,
+        "agentic" => return resolve_by_strategy(catalog, "agentic", profile).await,
         _ => {}
     }
 
@@ -325,7 +341,7 @@ async fn resolve_route_by_id(
         let strategy = route.routing_strategy.as_str();
         if matches!(
             strategy,
-            "cheapest" | "intelligent" | "balanced" | "auto" | "speed"
+            "cheapest" | "intelligent" | "balanced" | "auto" | "speed" | "agentic"
         ) && let Some(resolved) = resolve_by_strategy(catalog, strategy, profile).await?
         {
             return Ok(Some(resolved));
@@ -688,6 +704,19 @@ mod tests {
         assert_eq!(alias.model.id, "cheap");
         assert!(alias.fallback_models.is_empty());
         assert_eq!(alias.as_primary_model().model.name, "p1/cheap");
+    }
+
+    #[test]
+    fn normalize_strips_strategy_prefixes() {
+        assert_eq!(normalize_requested_model("claude/cab/auto"), "auto");
+        assert_eq!(normalize_requested_model("cab/price"), "price");
+        assert_eq!(normalize_requested_model("cab-balanced"), "balanced");
+        assert_eq!(normalize_requested_model("claude-cab-auto"), "auto");
+        assert_eq!(
+            normalize_requested_model("cab-not-a-strategy"),
+            "cab-not-a-strategy"
+        );
+        assert_eq!(normalize_requested_model("openai/gpt-5"), "openai/gpt-5");
     }
 
     #[tokio::test]

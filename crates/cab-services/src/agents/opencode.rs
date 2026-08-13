@@ -67,7 +67,14 @@ impl AgentIntegration for Integration {
 
             let mut models_obj = serde_json::Map::new();
             if mode == "auto" {
-                for strategy_name in ["auto", "balanced", "intelligent", "price", "speed"] {
+                for strategy_name in [
+                    "auto",
+                    "balanced",
+                    "intelligent",
+                    "agentic",
+                    "price",
+                    "speed",
+                ] {
                     models_obj.insert(
                         strategy_name.to_string(),
                         opencode_model_config(&format!("CAB {strategy_name}"), agent_id),

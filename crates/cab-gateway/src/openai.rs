@@ -153,30 +153,35 @@ pub async fn handle_responses(
     handle_proxied_request(&OPENAI_RESPONSES, state, headers, body).await
 }
 
+/// Built-in routing strategies exposed via `/v1/models` when an agent is in auto mode.
+/// Mirrors the aliases written into OpenCode / Grok Build configs (`price` not `cheapest`).
+const DISCOVERY_STRATEGIES: &[(&str, &str)] = &[
+    ("auto", "CAB Auto"),
+    ("balanced", "CAB Balanced"),
+    ("intelligent", "CAB Intelligent"),
+    ("agentic", "CAB Agentic"),
+    ("price", "CAB Price"),
+    ("speed", "CAB Speed"),
+];
+
 /// GET /v1/models — list models in OpenAI format.
 ///
-/// Agent-aware: when the caller is Claude Code in auto mode, return a single
-/// `claude-cab-auto` stub so the in-CLI model picker shows one entry (CAB
-/// auto-routes the request regardless of the chosen model). For every other
-/// agent/mode, return the de-duplicated list of available models.
+/// Agent-aware:
+/// - **Auto mode**: return routing strategies (format varies by coding agent).
+/// - **Manual / unknown**: return the de-duplicated list of enabled models
+///   (Claude Code gets `claude/cab/...` discovery aliases).
 pub async fn handle_list_models(
     State(state): State<Arc<GatewayState>>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, CabError> {
     let agent_id = crate::agent_id::extract_agent_id(&headers);
 
-    // Claude Code in auto mode: return a single placeholder model.
-    if agent_id == "claude-code"
-        && let Some(agent) = cab_db::agent::get_by_id(&state.pool, "claude-code")
-            .await
-            .map_err(CabError::Database)?
+    if let Some(agent) = cab_db::agent::get_by_id(&state.pool, &agent_id)
+        .await
+        .map_err(CabError::Database)?
         && agent.mode == "auto"
     {
-        let model_list = vec![codex_compatible_model(
-            "claude-cab-auto",
-            "CAB Auto",
-            "cab · CAB auto-routes requests in auto mode",
-        )];
+        let model_list = strategy_models_for_agent(&agent_id);
         return Ok(Json(serde_json::json!({
             "object": "list",
             "data": model_list,
@@ -255,13 +260,10 @@ pub async fn handle_list_models(
         }
 
         let formatted_owned_by = owned_by_parts.join(" · ");
+        let discovery_id = discovery_model_id(&agent_id, &model.name);
 
-        // Return each model once under its primary name. The discovery-alias
-        // and short-suffix duplicates are intentionally dropped — they exist
-        // only to work around Claude Code/Codex discovery quirks and are not
-        // needed for agents that consume the list as-is.
         model_list.push(codex_compatible_model(
-            &model.name,
+            &discovery_id,
             &model.display_name,
             &formatted_owned_by,
         ));
@@ -273,6 +275,36 @@ pub async fn handle_list_models(
         "models": model_list,
         "has_more": false,
     })))
+}
+
+/// Strategy ids for auto-mode discovery, matching each CA's config conventions:
+/// - Claude Code gateway discovery → `claude/cab/{strategy}`
+/// - OpenCode / Codex → `cab/{strategy}` (provider `cab` + model key)
+/// - Grok Build → `cab-{strategy}` (local model table keys)
+fn strategy_models_for_agent(agent_id: &str) -> Vec<serde_json::Value> {
+    DISCOVERY_STRATEGIES
+        .iter()
+        .map(|(strategy, display)| {
+            let id = match agent_id {
+                "claude-code" => format!("claude/cab/{strategy}"),
+                "grok-build" => format!("cab-{strategy}"),
+                _ => format!("cab/{strategy}"),
+            };
+            codex_compatible_model(
+                &id,
+                display,
+                &format!("cab · routing strategy `{strategy}`"),
+            )
+        })
+        .collect()
+}
+
+fn discovery_model_id(agent_id: &str, model_name: &str) -> String {
+    if agent_id == "claude-code" {
+        format!("claude/cab/{model_name}")
+    } else {
+        model_name.to_string()
+    }
 }
 
 fn format_cost(cost: Option<f64>) -> String {
@@ -835,12 +867,10 @@ data: [DONE]\n",
     }
 
     #[tokio::test]
-    async fn list_models_claude_code_auto_returns_single_stub() {
+    async fn list_models_claude_code_auto_returns_strategies() {
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
-            // Seed a claude-code agent in auto mode so the handler short-circuits
-            // to the single stub model.
             data.agents.insert(
                 "claude-code".into(),
                 Agent {
@@ -867,7 +897,6 @@ data: [DONE]\n",
             client: reqwest::Client::new(),
         });
 
-        // X-CAB-Agent: claude-code → auto mode → single "claude-cab-auto" stub.
         let mut headers = HeaderMap::new();
         headers.insert(
             axum::http::HeaderName::from_static("x-cab-agent"),
@@ -882,11 +911,141 @@ data: [DONE]\n",
             .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         let data = json["data"].as_array().unwrap();
+        let ids: Vec<&str> = data
+            .iter()
+            .map(|item| item["id"].as_str().unwrap())
+            .collect();
 
-        assert_eq!(data.len(), 1);
-        assert_eq!(data[0]["id"], "claude-cab-auto");
+        assert_eq!(
+            ids,
+            [
+                "claude/cab/auto",
+                "claude/cab/balanced",
+                "claude/cab/intelligent",
+                "claude/cab/agentic",
+                "claude/cab/price",
+                "claude/cab/speed",
+            ]
+        );
         assert_eq!(data[0]["display_name"], "CAB Auto");
         assert_eq!(json["has_more"], false);
+    }
+
+    #[tokio::test]
+    async fn list_models_opencode_auto_returns_cab_slash_strategies() {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.agents.insert(
+                "opencode".into(),
+                Agent {
+                    id: "opencode".into(),
+                    name: "OpenCode".into(),
+                    mode: "auto".into(),
+                    model_id: Some("auto".into()),
+                    api_key: String::new(),
+                    endpoint: String::new(),
+                    updated_at: String::new(),
+                },
+            );
+        }
+        let state = Arc::new(GatewayState {
+            pool,
+            client: reqwest::Client::new(),
+        });
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::HeaderName::from_static("x-cab-agent"),
+            axum::http::HeaderValue::from_static("opencode"),
+        );
+        let response = handle_list_models(State(state), headers)
+            .await
+            .unwrap()
+            .into_response();
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let ids: Vec<&str> = json["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                "cab/auto",
+                "cab/balanced",
+                "cab/intelligent",
+                "cab/agentic",
+                "cab/price",
+                "cab/speed",
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn list_models_claude_code_manual_prefixes_enabled_models() {
+        let pool = cab_db::InMemoryStore::new();
+        {
+            let mut data = pool.inner.write().unwrap();
+            data.agents.insert(
+                "claude-code".into(),
+                Agent {
+                    id: "claude-code".into(),
+                    name: "Claude Code".into(),
+                    mode: "manual".into(),
+                    model_id: None,
+                    api_key: String::new(),
+                    endpoint: String::new(),
+                    updated_at: String::new(),
+                },
+            );
+            data.providers
+                .insert("p1".into(), provider("p1", true, "key"));
+            data.models.insert(
+                "high".into(),
+                model(
+                    "high",
+                    "p1/high-model",
+                    "p1",
+                    true,
+                    90.0,
+                    None,
+                    Some(1.0),
+                    Some(2.0),
+                ),
+            );
+            data.model_endpoints
+                .insert("high-ep".into(), endpoint("high-ep", "p1/high-model", true));
+        }
+        let state = Arc::new(GatewayState {
+            pool,
+            client: reqwest::Client::new(),
+        });
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::HeaderName::from_static("x-cab-agent"),
+            axum::http::HeaderValue::from_static("claude-code"),
+        );
+        let response = handle_list_models(State(state), headers)
+            .await
+            .unwrap()
+            .into_response();
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let ids: Vec<&str> = json["data"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, ["claude/cab/p1/high-model"]);
     }
 
     #[test]
