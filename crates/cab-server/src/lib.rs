@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use axum::Router;
+use axum::{Router, extract::DefaultBodyLimit};
 use cab_api::api_router;
 use cab_db::InMemoryStore;
 use cab_gateway::{GatewayState, gateway_router};
@@ -76,7 +76,8 @@ pub async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
         core
     }
     .layer(axum::middleware::from_fn(log_request))
-    .layer(tower_http::trace::TraceLayer::new_for_http());
+    .layer(tower_http::trace::TraceLayer::new_for_http())
+    .layer(DefaultBodyLimit::max(100 * 1024 * 1024));
 
     let settings = cab_db::settings::get(&store).await.unwrap_or_else(|_| {
         let mut settings = cab_db::settings::default_settings();
