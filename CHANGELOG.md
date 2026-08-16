@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.7] - 2026-08-16
+
+### Fixed
+
+- **Parallel tool calls through the OpenAI Chat fallback**: when a Responses request carried parallel `function_call`s (multiple consecutive calls before their outputs), the Responses→Chat conversion emitted consecutive `assistant` messages each with its own `tool_calls`, which upstream rejects with `An assistant message with 'tool_calls' must be followed by tool messages` (400). Adjacent assistant-with-tool_calls turns are now merged into one, so the sequence is `assistant(tool_calls:[A,B]) tool(A) tool(B)`.
+
 ## [0.10.6] - 2026-08-16
 
 ### Fixed
