@@ -80,6 +80,52 @@ mod tests {
     }
 
     #[test]
+    fn responses_parallel_tool_calls_bundle_into_single_assistant_turn_in_openai_chat() {
+        // Parallel tool calls arrive as consecutive top-level `function_call`
+        // items, then their `function_call_output`s. Converting to OpenAI Chat
+        // must bundle both `tool_calls` into ONE assistant message, followed by
+        // the `tool` responses — otherwise upstream rejects the sequence.
+        let body = json!({
+            "model": "deepseek/deepseek-v4-flash",
+            "input": [
+                {"type": "function_call", "name": "get_goal", "arguments": "{}", "call_id": "call_1"},
+                {"type": "function_call", "name": "update_plan", "arguments": "{\"p\":1}", "call_id": "call_2"},
+                {"type": "function_call_output", "call_id": "call_1", "output": "out1"},
+                {"type": "function_call_output", "call_id": "call_2", "output": "out2"}
+            ]
+        });
+        let chat = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_CHAT, &body);
+        let msgs = chat["messages"].as_array().unwrap();
+        // One assistant message carrying both tool_calls, then two tool messages.
+        assert_eq!(msgs.len(), 3, "messages: {chat}");
+        assert_eq!(msgs[0]["role"], "assistant");
+        assert_eq!(msgs[0]["tool_calls"].as_array().unwrap().len(), 2);
+        assert_eq!(msgs[0]["tool_calls"][0]["id"], "call_1");
+        assert_eq!(msgs[0]["tool_calls"][1]["id"], "call_2");
+        assert_eq!(msgs[1]["role"], "tool");
+        assert_eq!(msgs[1]["tool_call_id"], "call_1");
+        assert_eq!(msgs[2]["role"], "tool");
+        assert_eq!(msgs[2]["tool_call_id"], "call_2");
+    }
+
+    #[test]
+    fn responses_single_tool_call_turn_stays_well_formed_in_openai_chat() {
+        let body = json!({
+            "model": "deepseek/deepseek-v4-flash",
+            "input": [
+                {"type": "function_call", "name": "get_goal", "arguments": "{}", "call_id": "call_1"},
+                {"type": "function_call_output", "call_id": "call_1", "output": "out1"}
+            ]
+        });
+        let chat = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_CHAT, &body);
+        let msgs = chat["messages"].as_array().unwrap();
+        assert_eq!(msgs.len(), 2, "messages: {chat}");
+        assert_eq!(msgs[0]["role"], "assistant");
+        assert_eq!(msgs[0]["tool_calls"].as_array().unwrap().len(), 1);
+        assert_eq!(msgs[1]["role"], "tool");
+    }
+
+    #[test]
     fn responses_nameless_tool_is_dropped_when_converting_to_openai_chat() {
         // Codex sends Responses-style tools; a special type like
         // `external_web_access` carries no `name` and cannot be expressed as an

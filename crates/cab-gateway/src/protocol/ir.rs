@@ -1001,15 +1001,54 @@ pub fn encode_openai_chat_request(ir: &IrRequest) -> Value {
             ),
         );
     }
-    let mut messages = Vec::new();
+    let mut messages: Vec<Value> = Vec::new();
     for block in &ir.system {
         if let IrBlock::Text { text } = block {
             messages.push(serde_json::json!({"role": "system", "content": text}));
         }
     }
+    // OpenAI Chat Completions requires every `tool_calls` in one turn to be
+    // bundled into a single assistant message, followed by all `tool` responses.
+    // A Responses request expresses parallel calls as consecutive top-level
+    // `function_call` items, which decode to one assistant message each — so
+    // merge adjacent assistant-with-tool_calls messages here. Failing to do so
+    // yields `assistant(tool_calls:[A]) assistant(tool_calls:[B]) tool(A) tool(B)`,
+    // which upstream rejects with "insufficient tool messages following
+    // tool_calls message".
+    let mut pending_assistant: Option<Value> = None;
+    let flush_pending = |messages: &mut Vec<Value>, pending: &mut Option<Value>| {
+        if let Some(assistant) = pending.take() {
+            messages.push(assistant);
+        }
+    };
     for msg in &ir.messages {
-        messages.extend(ir_message_to_openai_messages(msg));
+        let converted = ir_message_to_openai_messages(msg);
+        for item in converted {
+            let is_mergeable_tool_call_turn = item
+                .get("role")
+                .and_then(|r| r.as_str())
+                .map(|r| r == "assistant")
+                .unwrap_or(false)
+                && item.get("content").is_none()
+                && item.get("tool_calls").is_some();
+            if is_mergeable_tool_call_turn {
+                if pending_assistant.is_some() {
+                    if let Some(pending) = pending_assistant.as_mut()
+                        && let Some(Value::Array(calls)) = pending.get_mut("tool_calls")
+                        && let Some(Value::Array(more)) = item.get("tool_calls").cloned()
+                    {
+                        calls.extend(more);
+                    }
+                    continue;
+                }
+                pending_assistant = Some(item);
+            } else {
+                flush_pending(&mut messages, &mut pending_assistant);
+                messages.push(item);
+            }
+        }
     }
+    flush_pending(&mut messages, &mut pending_assistant);
     if messages.is_empty() {
         messages.push(serde_json::json!({"role": "user", "content": " "}));
     }
