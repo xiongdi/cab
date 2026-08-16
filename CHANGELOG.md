@@ -5,6 +5,14 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.9] - 2026-08-16
+
+### Fixed
+
+- **Codex `view_image` fully supported (no more "Unsupported Image")**: two gaps blocked image-using Codex requests. (1) Vision detection only matched `type: image`/`image_url` and missed the `type: input_image` shape Codex actually emits inside `function_call_output.output`, so the request was routed to a text-only model that rejected the base64 payload. `contains_image` now recognizes `input_image`/`output_image` and `image_url` payloads. (2) Even after detection, the image was flattened to a JSON string instead of a real image block, so upstream models could not see it. `IrBlock::ToolResult` now carries mixed text+image content, and the gateway forwards `view_image` results as proper `image_url` parts to OpenAI-compatible and Anthropic upstreams (and round-trips the Responses `input_image` shape for Codex). Codex `view_image` requests now route to a vision-capable model and the image is delivered as a real image.
+
+- **Frontend version label**: the dashboard sidebar showed `v0.10.7` because `package.json` was not bumped alongside the Rust version; it now matches the release.
+
 ## [0.10.8] - 2026-08-16
 
 ### Fixed

@@ -51,7 +51,10 @@ fn contains_image(value: &serde_json::Value) -> bool {
         serde_json::Value::Array(items) => items.iter().any(contains_image),
         serde_json::Value::Object(obj) => {
             if let Some(kind) = obj.get("type").and_then(|t| t.as_str())
-                && (kind == "image" || kind == "image_url")
+                && (kind == "image"
+                    || kind == "image_url"
+                    || kind == "input_image"
+                    || kind == "output_image")
             {
                 return true;
             }
@@ -62,9 +65,14 @@ fn contains_image(value: &serde_json::Value) -> bool {
             if let Some(text) = obj.get("text").and_then(|t| t.as_str()) {
                 return text.contains(DATA_IMAGE_PREFIX) || looks_like_image_url(text);
             }
+            // OpenAI image parts carry the payload in `image_url`, which may be a
+            // plain string (`data:image/...` / http URL) or `{"url": ...}`.
+            if let Some(url) = obj.get("image_url") {
+                return contains_image(url);
+            }
             // OpenAI Responses `function_call_output` items carry the tool result
-            // in `output` (e.g. Codex's `view_image` returns the base64 image here),
-            // not under `content`/`parts`. Treat it like any other string content.
+            // in `output` (e.g. Codex's `view_image` returns a base64 image array
+            // here), not under `content`/`parts`.
             if let Some(out) = obj.get("output") {
                 return contains_image(out);
             }
@@ -264,12 +272,29 @@ mod tests {
     #[test]
     fn detects_image_in_function_call_output() {
         // Codex's `view_image` returns the base64 image in a
-        // `function_call_output` item's `output`, not under `content`/`parts`.
+        // `function_call_output` item's `output` as an array of
+        // `{"type":"input_image","image_url":"data:image/..."}` parts.
         let body = json!({
             "input": [{
                 "type": "function_call_output",
                 "call_id": "call_1",
-                "output": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="
+                "output": [
+                    {"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="}
+                ]
+            }]
+        });
+        assert!(requires_vision(&body));
+    }
+
+    #[test]
+    fn detects_image_url_http_in_input_image() {
+        let body = json!({
+            "input": [{
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": [
+                    {"type": "input_image", "image_url": "https://example.com/screenshot.png"}
+                ]
             }]
         });
         assert!(requires_vision(&body));

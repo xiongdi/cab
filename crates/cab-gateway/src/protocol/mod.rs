@@ -144,6 +144,62 @@ mod tests {
         assert_eq!(tools[0]["function"]["name"], "exec_command");
     }
 
+    #[test]
+    fn codex_view_image_tool_result_forwards_image_to_openai_chat() {
+        // Codex sends a `view_image` result as a `function_call_output` whose
+        // `output` is an array of `{"type":"input_image","image_url":"data:image/..."}`.
+        // After conversion to OpenAI Chat (the path used for OpenAI-compatible
+        // upstreams such as deepseek), the tool message must carry a real
+        // `image_url` content part, not a JSON-encoded string.
+        let body = json!({
+            "model": "cab/auto",
+            "input": [{
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": [
+                    {"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="}
+                ]
+            }]
+        });
+        let chat = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_CHAT, &body);
+        let msgs = chat["messages"].as_array().unwrap();
+        assert_eq!(msgs.len(), 1, "messages: {chat}");
+        assert_eq!(msgs[0]["role"], "tool");
+        let content = msgs[0]["content"].as_array().expect("tool content must be an array");
+        let img = content
+            .iter()
+            .find(|p| p.get("type").and_then(|t| t.as_str()) == Some("image_url"))
+            .expect("expected an image_url content part");
+        let url = img["image_url"]["url"].as_str().unwrap();
+        assert!(url.starts_with("data:image/"), "image url: {url}");
+    }
+
+    #[test]
+    fn codex_view_image_tool_result_roundtrips_to_responses() {
+        let body = json!({
+            "model": "cab/auto",
+            "input": [{
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": [
+                    {"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="}
+                ]
+            }]
+        });
+        let responses = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_RESPONSES, &body);
+        let items = responses["input"].as_array().unwrap();
+        let out = items
+            .iter()
+            .find(|i| i.get("type").and_then(|t| t.as_str()) == Some("function_call_output"))
+            .expect("expected function_call_output item");
+        let output = out["output"].as_array().expect("output must be an array");
+        let img = output
+            .iter()
+            .find(|p| p.get("type").and_then(|t| t.as_str()) == Some("input_image"))
+            .expect("expected input_image part");
+        assert!(img["image_url"].as_str().unwrap().starts_with("data:image/"));
+    }
+
     #[tokio::test]
     async fn anthropic_sse_to_openai_chat_emits_content_and_done() {
         use super::stream::transform_anthropic_sse_to_openai_chat;

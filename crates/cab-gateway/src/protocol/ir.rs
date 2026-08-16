@@ -22,7 +22,7 @@ pub enum IrBlock {
     },
     ToolResult {
         tool_use_id: String,
-        content: String,
+        content: Vec<IrBlock>,
         is_error: bool,
     },
 }
@@ -37,6 +37,156 @@ pub enum IrImageSource {
 pub struct IrMessage {
     pub role: String,
     pub blocks: Vec<IrBlock>,
+}
+
+/// Parse an image `data:` URL or http(s) URL into an `IrBlock::Image`. Returns
+/// `None` for non-image URLs (e.g. plain text, `data:text/...`).
+fn image_block_from_url(url: &str) -> Option<IrBlock> {
+    if let Some(rest) = url.strip_prefix("data:image/")
+        && let Some((subtype, b64)) = rest.split_once(';')
+        && let Some(data) = b64.strip_prefix("base64,")
+    {
+        return Some(IrBlock::Image {
+            media_type: format!("image/{}", subtype.trim()),
+            source: IrImageSource::Base64(data.to_string()),
+        });
+    } else if url.starts_with("http://") || url.starts_with("https://") {
+        return Some(IrBlock::Image {
+            media_type: "image/jpeg".to_string(),
+            source: IrImageSource::Url(url.to_string()),
+        });
+    }
+    None
+}
+
+/// Build tool-result content blocks from a `function_call_output.output` value.
+///
+/// Codex's `view_image` returns the image as an array of
+/// `{"type":"input_image","image_url":"data:image/png;base64,..."}` parts (and
+/// may mix in `output_text`/`input_text` parts); OpenAI/Anthropic send a plain
+/// string. We keep text parts and extract any embedded images so the image can
+/// be forwarded to a vision-capable upstream model as a real image block.
+fn tool_result_blocks_from_output(output: &Value) -> Vec<IrBlock> {
+    match output {
+        Value::String(s) if !s.is_empty() => vec![IrBlock::Text { text: s.clone() }],
+        Value::Array(items) => {
+            let mut blocks = Vec::new();
+            for item in items {
+                if let Some(kind) = item.get("type").and_then(|t| t.as_str()) {
+                    if kind == "input_image" || kind == "output_image" {
+                        if let Some(url) = item.get("image_url").and_then(|u| u.as_str())
+                            && let Some(img) = image_block_from_url(url)
+                        {
+                            blocks.push(img);
+                            continue;
+                        }
+                    } else if (kind == "output_text" || kind == "input_text")
+                        && let Some(t) = item.get("text").and_then(|t| t.as_str())
+                        && !t.is_empty()
+                    {
+                        blocks.push(IrBlock::Text { text: t.to_string() });
+                        continue;
+                    }
+                }
+                // Fallback: serialize anything else as text.
+                let text = match item {
+                    Value::String(s) => s.clone(),
+                    other => other.to_string(),
+                };
+                if !text.is_empty() && text != "null" {
+                    blocks.push(IrBlock::Text { text });
+                }
+            }
+            if blocks.is_empty() {
+                blocks.push(IrBlock::Text { text: String::new() });
+            }
+            blocks
+        }
+        other => {
+            let text = other.to_string();
+            if text.is_empty() || text == "null" {
+                vec![IrBlock::Text { text: String::new() }]
+            } else {
+                vec![IrBlock::Text { text }]
+            }
+        }
+    }
+}
+
+/// Render tool-result content blocks into an Anthropic `tool_result.content`
+/// array. Only `Text` and `Image` blocks are valid here.
+fn tool_result_content_to_anthropic(blocks: &[IrBlock]) -> Value {
+    if blocks.is_empty() {
+        return Value::String(String::new());
+    }
+    Value::Array(
+        blocks
+            .iter()
+            .map(|b| match b {
+                IrBlock::Text { text } => serde_json::json!({"type": "text", "text": text}),
+                IrBlock::Image { media_type, source } => match source {
+                    IrImageSource::Base64(data) => serde_json::json!({
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": media_type, "data": data}
+                    }),
+                    IrImageSource::Url(url) => serde_json::json!({
+                        "type": "image",
+                        "source": {"type": "url", "url": url}
+                    }),
+                },
+                _ => serde_json::json!({"type": "text", "text": ""}),
+            })
+            .collect(),
+    )
+}
+
+/// Render tool-result content blocks into an OpenAI Chat `tool` message content
+/// array (text + `image_url` parts). This is the path used for OpenAI-compatible
+/// upstreams (e.g. deepseek), where the model must receive a proper image part.
+fn tool_result_content_to_openai_chat(blocks: &[IrBlock]) -> Value {
+    if blocks.is_empty() {
+        return Value::String(String::new());
+    }
+    Value::Array(
+        blocks
+            .iter()
+            .map(|b| match b {
+                IrBlock::Text { text } => serde_json::json!({"type": "text", "text": text}),
+                IrBlock::Image { source, .. } => {
+                    let url = match source {
+                        IrImageSource::Url(u) => u.clone(),
+                        IrImageSource::Base64(d) => format!("data:image/jpeg;base64,{d}"),
+                    };
+                    serde_json::json!({"type": "image_url", "image_url": {"url": url}})
+                }
+                _ => serde_json::json!({"type": "text", "text": ""}),
+            })
+            .collect(),
+    )
+}
+
+/// Render tool-result content blocks into an OpenAI Responses
+/// `function_call_output.output` array (round-trips Codex's image shape).
+fn tool_result_content_to_responses(blocks: &[IrBlock]) -> Value {
+    if blocks.is_empty() {
+        return Value::String(String::new());
+    }
+    Value::Array(
+        blocks
+            .iter()
+            .map(|b| match b {
+                IrBlock::Text { text } => serde_json::json!({"type": "output_text", "text": text}),
+                IrBlock::Image { source, .. } => {
+                    let url = match source {
+                        IrImageSource::Url(u) => u.clone(),
+                        IrImageSource::Base64(d) => format!("data:image/jpeg;base64,{d}"),
+                    };
+                    serde_json::json!({"type": "input_image", "image_url": url})
+                }
+                _ => serde_json::json!({"type": "output_text", "text": ""}),
+            })
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -206,7 +356,14 @@ fn anthropic_block_from_value(block: &Value) -> Option<IrBlock> {
                 .and_then(|v| v.as_str())
                 .unwrap_or_default()
                 .to_string(),
-            content: text_from_value(block.get("content").unwrap_or(&Value::Null)),
+            content: {
+                let text = text_from_value(block.get("content").unwrap_or(&Value::Null));
+                if text.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![IrBlock::Text { text }]
+                }
+            },
             is_error: block
                 .get("is_error")
                 .and_then(|v| v.as_bool())
@@ -266,7 +423,7 @@ fn openai_message_to_ir(msg: &Value) -> Vec<IrMessage> {
                     .and_then(|v| v.as_str())
                     .unwrap_or_default()
                     .to_string(),
-                content,
+                content: vec![IrBlock::Text { text: content }],
                 is_error: false,
             }],
         }];
@@ -352,15 +509,7 @@ fn responses_item_to_ir_messages(item: &Value) -> Vec<IrMessage> {
             }]
         }
         Some("function_call_output") => {
-            let output = item
-                .get("output")
-                .and_then(|o| o.as_str())
-                .map(str::to_string)
-                .unwrap_or_else(|| {
-                    item.get("output")
-                        .map(|v| v.to_string())
-                        .unwrap_or_default()
-                });
+            let output = item.get("output").cloned().unwrap_or(Value::Null);
             vec![IrMessage {
                 role: "user".into(),
                 blocks: vec![IrBlock::ToolResult {
@@ -369,7 +518,7 @@ fn responses_item_to_ir_messages(item: &Value) -> Vec<IrMessage> {
                         .and_then(|v| v.as_str())
                         .unwrap_or_default()
                         .to_string(),
-                    content: output,
+                    content: tool_result_blocks_from_output(&output),
                     is_error: false,
                 }],
             }]
@@ -780,7 +929,10 @@ fn ir_block_to_anthropic_value(block: &IrBlock) -> Value {
             content,
             is_error,
         } => serde_json::json!({
-            "type": "tool_result", "tool_use_id": tool_use_id, "content": content, "is_error": is_error
+            "type": "tool_result",
+            "tool_use_id": tool_use_id,
+            "content": tool_result_content_to_anthropic(content),
+            "is_error": is_error
         }),
     }
 }
@@ -927,7 +1079,7 @@ fn ir_message_to_openai_messages(msg: &IrMessage) -> Vec<Value> {
             } => tool_results.push(serde_json::json!({
                 "role": "tool",
                 "tool_call_id": tool_use_id,
-                "content": content,
+                "content": tool_result_content_to_openai_chat(content),
             })),
         }
     }
@@ -1110,7 +1262,7 @@ fn ir_message_to_responses_items(msg: &IrMessage) -> Vec<Value> {
                 items.push(serde_json::json!({
                     "type": "function_call_output",
                     "call_id": tool_use_id,
-                    "output": content,
+                    "output": tool_result_content_to_responses(content),
                 }));
             }
             IrBlock::Image { .. } => {}
