@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.6] - 2026-08-16
+
+### Fixed
+
+- **Gateway 413 on large request bodies**: the server defaulted to axum's 2 MB request-body limit, so oversized gateway requests (e.g. large tool-call payloads) could be rejected with `413 Payload Too Large`. The limit is raised to 100 MB.
+
 ## [0.10.5] - 2026-08-13
 
 ### Added
