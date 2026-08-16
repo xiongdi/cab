@@ -62,6 +62,12 @@ fn contains_image(value: &serde_json::Value) -> bool {
             if let Some(text) = obj.get("text").and_then(|t| t.as_str()) {
                 return text.contains(DATA_IMAGE_PREFIX) || looks_like_image_url(text);
             }
+            // OpenAI Responses `function_call_output` items carry the tool result
+            // in `output` (e.g. Codex's `view_image` returns the base64 image here),
+            // not under `content`/`parts`. Treat it like any other string content.
+            if let Some(out) = obj.get("output") {
+                return contains_image(out);
+            }
             // Recurse into nested content: OpenAI Responses `input` items are
             // `{"type": "message", "content": [parts]}`; Gemini contents items
             // nest parts under `parts`.
@@ -250,6 +256,20 @@ mod tests {
             "input": [{
                 "role": "user",
                 "content": [{"type": "image_url", "image_url": {"url": "https://x.com/foo.webp"}}]
+            }]
+        });
+        assert!(requires_vision(&body));
+    }
+
+    #[test]
+    fn detects_image_in_function_call_output() {
+        // Codex's `view_image` returns the base64 image in a
+        // `function_call_output` item's `output`, not under `content`/`parts`.
+        let body = json!({
+            "input": [{
+                "type": "function_call_output",
+                "call_id": "call_1",
+                "output": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg="
             }]
         });
         assert!(requires_vision(&body));

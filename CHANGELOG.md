@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.8] - 2026-08-16
+
+### Fixed
+
+- **Codex `view_image` no longer routes to a text-only model**: Codex returns the image a `view_image` tool call reads as a base64 payload in the Responses protocol's `function_call_output.output` field. Vision detection only inspected `content`/`parts`/`text`/`type`, so the request was classified as text-only and routed to a non-vision model, which then rejected the image data (e.g. "不支持"). `function_call_output.output` is now recognized as image content, so image-bearing Codex requests route to a vision-capable model.
+
 ## [0.10.7] - 2026-08-16
 
 ### Fixed

@@ -1216,6 +1216,10 @@ fn push_text_part(out: &mut Vec<String>, value: &serde_json::Value) {
                 push_text_part(out, parts);
             } else if let Some(text) = obj.get("text") {
                 push_text_part(out, text);
+            } else if let Some(output) = obj.get("output") {
+                // OpenAI Responses `function_call_output` items carry the tool
+                // result (e.g. a `view_image` base64 payload) in `output`.
+                push_text_part(out, output);
             }
         }
         _ => {}
