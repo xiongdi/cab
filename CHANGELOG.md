@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.10] - 2026-08-17
+
+### Fixed
+
+- **Codex no longer hangs on Chat Completions models (e.g. mimo-v2.5)**: Codex streams the Responses API, but models like OpenCode Go `mimo-v2.5` only speak Chat Completions. CAB forced a non-streaming Chat fallback and synthesized SSE that emitted only a `message` item, so tool calls appeared only inside `response.completed`. Codex never executed tools and looked hung. The gateway now streams Chat SSE into the official Responses function-call lifecycle (`output_item.added` → `function_call_arguments.delta` → `function_call_arguments.done` with `name` → `output_item.done`), mapping Chat `tool_calls[].id` to `call_id` and generating a distinct `fc_*` item id. A Responses client also prefers the catalog protocol so Chat-only models are not POSTed to `/v1/responses` first. Claude Code still uses a native Anthropic endpoint when the catalog's `openai-chat` default would 401 (kimi-k3).
+
 ## [0.10.9] - 2026-08-16
 
 ### Fixed

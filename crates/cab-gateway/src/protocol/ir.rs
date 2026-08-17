@@ -84,7 +84,9 @@ fn tool_result_blocks_from_output(output: &Value) -> Vec<IrBlock> {
                         && let Some(t) = item.get("text").and_then(|t| t.as_str())
                         && !t.is_empty()
                     {
-                        blocks.push(IrBlock::Text { text: t.to_string() });
+                        blocks.push(IrBlock::Text {
+                            text: t.to_string(),
+                        });
                         continue;
                     }
                 }
@@ -98,14 +100,18 @@ fn tool_result_blocks_from_output(output: &Value) -> Vec<IrBlock> {
                 }
             }
             if blocks.is_empty() {
-                blocks.push(IrBlock::Text { text: String::new() });
+                blocks.push(IrBlock::Text {
+                    text: String::new(),
+                });
             }
             blocks
         }
         other => {
             let text = other.to_string();
             if text.is_empty() || text == "null" {
-                vec![IrBlock::Text { text: String::new() }]
+                vec![IrBlock::Text {
+                    text: String::new(),
+                }]
             } else {
                 vec![IrBlock::Text { text }]
             }
@@ -1724,13 +1730,16 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
             IrBlock::ToolUse { id, name, input } => {
                 if !text.is_empty() {
                     output.push(serde_json::json!({
+                        "id": format!("msg_{}", uuid::Uuid::new_v4().simple()),
                         "type": "message",
                         "role": "assistant",
+                        "status": "completed",
                         "content": [{"type": "output_text", "text": text}],
                     }));
                     text.clear();
                 }
                 output.push(serde_json::json!({
+                    "id": format!("fc_{}", uuid::Uuid::new_v4().simple()),
                     "type": "function_call",
                     "call_id": id,
                     "name": name,
@@ -1743,8 +1752,10 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
     }
     if !text.is_empty() || output.is_empty() {
         output.push(serde_json::json!({
+            "id": format!("msg_{}", uuid::Uuid::new_v4().simple()),
             "type": "message",
             "role": "assistant",
+            "status": "completed",
             "content": [{"type": "output_text", "text": text}],
         }));
     }

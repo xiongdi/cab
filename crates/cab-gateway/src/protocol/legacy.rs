@@ -711,99 +711,281 @@ pub fn responses_to_anthropic_sse_stream(responses: &Value, model: String) -> by
 }
 
 /// Encode a Responses API payload as SSE events expected by Codex / OpenAI clients.
+fn push_responses_named_event(sse: &mut String, event_type: &str, data: &Value) {
+    sse.push_str("event: ");
+    sse.push_str(event_type);
+    sse.push_str("\ndata: ");
+    sse.push_str(&data.to_string());
+    sse.push_str("\n\n");
+}
+
+fn responses_message_text(item: &Value) -> String {
+    match item.get("content") {
+        Some(Value::String(s)) => s.clone(),
+        Some(Value::Array(parts)) => parts
+            .iter()
+            .filter_map(|p| p.get("text").and_then(|t| t.as_str()))
+            .collect::<Vec<_>>()
+            .join(""),
+        _ => String::new(),
+    }
+}
+
+fn responses_output_items_for_sse(responses: &Value) -> Vec<Value> {
+    if let Some(items) = responses.get("output").and_then(|v| v.as_array()) {
+        let kept: Vec<Value> = items
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item.get("type").and_then(|t| t.as_str()),
+                    Some("message" | "function_call") | None
+                )
+            })
+            .cloned()
+            .collect();
+        if !kept.is_empty() {
+            return kept;
+        }
+    }
+    let text = responses
+        .get("output_text")
+        .and_then(|t| t.as_str())
+        .unwrap_or("");
+    vec![serde_json::json!({
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": text}],
+    })]
+}
+
+/// Synthesize Responses SSE from a complete Responses JSON body.
+///
+/// Event order follows the official Responses function-calling stream:
+/// `output_item.added` → `function_call_arguments.delta` →
+/// `function_call_arguments.done` → `output_item.done`, then `response.completed`.
+/// `item.id` (`fc_*`) is distinct from `call_id` (`call_*`); argument events use `item_id`.
 pub fn responses_to_sse_stream(responses: &Value) -> bytes::Bytes {
     let response_id = responses
         .get("id")
         .and_then(|v| v.as_str())
         .unwrap_or("resp_shim");
-    let text = responses
-        .get("output_text")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default();
     let created = responses
         .get("created")
+        .or_else(|| responses.get("created_at"))
         .and_then(|v| v.as_i64())
         .unwrap_or_else(|| chrono::Utc::now().timestamp());
     let model = responses
         .get("model")
         .cloned()
         .unwrap_or(Value::String("unknown".to_string()));
-    let item_id = format!("msg_{}", uuid::Uuid::new_v4().simple());
 
     let mut sse = String::new();
-
-    let created_event = serde_json::json!({
-        "type": "response.created",
-        "response": {
-            "id": response_id,
-            "object": "response",
-            "created_at": created,
-            "status": "in_progress",
-            "model": model,
-        }
+    let snapshot = serde_json::json!({
+        "id": response_id,
+        "object": "response",
+        "created_at": created,
+        "status": "in_progress",
+        "model": model,
+        "output": [],
     });
-    sse.push_str(&format!(
-        "event: response.created\ndata: {}\n\n",
-        created_event
-    ));
+    push_responses_named_event(
+        &mut sse,
+        "response.created",
+        &serde_json::json!({"type": "response.created", "response": snapshot}),
+    );
+    push_responses_named_event(
+        &mut sse,
+        "response.in_progress",
+        &serde_json::json!({"type": "response.in_progress", "response": snapshot}),
+    );
 
-    let item_added_event = serde_json::json!({
-        "type": "response.output_item.added",
-        "output_index": 0,
-        "item": {
-            "id": item_id,
-            "type": "message",
-            "role": "assistant",
-            "status": "in_progress",
+    let mut completed_output = Vec::new();
+    for (output_index, item) in responses_output_items_for_sse(responses)
+        .into_iter()
+        .enumerate()
+    {
+        match item
+            .get("type")
+            .and_then(|t| t.as_str())
+            .unwrap_or("message")
+        {
+            "function_call" => {
+                let call_id = item
+                    .get("call_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("call_0");
+                let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let args = item
+                    .get("arguments")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("{}");
+                let item_id = item
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("fc_{}", uuid::Uuid::new_v4().simple()));
+                let added = serde_json::json!({
+                    "id": item_id,
+                    "type": "function_call",
+                    "status": "in_progress",
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": "",
+                });
+                let done_item = serde_json::json!({
+                    "id": item_id,
+                    "type": "function_call",
+                    "status": "completed",
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": args,
+                });
+                push_responses_named_event(
+                    &mut sse,
+                    "response.output_item.added",
+                    &serde_json::json!({
+                        "type": "response.output_item.added",
+                        "output_index": output_index,
+                        "item": added,
+                    }),
+                );
+                if !args.is_empty() {
+                    push_responses_named_event(
+                        &mut sse,
+                        "response.function_call_arguments.delta",
+                        &serde_json::json!({
+                            "type": "response.function_call_arguments.delta",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "delta": args,
+                        }),
+                    );
+                }
+                push_responses_named_event(
+                    &mut sse,
+                    "response.function_call_arguments.done",
+                    &serde_json::json!({
+                        "type": "response.function_call_arguments.done",
+                        "item_id": item_id,
+                        "output_index": output_index,
+                        "name": name,
+                        "arguments": args,
+                    }),
+                );
+                push_responses_named_event(
+                    &mut sse,
+                    "response.output_item.done",
+                    &serde_json::json!({
+                        "type": "response.output_item.done",
+                        "output_index": output_index,
+                        "item": done_item,
+                    }),
+                );
+                completed_output.push(done_item);
+            }
+            _ => {
+                let text = responses_message_text(&item);
+                let item_id = item
+                    .get("id")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("msg_{}", uuid::Uuid::new_v4().simple()));
+                push_responses_named_event(
+                    &mut sse,
+                    "response.output_item.added",
+                    &serde_json::json!({
+                        "type": "response.output_item.added",
+                        "output_index": output_index,
+                        "item": {
+                            "id": item_id,
+                            "type": "message",
+                            "role": "assistant",
+                            "status": "in_progress",
+                            "content": [],
+                        }
+                    }),
+                );
+                if !text.is_empty() {
+                    push_responses_named_event(
+                        &mut sse,
+                        "response.content_part.added",
+                        &serde_json::json!({
+                            "type": "response.content_part.added",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "content_index": 0,
+                            "part": {"type": "output_text", "text": "", "annotations": [], "logprobs": []},
+                        }),
+                    );
+                    push_responses_named_event(
+                        &mut sse,
+                        "response.output_text.delta",
+                        &serde_json::json!({
+                            "type": "response.output_text.delta",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "content_index": 0,
+                            "delta": text,
+                        }),
+                    );
+                    push_responses_named_event(
+                        &mut sse,
+                        "response.output_text.done",
+                        &serde_json::json!({
+                            "type": "response.output_text.done",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "content_index": 0,
+                            "text": text,
+                        }),
+                    );
+                    push_responses_named_event(
+                        &mut sse,
+                        "response.content_part.done",
+                        &serde_json::json!({
+                            "type": "response.content_part.done",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "content_index": 0,
+                            "part": {"type": "output_text", "text": text, "annotations": [], "logprobs": []},
+                        }),
+                    );
+                }
+                let done_item = serde_json::json!({
+                    "id": item_id,
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": text}],
+                });
+                push_responses_named_event(
+                    &mut sse,
+                    "response.output_item.done",
+                    &serde_json::json!({
+                        "type": "response.output_item.done",
+                        "output_index": output_index,
+                        "item": done_item,
+                    }),
+                );
+                completed_output.push(done_item);
+            }
         }
-    });
-    sse.push_str(&format!(
-        "event: response.output_item.added\ndata: {}\n\n",
-        item_added_event
-    ));
-
-    if !text.is_empty() {
-        let delta_event = serde_json::json!({
-            "type": "response.output_text.delta",
-            "output_index": 0,
-            "content_index": 0,
-            "item_id": item_id,
-            "delta": text,
-        });
-        sse.push_str(&format!(
-            "event: response.output_text.delta\ndata: {}\n\n",
-            delta_event
-        ));
     }
-
-    let item_done_event = serde_json::json!({
-        "type": "response.output_item.done",
-        "output_index": 0,
-        "item": {
-            "id": item_id,
-            "type": "message",
-            "role": "assistant",
-            "status": "completed",
-            "content": [{"type": "output_text", "text": text}],
-        }
-    });
-    sse.push_str(&format!(
-        "event: response.output_item.done\ndata: {}\n\n",
-        item_done_event
-    ));
 
     let mut completed_response = responses.clone();
     if let Some(obj) = completed_response.as_object_mut() {
         obj.insert("status".to_string(), Value::String("completed".to_string()));
+        obj.insert("id".to_string(), Value::String(response_id.to_string()));
+        obj.insert("output".to_string(), Value::Array(completed_output));
     }
-    let completed_event = serde_json::json!({
-        "type": "response.completed",
-        "response": completed_response,
-    });
-    sse.push_str(&format!(
-        "event: response.completed\ndata: {}\n\n",
-        completed_event
-    ));
+    push_responses_named_event(
+        &mut sse,
+        "response.completed",
+        &serde_json::json!({
+            "type": "response.completed",
+            "response": completed_response,
+        }),
+    );
 
     bytes::Bytes::from(sse)
 }
@@ -1604,6 +1786,55 @@ data: [DONE]\n\n";
         assert!(empty.contains("\"id\":\"resp_shim\""));
         assert!(empty.contains("\"model\":\"unknown\""));
         assert!(!empty.contains("response.output_text.delta"));
+    }
+
+    #[test]
+    fn responses_to_sse_stream_emits_official_function_call_lifecycle() {
+        let body = serde_json::json!({
+            "id": "resp_1",
+            "created": 1,
+            "model": "mimo-v2.5",
+            "output_text": "checking",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "checking"}]
+                },
+                {
+                    "id": "fc_1",
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "name": "exec_command",
+                    "arguments": "{\"cmd\":\"ls\"}",
+                    "status": "completed"
+                }
+            ]
+        });
+        let sse = String::from_utf8(responses_to_sse_stream(&body).to_vec()).unwrap();
+        assert!(sse.contains("event: response.in_progress"));
+        assert!(sse.contains("\"type\":\"function_call\""));
+        assert!(sse.contains("\"call_id\":\"call_1\""));
+        assert!(sse.contains("\"item_id\":\"fc_1\""));
+        assert!(sse.contains("event: response.function_call_arguments.delta"));
+        assert!(sse.contains("event: response.function_call_arguments.done"));
+        assert!(sse.contains("\"name\":\"exec_command\""));
+        assert!(
+            sse.contains("\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"")
+                || sse.contains(r#""arguments":"{\"cmd\":\"ls\"}""#)
+        );
+        let added = sse.matches("event: response.output_item.added").count();
+        let done = sse.matches("event: response.output_item.done").count();
+        assert_eq!(added, 2, "message + function_call added: {sse}");
+        assert_eq!(done, 2, "message + function_call done: {sse}");
+        let fc_done = sse
+            .find("event: response.function_call_arguments.done")
+            .unwrap();
+        let item_done_last = sse.rfind("event: response.output_item.done").unwrap();
+        let completed = sse.find("event: response.completed").unwrap();
+        assert!(fc_done < item_done_last);
+        assert!(item_done_last < completed);
     }
 
     #[tokio::test]

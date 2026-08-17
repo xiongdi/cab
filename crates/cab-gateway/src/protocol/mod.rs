@@ -165,7 +165,9 @@ mod tests {
         let msgs = chat["messages"].as_array().unwrap();
         assert_eq!(msgs.len(), 1, "messages: {chat}");
         assert_eq!(msgs[0]["role"], "tool");
-        let content = msgs[0]["content"].as_array().expect("tool content must be an array");
+        let content = msgs[0]["content"]
+            .as_array()
+            .expect("tool content must be an array");
         let img = content
             .iter()
             .find(|p| p.get("type").and_then(|t| t.as_str()) == Some("image_url"))
@@ -186,7 +188,8 @@ mod tests {
                 ]
             }]
         });
-        let responses = convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_RESPONSES, &body);
+        let responses =
+            convert_request(PROTOCOL_OPENAI_RESPONSES, PROTOCOL_OPENAI_RESPONSES, &body);
         let items = responses["input"].as_array().unwrap();
         let out = items
             .iter()
@@ -197,7 +200,12 @@ mod tests {
             .iter()
             .find(|p| p.get("type").and_then(|t| t.as_str()) == Some("input_image"))
             .expect("expected input_image part");
-        assert!(img["image_url"].as_str().unwrap().starts_with("data:image/"));
+        assert!(
+            img["image_url"]
+                .as_str()
+                .unwrap()
+                .starts_with("data:image/")
+        );
     }
 
     #[tokio::test]
@@ -233,6 +241,118 @@ mod tests {
         assert!(
             finish_idx < done_idx,
             "finish_reason must precede [DONE], got: {joined}"
+        );
+    }
+
+    #[test]
+    fn chat_json_to_responses_sse_emits_function_call_lifecycle() {
+        let chat = json!({
+            "id": "chatcmpl_1",
+            "model": "mimo-v2.5",
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "checking",
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "exec_command", "arguments": "{\"cmd\":\"ls\"}"}
+                    }]
+                },
+                "finish_reason": "tool_calls"
+            }]
+        });
+        let responses = convert_response(
+            PROTOCOL_OPENAI_CHAT,
+            PROTOCOL_OPENAI_RESPONSES,
+            &chat,
+            "mimo-v2.5",
+        );
+        let sse = String::from_utf8(responses_to_sse_stream(&responses).to_vec()).unwrap();
+        assert!(sse.contains("event: response.output_item.added"));
+        assert!(sse.contains("\"type\":\"function_call\""));
+        assert!(sse.contains("\"call_id\":\"call_1\""));
+        assert!(sse.contains("\"name\":\"exec_command\""));
+        assert!(sse.contains("event: response.function_call_arguments.delta"));
+        assert!(sse.contains("event: response.function_call_arguments.done"));
+        assert!(sse.contains("event: response.output_item.done"));
+        assert!(sse.contains("event: response.completed"));
+        let item_ids: Vec<&str> = sse
+            .split("\"item_id\":\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        assert!(
+            item_ids.iter().any(|id| id.starts_with("fc_")),
+            "argument events must use generated fc_* item_id, got {item_ids:?} in {sse}"
+        );
+        assert!(
+            !item_ids.contains(&"call_1"),
+            "Chat tool_calls[].id must not be reused as Responses item_id: {sse}"
+        );
+    }
+
+    #[tokio::test]
+    async fn chat_sse_to_responses_emits_official_function_call_lifecycle() {
+        use super::stream::transform_openai_chat_sse_to_responses;
+        use futures::StreamExt;
+
+        let chat_sse = concat!(
+            "data: {\"id\":\"chatcmpl_1\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"let me check\",\"tool_calls\":[{\"index\":0,\"id\":\"call_abc\",\"type\":\"function\",\"function\":{\"name\":\"exec_command\",\"arguments\":\"\"}}]},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"cmd\\\":\\\"ls\\\"}\"}}]},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n",
+            "data: [DONE]\n\n",
+        );
+        let upstream = futures::stream::iter(vec![Ok::<bytes::Bytes, std::convert::Infallible>(
+            bytes::Bytes::from(chat_sse),
+        )]);
+        let mut out = transform_openai_chat_sse_to_responses(upstream, "mimo-v2.5".into());
+        let mut chunks = Vec::new();
+        while let Some(item) = out.next().await {
+            chunks.push(String::from_utf8(item.unwrap().to_vec()).unwrap());
+        }
+        let joined = chunks.join("");
+
+        let added = joined.find("event: response.output_item.added").unwrap();
+        let fc_added = joined.find("\"type\":\"function_call\"").unwrap();
+        let args_delta = joined
+            .find("event: response.function_call_arguments.delta")
+            .unwrap();
+        let args_done = joined
+            .find("event: response.function_call_arguments.done")
+            .unwrap();
+        let item_done = joined.rfind("event: response.output_item.done").unwrap();
+        let completed = joined.find("event: response.completed").unwrap();
+        assert!(added < fc_added);
+        assert!(fc_added < args_delta);
+        assert!(args_delta < args_done);
+        assert!(args_done < item_done);
+        assert!(item_done < completed);
+        assert!(joined.contains("\"call_id\":\"call_abc\""));
+        assert!(joined.contains("\"name\":\"exec_command\""));
+        assert!(joined.contains(r#""delta":"let me check""#));
+        assert!(
+            joined.contains(r#""delta":"{\"cmd\":\"ls\"}""#)
+                || joined.contains("\"delta\":\"{\\\"cmd\\\":\\\"ls\\\"}\"")
+        );
+
+        let item_ids: Vec<&str> = joined
+            .split("\"item_id\":\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect();
+        assert!(
+            item_ids.iter().any(|id| id.starts_with("fc_")),
+            "argument events must use generated fc_* item_id, got {item_ids:?} in {joined}"
+        );
+        assert!(
+            !item_ids.contains(&"call_abc"),
+            "Chat tool_calls[].id must map to call_id, not item_id: {joined}"
+        );
+        assert!(
+            !joined.contains("event: response.completed")
+                || joined.match_indices("event: response.completed").count() == 1,
+            "finish_reason:null must not emit extra completed events: {joined}"
         );
     }
 }

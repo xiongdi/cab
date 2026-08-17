@@ -495,6 +495,480 @@ where
 }
 
 /// OpenAI Chat SSE → OpenAI Responses SSE (for Codex client + chat upstream).
+struct ChatFunctionCall {
+    output_index: u32,
+    item_id: String,
+    call_id: String,
+    name: String,
+    arguments: String,
+    added: bool,
+}
+
+/// Chat Completions SSE → Responses SSE.
+///
+/// Field mapping follows the official APIs, not an IR convenience layer:
+/// Chat `tool_calls[].id` → Responses `item.call_id`;
+/// Responses `item.id` is a generated `fc_*` used as `item_id` on argument events;
+/// `finish_reason: null` is not a terminal signal.
+struct ChatToResponsesConverter {
+    model: String,
+    response_id: String,
+    pending: Vec<Bytes>,
+    started: bool,
+    finishing: bool,
+    completed: bool,
+    message_item_id: String,
+    message_output_index: u32,
+    message_added: bool,
+    message_done: bool,
+    accumulated_text: String,
+    next_output_index: u32,
+    tools: HashMap<u64, ChatFunctionCall>,
+    tool_order: Vec<u64>,
+    usage: Option<Value>,
+}
+
+impl ChatToResponsesConverter {
+    fn new(model: String) -> Self {
+        Self {
+            model,
+            response_id: format!("resp_{}", uuid::Uuid::new_v4().simple()),
+            pending: Vec::new(),
+            started: false,
+            finishing: false,
+            completed: false,
+            message_item_id: format!("msg_{}", uuid::Uuid::new_v4().simple()),
+            message_output_index: 0,
+            message_added: false,
+            message_done: false,
+            accumulated_text: String::new(),
+            next_output_index: 0,
+            tools: HashMap::new(),
+            tool_order: Vec::new(),
+            usage: None,
+        }
+    }
+
+    fn emit(&mut self, event_type: &str, data: Value) {
+        self.pending.push(Bytes::from(format!(
+            "event: {event_type}\ndata: {data}\n\n"
+        )));
+    }
+
+    fn alloc_output_index(&mut self) -> u32 {
+        let i = self.next_output_index;
+        self.next_output_index += 1;
+        i
+    }
+
+    fn ensure_started(&mut self) {
+        if self.started {
+            return;
+        }
+        self.started = true;
+        let response = serde_json::json!({
+            "id": self.response_id,
+            "object": "response",
+            "model": self.model,
+            "status": "in_progress",
+            "output": [],
+        });
+        self.emit(
+            "response.created",
+            serde_json::json!({"type": "response.created", "response": response}),
+        );
+        self.emit(
+            "response.in_progress",
+            serde_json::json!({"type": "response.in_progress", "response": response}),
+        );
+    }
+
+    fn ensure_message_started(&mut self) {
+        if self.message_added {
+            return;
+        }
+        self.ensure_started();
+        self.message_output_index = self.alloc_output_index();
+        self.message_added = true;
+        self.emit(
+            "response.output_item.added",
+            serde_json::json!({
+                "type": "response.output_item.added",
+                "output_index": self.message_output_index,
+                "item": {
+                    "id": self.message_item_id,
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "in_progress",
+                    "content": [],
+                }
+            }),
+        );
+        self.emit(
+            "response.content_part.added",
+            serde_json::json!({
+                "type": "response.content_part.added",
+                "item_id": self.message_item_id,
+                "output_index": self.message_output_index,
+                "content_index": 0,
+                "part": {"type": "output_text", "text": "", "annotations": [], "logprobs": []},
+            }),
+        );
+    }
+
+    fn on_text(&mut self, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        self.ensure_message_started();
+        self.accumulated_text.push_str(text);
+        self.emit(
+            "response.output_text.delta",
+            serde_json::json!({
+                "type": "response.output_text.delta",
+                "item_id": self.message_item_id,
+                "output_index": self.message_output_index,
+                "content_index": 0,
+                "delta": text,
+            }),
+        );
+    }
+
+    fn tool_entry(&mut self, chat_index: u64) -> &mut ChatFunctionCall {
+        if !self.tools.contains_key(&chat_index) {
+            self.tool_order.push(chat_index);
+            self.tools.insert(
+                chat_index,
+                ChatFunctionCall {
+                    output_index: 0,
+                    item_id: format!("fc_{}", uuid::Uuid::new_v4().simple()),
+                    call_id: String::new(),
+                    name: String::new(),
+                    arguments: String::new(),
+                    added: false,
+                },
+            );
+        }
+        self.tools.get_mut(&chat_index).unwrap()
+    }
+
+    fn ensure_tool_added(&mut self, chat_index: u64) {
+        let (name, call_id, item_id, buffered) = {
+            let Some(tool) = self.tools.get(&chat_index) else {
+                return;
+            };
+            if tool.added || tool.name.is_empty() {
+                return;
+            }
+            (
+                tool.name.clone(),
+                tool.call_id.clone(),
+                tool.item_id.clone(),
+                tool.arguments.clone(),
+            )
+        };
+        self.close_message();
+        let output_index = self.alloc_output_index();
+        if let Some(tool) = self.tools.get_mut(&chat_index) {
+            tool.output_index = output_index;
+            if tool.call_id.is_empty() {
+                tool.call_id = format!("call_{chat_index}");
+            }
+            tool.added = true;
+        }
+        let call_id = self
+            .tools
+            .get(&chat_index)
+            .map(|t| t.call_id.clone())
+            .unwrap_or(call_id);
+        self.emit(
+            "response.output_item.added",
+            serde_json::json!({
+                "type": "response.output_item.added",
+                "output_index": output_index,
+                "item": {
+                    "id": item_id,
+                    "type": "function_call",
+                    "status": "in_progress",
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": "",
+                }
+            }),
+        );
+        if !buffered.is_empty() {
+            self.emit(
+                "response.function_call_arguments.delta",
+                serde_json::json!({
+                    "type": "response.function_call_arguments.delta",
+                    "item_id": item_id,
+                    "output_index": output_index,
+                    "delta": buffered,
+                }),
+            );
+        }
+    }
+
+    fn on_tool_calls(&mut self, tool_calls: &[Value]) {
+        self.ensure_started();
+        for call in tool_calls {
+            let chat_index = call.get("index").and_then(|v| v.as_u64()).unwrap_or(0);
+            if let Some(id) = call.get("id").and_then(|v| v.as_str())
+                && !id.is_empty()
+            {
+                self.tool_entry(chat_index).call_id = id.to_string();
+            }
+            if let Some(name) = call
+                .get("function")
+                .and_then(|f| f.get("name"))
+                .and_then(|n| n.as_str())
+                && !name.is_empty()
+            {
+                self.tool_entry(chat_index).name = name.to_string();
+                self.ensure_tool_added(chat_index);
+            }
+            if let Some(args) = call
+                .get("function")
+                .and_then(|f| f.get("arguments"))
+                .and_then(|a| a.as_str())
+                && !args.is_empty()
+            {
+                let added = self.tool_entry(chat_index).added;
+                if added {
+                    let (item_id, output_index) = {
+                        let tool = self.tools.get(&chat_index).unwrap();
+                        (tool.item_id.clone(), tool.output_index)
+                    };
+                    self.tools
+                        .get_mut(&chat_index)
+                        .unwrap()
+                        .arguments
+                        .push_str(args);
+                    self.emit(
+                        "response.function_call_arguments.delta",
+                        serde_json::json!({
+                            "type": "response.function_call_arguments.delta",
+                            "item_id": item_id,
+                            "output_index": output_index,
+                            "delta": args,
+                        }),
+                    );
+                } else {
+                    self.tool_entry(chat_index).arguments.push_str(args);
+                    self.ensure_tool_added(chat_index);
+                }
+            }
+        }
+    }
+
+    fn close_message(&mut self) {
+        if !self.message_added || self.message_done {
+            return;
+        }
+        self.message_done = true;
+        let text = self.accumulated_text.clone();
+        if !text.is_empty() {
+            self.emit(
+                "response.output_text.done",
+                serde_json::json!({
+                    "type": "response.output_text.done",
+                    "item_id": self.message_item_id,
+                    "output_index": self.message_output_index,
+                    "content_index": 0,
+                    "text": text,
+                }),
+            );
+            self.emit(
+                "response.content_part.done",
+                serde_json::json!({
+                    "type": "response.content_part.done",
+                    "item_id": self.message_item_id,
+                    "output_index": self.message_output_index,
+                    "content_index": 0,
+                    "part": {"type": "output_text", "text": text, "annotations": [], "logprobs": []},
+                }),
+            );
+        }
+        self.emit(
+            "response.output_item.done",
+            serde_json::json!({
+                "type": "response.output_item.done",
+                "output_index": self.message_output_index,
+                "item": {
+                    "id": self.message_item_id,
+                    "type": "message",
+                    "role": "assistant",
+                    "status": "completed",
+                    "content": [{"type": "output_text", "text": text}],
+                }
+            }),
+        );
+    }
+
+    fn close_tools(&mut self) {
+        let order = self.tool_order.clone();
+        for chat_index in order {
+            self.ensure_tool_added(chat_index);
+            let Some(tool) = self.tools.get(&chat_index) else {
+                continue;
+            };
+            if !tool.added {
+                continue;
+            }
+            let item_id = tool.item_id.clone();
+            let call_id = tool.call_id.clone();
+            let name = tool.name.clone();
+            let arguments = tool.arguments.clone();
+            let output_index = tool.output_index;
+            self.emit(
+                "response.function_call_arguments.done",
+                serde_json::json!({
+                    "type": "response.function_call_arguments.done",
+                    "item_id": item_id,
+                    "output_index": output_index,
+                    "name": name,
+                    "arguments": arguments,
+                }),
+            );
+            self.emit(
+                "response.output_item.done",
+                serde_json::json!({
+                    "type": "response.output_item.done",
+                    "output_index": output_index,
+                    "item": {
+                        "id": item_id,
+                        "type": "function_call",
+                        "status": "completed",
+                        "call_id": call_id,
+                        "name": name,
+                        "arguments": arguments,
+                    }
+                }),
+            );
+        }
+    }
+
+    fn on_usage(&mut self, usage: &Value) {
+        let input = usage
+            .get("prompt_tokens")
+            .or_else(|| usage.get("input_tokens"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let output = usage
+            .get("completion_tokens")
+            .or_else(|| usage.get("output_tokens"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        self.usage = Some(serde_json::json!({
+            "input_tokens": input,
+            "output_tokens": output,
+            "total_tokens": input + output,
+        }));
+    }
+
+    fn on_finish(&mut self) {
+        if self.finishing {
+            return;
+        }
+        self.finishing = true;
+        self.ensure_started();
+        self.close_message();
+        self.close_tools();
+    }
+
+    fn emit_completed(&mut self) {
+        if self.completed {
+            return;
+        }
+        self.completed = true;
+        if !self.finishing {
+            self.on_finish();
+        }
+        let mut output = Vec::new();
+        if self.message_added {
+            output.push(serde_json::json!({
+                "id": self.message_item_id,
+                "type": "message",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": self.accumulated_text}],
+            }));
+        }
+        for chat_index in &self.tool_order {
+            if let Some(tool) = self.tools.get(chat_index)
+                && tool.added
+            {
+                output.push(serde_json::json!({
+                    "id": tool.item_id,
+                    "type": "function_call",
+                    "status": "completed",
+                    "call_id": tool.call_id,
+                    "name": tool.name,
+                    "arguments": tool.arguments,
+                }));
+            }
+        }
+        let mut response = serde_json::json!({
+            "id": self.response_id,
+            "object": "response",
+            "model": self.model,
+            "status": "completed",
+            "output_text": self.accumulated_text,
+            "output": output,
+        });
+        if let Some(usage) = &self.usage {
+            response["usage"] = usage.clone();
+        }
+        self.emit(
+            "response.completed",
+            serde_json::json!({"type": "response.completed", "response": response}),
+        );
+    }
+
+    fn process_line(&mut self, line: &str) {
+        let Some(payload) = sse_line_payload(line) else {
+            return;
+        };
+        if payload == "[DONE]" {
+            self.emit_completed();
+            return;
+        }
+        let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
+            return;
+        };
+        self.ensure_started();
+        let choices = chunk.get("choices").and_then(|c| c.as_array());
+        if let Some(choices) = choices {
+            for choice in choices {
+                let delta = choice.get("delta");
+                if let Some(text) = delta
+                    .and_then(|d| d.get("content"))
+                    .and_then(|c| c.as_str())
+                {
+                    self.on_text(text);
+                }
+                if let Some(Value::Array(tool_calls)) = delta.and_then(|d| d.get("tool_calls")) {
+                    self.on_tool_calls(tool_calls);
+                }
+                if let Some(reason) = choice
+                    .get("finish_reason")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+                {
+                    let _ = reason;
+                    self.on_finish();
+                }
+            }
+        }
+        if let Some(usage) = chunk.get("usage").filter(|u| !u.is_null()) {
+            self.on_usage(usage);
+        }
+        if self.finishing && self.usage.is_some() {
+            self.emit_completed();
+        }
+    }
+}
+
 pub fn transform_openai_chat_sse_to_responses<S, E>(
     upstream: S,
     model: String,
@@ -504,183 +978,29 @@ where
 {
     let mut upstream = upstream;
     let mut lines = LineBuffer::new();
-    let response_id = format!("resp_{}", uuid::Uuid::new_v4().simple());
-    let item_id = format!("msg_{}", uuid::Uuid::new_v4().simple());
-    let mut pending: Vec<Bytes> = Vec::new();
-    let mut started = false;
-    let mut text_started = false;
-    let mut accumulated = String::new();
-    let mut done = false;
+    let mut converter = ChatToResponsesConverter::new(model);
 
     futures::stream::poll_fn(move |cx| {
         loop {
-            if let Some(out) = pop_pending_front(&mut pending) {
+            if let Some(out) = pop_pending_front(&mut converter.pending) {
                 return Poll::Ready(Some(Ok(out)));
             }
-            if done {
+            if converter.completed {
                 return Poll::Ready(None);
             }
-
-            let emit = |pending: &mut Vec<Bytes>, event_type: &str, data: Value| {
-                pending.push(Bytes::from(format!(
-                    "event: {event_type}\ndata: {data}\n\n"
-                )));
-            };
-
-            let process = |line: &str,
-                           pending: &mut Vec<Bytes>,
-                           started: &mut bool,
-                           text_started: &mut bool,
-                           accumulated: &mut String| {
-                let Some(payload) = sse_line_payload(line) else {
-                    return false;
-                };
-                if payload == "[DONE]" {
-                    return true;
-                }
-                let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
-                    return false;
-                };
-                if !*started {
-                    *started = true;
-                    emit(
-                        pending,
-                        "response.created",
-                        serde_json::json!({
-                            "type": "response.created",
-                            "response": {"id": response_id, "object": "response", "model": model, "status": "in_progress"}
-                        }),
-                    );
-                    emit(
-                        pending,
-                        "response.output_item.added",
-                        serde_json::json!({
-                            "type": "response.output_item.added",
-                            "output_index": 0,
-                            "item": {"id": item_id, "type": "message", "role": "assistant", "status": "in_progress"}
-                        }),
-                    );
-                }
-                let delta = chunk
-                    .get("choices")
-                    .and_then(|c| c.get(0))
-                    .and_then(|c| c.get("delta"));
-                if let Some(text) = delta
-                    .and_then(|d| d.get("content"))
-                    .and_then(|c| c.as_str())
-                {
-                    *text_started = true;
-                    accumulated.push_str(text);
-                    emit(
-                        pending,
-                        "response.output_text.delta",
-                        serde_json::json!({
-                            "type": "response.output_text.delta",
-                            "output_index": 0,
-                            "content_index": 0,
-                            "item_id": item_id,
-                            "delta": text,
-                        }),
-                    );
-                }
-                if let Some(Value::Array(tool_calls)) = delta.and_then(|d| d.get("tool_calls")) {
-                    for call in tool_calls {
-                        if let Some(name) = call
-                            .get("function")
-                            .and_then(|f| f.get("name"))
-                            .and_then(|n| n.as_str())
-                        {
-                            let call_id =
-                                call.get("id").and_then(|v| v.as_str()).unwrap_or("call_0");
-                            emit(
-                                pending,
-                                "response.output_item.added",
-                                serde_json::json!({
-                                    "type": "response.output_item.added",
-                                    "output_index": 1,
-                                    "item": {"type": "function_call", "call_id": call_id, "name": name, "arguments": ""}
-                                }),
-                            );
-                        }
-                        if let Some(args) = call
-                            .get("function")
-                            .and_then(|f| f.get("arguments"))
-                            .and_then(|a| a.as_str())
-                        {
-                            let call_id =
-                                call.get("id").and_then(|v| v.as_str()).unwrap_or("call_0");
-                            emit(
-                                pending,
-                                "response.function_call_arguments.delta",
-                                serde_json::json!({
-                                    "type": "response.function_call_arguments.delta",
-                                    "item_id": call_id,
-                                    "delta": args,
-                                }),
-                            );
-                        }
-                    }
-                }
-                if chunk
-                    .get("choices")
-                    .and_then(|c| c.get(0))
-                    .and_then(|c| c.get("finish_reason"))
-                    .is_some()
-                {
-                    return true;
-                }
-                false
-            };
 
             match Pin::new(&mut upstream).poll_next(cx) {
                 Poll::Ready(Some(Ok(bytes))) => {
                     for line in lines.push(&bytes) {
-                        if process(
-                            &line,
-                            &mut pending,
-                            &mut started,
-                            &mut text_started,
-                            &mut accumulated,
-                        ) {
-                            emit(
-                                &mut pending,
-                                "response.completed",
-                                serde_json::json!({
-                                    "type": "response.completed",
-                                    "response": {
-                                        "id": response_id,
-                                        "status": "completed",
-                                        "output_text": accumulated,
-                                    }
-                                }),
-                            );
-                            done = true;
-                            break;
-                        }
+                        converter.process_line(&line);
                     }
                 }
                 Poll::Ready(Some(Err(e))) => return Poll::Ready(Some(Err(e))),
                 Poll::Ready(None) => {
                     if let Some(line) = lines.flush() {
-                        let _ = process(
-                            &line,
-                            &mut pending,
-                            &mut started,
-                            &mut text_started,
-                            &mut accumulated,
-                        );
+                        converter.process_line(&line);
                     }
-                    if !done {
-                        emit(
-                            &mut pending,
-                            "response.completed",
-                            serde_json::json!({
-                                "type": "response.completed",
-                                "response": {"id": response_id, "status": "completed", "output_text": accumulated}
-                            }),
-                        );
-                    }
-                    done = true;
+                    converter.emit_completed();
                 }
                 Poll::Pending => return Poll::Pending,
             }

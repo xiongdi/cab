@@ -32,6 +32,30 @@ pub trait ProtocolAdapter: Send + Sync {
     fn extract_usage(&self, usage: &serde_json::Value) -> (i64, i64);
 }
 
+/// Pick the upstream wire protocol for a resolved model.
+///
+/// OpenAI reasoning models (`openai-responses`) must not be sent to Anthropic.
+/// A Responses client (Codex) must not POST `/v1/responses` at a Chat-only or
+/// Anthropic-only model on a multi-protocol provider such as OpenCode Go.
+/// Otherwise prefer the client's native endpoint to avoid conversion — catalog
+/// `openai-chat` is often a provider default and is wrong for models that only
+/// accept Anthropic (kimi-k3).
+fn select_upstream_protocol<'a>(
+    client_protocol: &'a str,
+    catalog_protocol: Option<&'a str>,
+    has_native_endpoint: bool,
+) -> &'a str {
+    match catalog_protocol {
+        Some("openai-responses") => "openai-responses",
+        Some(proto) if proto != "openai-responses" && client_protocol == "openai-responses" => {
+            proto
+        }
+        _ if has_native_endpoint => client_protocol,
+        Some(proto) => proto,
+        None => client_protocol,
+    }
+}
+
 pub async fn handle_proxied_request(
     adapter: &dyn ProtocolAdapter,
     state: Arc<GatewayState>,
@@ -133,22 +157,11 @@ pub async fn handle_proxied_request(
         .endpoints
         .iter()
         .any(|e| e.protocol == client_protocol && e.enabled);
-
-    // OpenAI reasoning models (upstream_protocol = openai-responses) must NOT
-    // shortcut to the native anthropic endpoint — it can't handle reasoning
-    // effort, reasoning items, or tool-call interleaving, producing malformed
-    // SSE. For all other protocols, prefer the native endpoint (no conversion)
-    // when available, falling back to the model's upstream_protocol.
-    let model_upstream_protocol = endpoint_meta
+    let catalog_protocol = endpoint_meta
         .as_ref()
         .and_then(|ep| ep.upstream_protocol.as_deref());
-
-    let upstream_protocol = match model_upstream_protocol {
-        Some("openai-responses") => "openai-responses",
-        _ if has_native_endpoint => client_protocol,
-        Some(proto) => proto,
-        None => client_protocol,
-    };
+    let upstream_protocol =
+        select_upstream_protocol(client_protocol, catalog_protocol, has_native_endpoint);
 
     let endpoint_candidates = pick_endpoints_for_protocol(&provider, upstream_protocol);
 
@@ -516,4 +529,49 @@ fn build_usage_record(
         subscription: false,
         request_id: None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select_upstream_protocol;
+
+    #[test]
+    fn responses_client_uses_catalog_chat_for_chat_only_model() {
+        assert_eq!(
+            select_upstream_protocol("openai-responses", Some("openai-chat"), true),
+            "openai-chat"
+        );
+    }
+
+    #[test]
+    fn responses_client_uses_catalog_anthropic_for_anthropic_only_model() {
+        assert_eq!(
+            select_upstream_protocol("openai-responses", Some("anthropic"), true),
+            "anthropic"
+        );
+    }
+
+    #[test]
+    fn anthropic_client_keeps_native_when_catalog_says_chat() {
+        assert_eq!(
+            select_upstream_protocol("anthropic", Some("openai-chat"), true),
+            "anthropic"
+        );
+    }
+
+    #[test]
+    fn reasoning_model_uses_responses_even_for_anthropic_client() {
+        assert_eq!(
+            select_upstream_protocol("anthropic", Some("openai-responses"), true),
+            "openai-responses"
+        );
+    }
+
+    #[test]
+    fn matching_catalog_and_client_stay_native() {
+        assert_eq!(
+            select_upstream_protocol("openai-responses", Some("openai-responses"), true),
+            "openai-responses"
+        );
+    }
 }

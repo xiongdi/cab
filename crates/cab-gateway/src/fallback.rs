@@ -235,7 +235,9 @@ pub async fn execute_with_fallback(
                             "model".to_string(),
                             serde_json::Value::String(upstream_model_id.clone()),
                         );
-                        if needs_responses_shim || needs_messages_to_responses_shim {
+                        if needs_messages_to_responses_shim
+                            || (needs_responses_shim && endpoint.protocol != "openai-chat")
+                        {
                             obj.insert("stream".to_string(), serde_json::Value::Bool(false));
                         }
                     }
@@ -253,7 +255,9 @@ pub async fn execute_with_fallback(
                     }
                 }
 
-                let upstream_stream = if needs_responses_shim || needs_messages_to_responses_shim {
+                let upstream_stream = if needs_messages_to_responses_shim
+                    || (needs_responses_shim && endpoint.protocol != "openai-chat")
+                {
                     false
                 } else {
                     request.stream
@@ -907,7 +911,7 @@ data: [DONE]\n\n",
     }
 
     #[tokio::test]
-    async fn responses_request_can_use_chat_endpoint_with_non_streaming_shim() {
+    async fn responses_request_can_use_chat_endpoint_with_streaming_shim() {
         let recorder = Recorder::default();
         let server = spawn_router(
             Router::new()
@@ -949,8 +953,61 @@ data: [DONE]\n\n",
         assert!(sse.contains("response.completed"));
         assert!(sse.contains("openai answer"));
         let bodies = server.recorder.bodies.lock().unwrap();
-        assert_eq!(bodies[0]["stream"], false);
+        assert_eq!(bodies[0]["stream"], true);
         assert_eq!(bodies[0]["messages"][0]["content"], "hello");
+    }
+
+    #[tokio::test]
+    async fn responses_stream_request_converts_openai_chat_sse() {
+        let recorder = Recorder::default();
+        let server = spawn_router(
+            Router::new()
+                .route("/v1/chat/completions", post(openai_stream))
+                .with_state(recorder.clone()),
+            recorder,
+        )
+        .await;
+        let primary = model(
+            "provider/model",
+            "openai-chat",
+            vec![endpoint("chat", "openai-chat", &server.base_url)],
+        );
+        let request = ProxyRequest {
+            body: Bytes::from_static(
+                br#"{"model":"provider/model","input":"hello","stream":true}"#,
+            ),
+            headers: HeaderMap::new(),
+            stream: true,
+            path_suffix: "responses".into(),
+            shape_requests: false,
+        };
+
+        let (response, _, _) = execute_with_fallback(
+            &reqwest::Client::new(),
+            &cab_db::InMemoryStore::new(),
+            &primary,
+            &[],
+            &request,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        let bytes = to_bytes(response.into_body(), 10 * 1024 * 1024)
+            .await
+            .unwrap();
+        let sse = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(sse.contains("event: response.created"));
+        assert!(sse.contains("event: response.output_text.delta"));
+        assert!(sse.contains(r#""delta":"stream ""#));
+        assert!(sse.contains(r#""delta":"answer""#));
+        assert!(sse.contains("event: response.completed"));
+        let completed = sse.find("event: response.completed").unwrap();
+        let first_delta = sse.find("event: response.output_text.delta").unwrap();
+        assert!(
+            first_delta < completed,
+            "null finish_reason must not complete the response early: {sse}"
+        );
     }
 
     #[tokio::test]
