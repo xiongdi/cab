@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.11] - 2026-08-17
+
+### Fixed
+
+- **Agents page manual-mode hint showed 0 routable models**: the count only accepted the legacy `api_key` field and native-provider reachability, so providers whose keys live in the `api_keys` array (the panel's default save path) were treated as inactive and reseller-served models were invisible — the same mismatch already fixed for the dashboard. The hint now mirrors the backend rule: an enabled provider counts with a usable key in `api_keys` **or** `api_key` (ollama exempt), and models reachable via an enabled reseller endpoint of an active provider are counted too.
+
 ## [0.10.10] - 2026-08-17
 
 ### Fixed

@@ -1,7 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api } from '$lib/api';
-  import type { Agent, Model, Provider, UpdateAgent, Settings } from '$lib/types';
+  import type {
+    Agent,
+    Model,
+    Provider,
+    RoutableModel,
+    UpdateAgent,
+    Settings,
+  } from '$lib/types';
   import PageHeader from '$lib/components/PageHeader.svelte';
   import Card from '$lib/components/Card.svelte';
   import { toast } from '$lib/components/Toast.svelte';
@@ -19,14 +26,26 @@
   let agentForms = $state<Record<string, { model_id: string; api_key: string; endpoint: string }>>(
     {}
   );
+  let routableModels = $state<RoutableModel[]>([]);
+
+  function providerHasKey(p: Provider): boolean {
+    return (
+      p.id === 'provider-ollama' ||
+      (p.api_key?.trim() ?? '').length > 0 ||
+      p.api_keys.some((k) => k.enabled && (k.key?.trim() ?? '').length > 0)
+    );
+  }
 
   function countManualModels(allModels: Model[], allProviders: Provider[]): number {
     const activeProviderIds = new Set(
-      allProviders
-        .filter((p) => p.enabled && (p.api_key || p.id === 'provider-ollama'))
-        .map((p) => p.id)
+      allProviders.filter((p) => p.enabled && providerHasKey(p)).map((p) => p.id)
     );
-    return allModels.filter((m) => m.enabled && activeProviderIds.has(m.provider_id)).length;
+    const routableNames = new Set(routableModels.map((m) => m.name));
+    return allModels.filter(
+      (m) =>
+        m.enabled &&
+        (activeProviderIds.has(m.provider_id) || routableNames.has(m.name))
+    ).length;
   }
 
   function modeLabel(mode: Agent['mode']): string {
@@ -55,13 +74,15 @@
   onMount(async () => {
     loading = true;
     try {
-      const [rawAgents, rawModels, rawProviders, rawRoutes, rawSettings] = await Promise.all([
-        api.agents.list(),
-        api.models.list(),
-        api.providers.list(),
-        api.routes.list(),
-        api.settings.get().catch(() => ({ gateway_port: 3125 }) as Settings),
-      ]);
+      const [rawAgents, rawModels, rawProviders, rawRoutes, rawSettings, rawRoutable] =
+        await Promise.all([
+          api.agents.list(),
+          api.models.list(),
+          api.providers.list(),
+          api.routes.list(),
+          api.settings.get().catch(() => ({ gateway_port: 3125 }) as Settings),
+          api.models.listRoutable().catch(() => [] as RoutableModel[]),
+        ]);
       agents = rawAgents.map((a) => ({
         ...a,
         mode: normalizeLoadedMode(a.mode),
@@ -70,6 +91,7 @@
       providers = rawProviders;
       routes = rawRoutes;
       settings = rawSettings;
+      routableModels = rawRoutable;
 
       const initialForms: Record<string, { model_id: string; api_key: string; endpoint: string }> =
         {};
