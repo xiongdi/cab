@@ -87,12 +87,21 @@ impl AgentIntegration for Integration {
                 toml::Value::String("CAB Gateway".to_string()),
             );
             cab_provider.insert("base_url".to_string(), toml::Value::String(ep));
+            cab_provider.insert(
+                "env_key".to_string(),
+                toml::Value::String("OPENAI_API_KEY".to_string()),
+            );
+            cab_provider.insert(
+                "wire_api".to_string(),
+                toml::Value::String("responses".to_string()),
+            );
+            cab_provider.insert(
+                "supports_websockets".to_string(),
+                toml::Value::Boolean(true),
+            );
 
-            // Tell Codex this provider requires OpenAI OAuth authentication.
-            // When requires_openai_auth is true, Codex reads tokens.access_token
-            // from auth.json and sends it as the Authorization: Bearer <access_token> header.
-            // This allows us to inject our gateway key into auth.json and avoid
-            // needing the user to set a system environment variable.
+            // Keep OAuth-style auth.json compatibility for Codex runtimes that
+            // require it, while env_key makes the credential source explicit.
             cab_provider.insert(
                 "requires_openai_auth".to_string(),
                 toml::Value::Boolean(true),
@@ -104,6 +113,37 @@ impl AgentIntegration for Integration {
                     .or_insert_with(|| toml::Value::Table(toml::Table::new()));
                 if let Some(providers_table) = providers.as_table_mut() {
                     providers_table.insert("cab".to_string(), toml::Value::Table(cab_provider));
+                }
+            }
+
+            if let Some(table) = toml_val.as_table_mut() {
+                let shell_env = table
+                    .entry("shell_environment_policy".to_string())
+                    .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+                if let Some(shell_env_table) = shell_env.as_table_mut() {
+                    let env_set = shell_env_table
+                        .entry("set".to_string())
+                        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+                    if let Some(env_set_table) = env_set.as_table_mut() {
+                        let current = env_set_table.get("OPENAI_API_KEY").cloned();
+                        let is_cab_key = current
+                            .as_ref()
+                            .and_then(|v| v.as_str())
+                            .map(|v| {
+                                v.starts_with("cab-token-") || v == gateway_key || v == api_key
+                            })
+                            .unwrap_or(false);
+                        if let Some(value) = current
+                            && !is_cab_key
+                            && !env_set_table.contains_key("cab_backup_openai_api_key")
+                        {
+                            env_set_table.insert("cab_backup_openai_api_key".to_string(), value);
+                        }
+                        env_set_table.insert(
+                            "OPENAI_API_KEY".to_string(),
+                            toml::Value::String(key.clone()),
+                        );
+                    }
                 }
             }
 
@@ -208,6 +248,33 @@ impl AgentIntegration for Integration {
                     .unwrap_or(false);
                 if is_empty {
                     table.remove("model_providers");
+                }
+            }
+
+            // Restore or remove the managed OpenAI key in Codex's environment policy.
+            if let Some(table) = toml_val.as_table_mut()
+                && let Some(shell_env_table) = table
+                    .get_mut("shell_environment_policy")
+                    .and_then(|v| v.as_table_mut())
+                && let Some(env_set_table) = shell_env_table
+                    .get_mut("set")
+                    .and_then(|v| v.as_table_mut())
+            {
+                if let Some(previous) = env_set_table.remove("cab_backup_openai_api_key") {
+                    env_set_table.insert("OPENAI_API_KEY".to_string(), previous);
+                } else if env_set_table
+                    .get("OPENAI_API_KEY")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v.starts_with("cab-token-") || v == gateway_key || v == api_key)
+                    .unwrap_or(false)
+                {
+                    env_set_table.remove("OPENAI_API_KEY");
+                }
+                if env_set_table.is_empty() {
+                    shell_env_table.remove("set");
+                }
+                if shell_env_table.is_empty() {
+                    table.remove("shell_environment_policy");
                 }
             }
 

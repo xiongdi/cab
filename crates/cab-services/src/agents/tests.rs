@@ -154,7 +154,12 @@ async fn codex_auto_manual_and_native_modes_update_toml_config() {
     assert!(auto.contains("model = \"gpt-5.5\""));
     assert!(auto.contains("model_provider = \"cab\""));
     assert!(auto.contains("requires_openai_auth = true"));
-    assert!(!auto.contains("env_key"));
+    assert!(auto.contains("env_key = \"OPENAI_API_KEY\""));
+    assert!(auto.contains("wire_api = \"responses\""));
+    assert!(auto.contains("supports_websockets = true"));
+    assert!(auto.contains("OPENAI_API_KEY = \"gw-key\""));
+    assert!(!auto.contains("ANTHROPIC_BASE_URL"));
+    assert!(!auto.contains("ANTHROPIC_AUTH_TOKEN"));
 
     // Check that auth.json contains the gateway key and Codex-required id_token
     let auth_path = home.path(".codex/auth.json");
