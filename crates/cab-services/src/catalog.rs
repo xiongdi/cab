@@ -60,6 +60,15 @@ pub fn upstream_protocol_for_models_dev_model(
     provider: &ModelsDevProvider,
     model: &ModelsDevModel,
 ) -> String {
+    // OpenCode Go publishes a per-model endpoint table. Prefer it over models.dev
+    // npm defaults so Claude Code / Codex hit /v1/chat/completions vs /v1/messages
+    // vs /v1/responses on the first hop.
+    if is_opencode_go_models_dev_provider(provider)
+        && let Some(protocol) = cab_core::sniff_opencode_go_protocol(&model.id)
+    {
+        return protocol;
+    }
+
     // OpenAI reasoning models (GPT-5.6 Luna/Sol/Terra, o-series, etc.) require the
     // Responses API for proper reasoning effort, reasoning items, and tool-call
     // interleaving. The Chat Completions API lacks first-class reasoning support
@@ -74,6 +83,14 @@ pub fn upstream_protocol_for_models_dev_model(
         return protocol_from_npm_and_api(Some(npm), provider.api.as_deref());
     }
     protocol_for_models_dev_provider(provider)
+}
+
+fn is_opencode_go_models_dev_provider(provider: &ModelsDevProvider) -> bool {
+    provider.name.eq_ignore_ascii_case("OpenCode Go")
+        || provider
+            .api
+            .as_deref()
+            .is_some_and(|api| api.contains("opencode.ai/zen/go"))
 }
 
 /// Detect whether a model is served via OpenAI's native API surface — either
@@ -998,6 +1015,43 @@ mod resolve_canonical_model_name_tests {
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &reasoning_model),
             "openai-chat"
+        );
+    }
+
+    #[test]
+    fn opencode_go_lookup_table_overrides_npm_for_mimo_and_minimax() {
+        let provider: ModelsDevProvider = serde_json::from_value(serde_json::json!({
+            "name": "OpenCode Go",
+            "api": "https://opencode.ai/zen/go/v1",
+            "npm": "@ai-sdk/openai-compatible",
+            "models": {}
+        }))
+        .unwrap();
+        let mimo: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "mimo-v2.5",
+            "reasoning": true
+        }))
+        .unwrap();
+        let minimax: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "minimax-m3"
+        }))
+        .unwrap();
+        let luna: ModelsDevModel = serde_json::from_value(serde_json::json!({
+            "id": "gpt-5.6-luna"
+        }))
+        .unwrap();
+
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &mimo),
+            "openai-chat"
+        );
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &minimax),
+            "anthropic"
+        );
+        assert_eq!(
+            upstream_protocol_for_models_dev_model(&provider, &luna),
+            "openai-responses"
         );
     }
 }

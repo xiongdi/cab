@@ -1,7 +1,7 @@
 {
   "name": "cab",
   "private": true,
-  "version": "0.10.11",
+  "version": "0.10.12",
   "type": "module",
   "engines": {
     "node": ">=24"

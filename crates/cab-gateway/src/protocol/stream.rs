@@ -1690,26 +1690,213 @@ pub fn synthesize_openai_chat_sse_from_response(body: &Value) -> Bytes {
 }
 
 /// Synthesize Anthropic SSE from a complete Anthropic message JSON (fallback when upstream is non-streaming).
+///
+/// Emits official Messages streaming events (`message_start` → per-block start/delta/stop
+/// → `message_delta` → `message_stop`), including `thinking` and `tool_use` blocks and
+/// real usage. Flattening to a single text delta drops tool calls and makes Claude Code wait
+/// for the full JSON then see a one-liner.
 pub fn synthesize_anthropic_sse_from_response(message: &Value, model: String) -> Bytes {
-    let text = message
+    let message_id = message
+        .get("id")
+        .and_then(|v| v.as_str())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| format!("msg_{}", uuid::Uuid::new_v4().simple()));
+    let model = message
+        .get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&model)
+        .to_string();
+    let usage = message
+        .get("usage")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({"input_tokens": 0, "output_tokens": 0}));
+    let input_tokens = usage
+        .get("input_tokens")
+        .cloned()
+        .unwrap_or(serde_json::json!(0));
+    let output_tokens = usage
+        .get("output_tokens")
+        .cloned()
+        .unwrap_or(serde_json::json!(0));
+    let stop_reason = message
+        .get("stop_reason")
+        .cloned()
+        .unwrap_or(serde_json::json!("end_turn"));
+    let blocks = message
         .get("content")
         .and_then(|c| c.as_array())
-        .map(|blocks| {
-            blocks
-                .iter()
-                .filter_map(|b| {
-                    b.get("text")
-                        .and_then(|t| t.as_str())
-                        .or_else(|| b.get("thinking").and_then(|t| t.as_str()))
-                })
-                .collect::<Vec<_>>()
-                .join("")
-        })
+        .cloned()
         .unwrap_or_default();
-    super::legacy::responses_to_anthropic_sse_stream(
-        &serde_json::json!({"output_text": text}),
-        model,
-    )
+
+    let mut chunks = Vec::new();
+    chunks.push(anthropic_stream_event(
+        "message_start",
+        serde_json::json!({
+            "type": "message_start",
+            "message": {
+                "id": message_id,
+                "type": "message",
+                "role": "assistant",
+                "model": model,
+                "content": [],
+                "stop_reason": null,
+                "stop_sequence": null,
+                "usage": {
+                    "input_tokens": input_tokens,
+                    "output_tokens": 0,
+                    "cache_creation_input_tokens": usage.get("cache_creation_input_tokens").cloned().unwrap_or(serde_json::json!(0)),
+                    "cache_read_input_tokens": usage.get("cache_read_input_tokens").cloned().unwrap_or(serde_json::json!(0))
+                }
+            }
+        }),
+    ));
+
+    if blocks.is_empty() {
+        chunks.push(anthropic_stream_event(
+            "content_block_start",
+            serde_json::json!({
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""}
+            }),
+        ));
+        chunks.push(anthropic_stream_event(
+            "content_block_stop",
+            serde_json::json!({"type": "content_block_stop", "index": 0}),
+        ));
+    }
+
+    for (index, block) in blocks.iter().enumerate() {
+        let block_type = block.get("type").and_then(|t| t.as_str()).unwrap_or("text");
+        match block_type {
+            "thinking" => {
+                let thinking = block.get("thinking").and_then(|t| t.as_str()).unwrap_or("");
+                let signature = block
+                    .get("signature")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("");
+                chunks.push(anthropic_stream_event(
+                    "content_block_start",
+                    serde_json::json!({
+                        "type": "content_block_start",
+                        "index": index,
+                        "content_block": {"type": "thinking", "thinking": ""}
+                    }),
+                ));
+                if !thinking.is_empty() {
+                    chunks.push(anthropic_stream_event(
+                        "content_block_delta",
+                        serde_json::json!({
+                            "type": "content_block_delta",
+                            "index": index,
+                            "delta": {"type": "thinking_delta", "thinking": thinking}
+                        }),
+                    ));
+                }
+                chunks.push(anthropic_stream_event(
+                    "content_block_delta",
+                    serde_json::json!({
+                        "type": "content_block_delta",
+                        "index": index,
+                        "delta": {
+                            "type": "signature_delta",
+                            "signature": if signature.is_empty() {
+                                format!("cab_{}", uuid::Uuid::new_v4().simple())
+                            } else {
+                                signature.to_string()
+                            }
+                        }
+                    }),
+                ));
+                chunks.push(anthropic_stream_event(
+                    "content_block_stop",
+                    serde_json::json!({"type": "content_block_stop", "index": index}),
+                ));
+            }
+            "tool_use" => {
+                let id = block.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                let name = block.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let input = block.get("input").cloned().unwrap_or(serde_json::json!({}));
+                chunks.push(anthropic_stream_event(
+                    "content_block_start",
+                    serde_json::json!({
+                        "type": "content_block_start",
+                        "index": index,
+                        "content_block": {
+                            "type": "tool_use",
+                            "id": id,
+                            "name": name,
+                            "input": {}
+                        }
+                    }),
+                ));
+                let partial = serde_json::to_string(&input).unwrap_or_else(|_| "{}".into());
+                chunks.push(anthropic_stream_event(
+                    "content_block_delta",
+                    serde_json::json!({
+                        "type": "content_block_delta",
+                        "index": index,
+                        "delta": {"type": "input_json_delta", "partial_json": partial}
+                    }),
+                ));
+                chunks.push(anthropic_stream_event(
+                    "content_block_stop",
+                    serde_json::json!({"type": "content_block_stop", "index": index}),
+                ));
+            }
+            _ => {
+                let text = block.get("text").and_then(|t| t.as_str()).unwrap_or("");
+                chunks.push(anthropic_stream_event(
+                    "content_block_start",
+                    serde_json::json!({
+                        "type": "content_block_start",
+                        "index": index,
+                        "content_block": {"type": "text", "text": ""}
+                    }),
+                ));
+                if !text.is_empty() {
+                    chunks.push(anthropic_stream_event(
+                        "content_block_delta",
+                        serde_json::json!({
+                            "type": "content_block_delta",
+                            "index": index,
+                            "delta": {"type": "text_delta", "text": text}
+                        }),
+                    ));
+                }
+                chunks.push(anthropic_stream_event(
+                    "content_block_stop",
+                    serde_json::json!({"type": "content_block_stop", "index": index}),
+                ));
+            }
+        }
+    }
+
+    let mut message_delta_usage = serde_json::json!({"output_tokens": output_tokens});
+    if let Some(cache_read) = usage.get("cache_read_input_tokens") {
+        message_delta_usage["cache_read_input_tokens"] = cache_read.clone();
+    }
+    if let Some(cache_write) = usage.get("cache_creation_input_tokens") {
+        message_delta_usage["cache_creation_input_tokens"] = cache_write.clone();
+    }
+    chunks.push(anthropic_stream_event(
+        "message_delta",
+        serde_json::json!({
+            "type": "message_delta",
+            "delta": {"stop_reason": stop_reason, "stop_sequence": null},
+            "usage": message_delta_usage
+        }),
+    ));
+    chunks.push(anthropic_stream_event(
+        "message_stop",
+        serde_json::json!({"type": "message_stop"}),
+    ));
+
+    let mut sse = Vec::new();
+    for chunk in chunks {
+        sse.extend_from_slice(&chunk);
+    }
+    Bytes::from(sse)
 }
 
 /// Synthesize Responses SSE from a complete Responses JSON (fallback when upstream is non-streaming).

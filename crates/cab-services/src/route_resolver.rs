@@ -51,8 +51,9 @@ impl ResolvedRoute {
     }
 }
 
-/// Filter and sort endpoints: native protocol first, then fall back to others for conversion.
-/// Within each group, endpoints are sorted by priority descending.
+/// Filter endpoints: native protocol first (config order), then other enabled
+/// protocols as conversion fallbacks. Numeric endpoint priority is ignored so a
+/// multi-protocol reseller is not probed Responses-first.
 pub fn pick_endpoints_for_protocol(provider: &Provider, protocol: &str) -> Vec<ProviderEndpoint> {
     let mut native: Vec<ProviderEndpoint> = provider
         .endpoints
@@ -60,15 +61,13 @@ pub fn pick_endpoints_for_protocol(provider: &Provider, protocol: &str) -> Vec<P
         .filter(|e| e.protocol == protocol && e.enabled)
         .cloned()
         .collect();
-    native.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
 
-    let mut others: Vec<ProviderEndpoint> = provider
+    let others: Vec<ProviderEndpoint> = provider
         .endpoints
         .iter()
         .filter(|e| e.protocol != protocol && e.enabled)
         .cloned()
         .collect();
-    others.sort_by_key(|endpoint| std::cmp::Reverse(endpoint.priority));
 
     if native.is_empty() && others.is_empty() {
         tracing::warn!(
@@ -1120,7 +1119,7 @@ mod tests {
     }
 
     #[test]
-    fn sorts_by_priority_desc() {
+    fn preserves_config_order_without_priority() {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "low".into(),
@@ -1149,9 +1148,9 @@ mod tests {
         ]);
         let picked = pick_endpoints_for_protocol(&provider, "openai-chat");
         assert_eq!(picked.len(), 3);
-        assert_eq!(picked[0].id, "high");
-        assert_eq!(picked[1].id, "medium");
-        assert_eq!(picked[2].id, "low");
+        assert_eq!(picked[0].id, "low");
+        assert_eq!(picked[1].id, "high");
+        assert_eq!(picked[2].id, "medium");
     }
 
     #[test]
@@ -1232,7 +1231,6 @@ mod tests {
         ]);
         let picked = pick_endpoints_for_protocol(&provider, "anthropic");
         assert_eq!(picked.len(), 2);
-        // Higher priority first
         assert_eq!(picked[0].id, "china");
         assert_eq!(picked[1].id, "international");
     }

@@ -107,30 +107,36 @@ fn merge_endpoints(
             merged.push(endpoint.clone());
         }
     }
-    merged.sort_by_key(|b| std::cmp::Reverse(b.priority));
     merged
 }
 
 /// Resolve the model protocol for a provider.
+///
+/// Bundled `default_protocol` wins so a multi-protocol reseller (OpenCode Go)
+/// is not labeled Responses just because that endpoint was listed first or had
+/// a higher numeric priority. When there is no bundled default, sniff the first
+/// enabled user endpoint in config order.
 pub fn resolve_provider_default_protocol(
     provider_id: &str,
     defaults: &ProviderDefaultsCatalog,
     settings: &Settings,
 ) -> String {
-    if let Some(primary) = settings
+    if let Some(entry) = defaults.providers.get(provider_id) {
+        return entry.default_protocol.clone();
+    }
+    if let Some(protocol) = settings
         .providers
         .get(provider_id)
         .and_then(|u| u.endpoints.as_ref())
-        .and_then(|es| es.iter().max_by_key(|e| e.priority))
+        .and_then(|es| {
+            es.iter()
+                .find(|endpoint| endpoint.enabled)
+                .map(|endpoint| endpoint.protocol.clone())
+        })
     {
-        return primary.protocol.clone();
+        return protocol;
     }
-
-    defaults
-        .providers
-        .get(provider_id)
-        .map(|entry| entry.default_protocol.clone())
-        .unwrap_or_else(|| "openai-chat".to_string())
+    "openai-chat".to_string()
 }
 
 pub fn templates_to_endpoints(templates: &[DefaultEndpointTemplate]) -> Vec<ProviderEndpoint> {

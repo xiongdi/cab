@@ -34,26 +34,21 @@ pub trait ProtocolAdapter: Send + Sync {
 
 /// Pick the upstream wire protocol for a resolved model.
 ///
-/// OpenAI reasoning models (`openai-responses`) must not be sent to Anthropic.
-/// A Responses client (Codex) must not POST `/v1/responses` at a Chat-only or
-/// Anthropic-only model on a multi-protocol provider such as OpenCode Go.
-/// Otherwise prefer the client's native endpoint to avoid conversion — catalog
-/// `openai-chat` is often a provider default and is wrong for models that only
-/// accept Anthropic (kimi-k3).
+/// The model's native protocol (OpenCode Go lookup / catalog) always wins so a
+/// multi-protocol reseller is not probed in priority order. When that is
+/// unknown, sniff the client's original protocol if the provider exposes it.
 fn select_upstream_protocol<'a>(
     client_protocol: &'a str,
-    catalog_protocol: Option<&'a str>,
-    has_native_endpoint: bool,
+    model_protocol: Option<&'a str>,
+    has_client_endpoint: bool,
 ) -> &'a str {
-    match catalog_protocol {
-        Some("openai-responses") => "openai-responses",
-        Some(proto) if proto != "openai-responses" && client_protocol == "openai-responses" => {
-            proto
-        }
-        _ if has_native_endpoint => client_protocol,
-        Some(proto) => proto,
-        None => client_protocol,
+    if let Some(proto) = model_protocol.filter(|proto| !proto.is_empty()) {
+        return proto;
     }
+    if has_client_endpoint {
+        return client_protocol;
+    }
+    client_protocol
 }
 
 pub async fn handle_proxied_request(
@@ -153,15 +148,22 @@ pub async fn handle_proxied_request(
     .map_err(CabError::Database)?;
 
     let client_protocol = adapter.protocol();
-    let has_native_endpoint = provider
+    let has_client_endpoint = provider
         .endpoints
         .iter()
         .any(|e| e.protocol == client_protocol && e.enabled);
     let catalog_protocol = endpoint_meta
         .as_ref()
         .and_then(|ep| ep.upstream_protocol.as_deref());
+    let native_model_id = endpoint_meta
+        .as_ref()
+        .map(|ep| ep.native_model_id.as_str())
+        .filter(|id| !id.trim().is_empty())
+        .unwrap_or(resolved.model.name.as_str());
+    let sniffed = cab_core::sniff_provider_model_protocol(&resolved.provider_id, native_model_id);
+    let model_protocol = sniffed.as_deref().or(catalog_protocol);
     let upstream_protocol =
-        select_upstream_protocol(client_protocol, catalog_protocol, has_native_endpoint);
+        select_upstream_protocol(client_protocol, model_protocol, has_client_endpoint);
 
     let endpoint_candidates = pick_endpoints_for_protocol(&provider, upstream_protocol);
 
@@ -552,9 +554,17 @@ mod tests {
     }
 
     #[test]
-    fn anthropic_client_keeps_native_when_catalog_says_chat() {
+    fn anthropic_client_uses_model_native_chat() {
         assert_eq!(
             select_upstream_protocol("anthropic", Some("openai-chat"), true),
+            "openai-chat"
+        );
+    }
+
+    #[test]
+    fn unknown_model_sniffs_client_protocol_when_provider_has_it() {
+        assert_eq!(
+            select_upstream_protocol("anthropic", None, true),
             "anthropic"
         );
     }

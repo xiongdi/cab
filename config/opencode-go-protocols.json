@@ -1,0 +1,36 @@
+{
+  "_comment": "OpenCode Go official per-model wire protocol. Source: https://opencode.ai/docs/go/ Endpoints: /v1/responses, /v1/chat/completions, /v1/messages. Also listed at https://opencode.ai/zen/go/v1/models.",
+  "models": {
+    "grok-4.5": "openai-responses",
+    "gpt-5.6-luna": "openai-responses",
+    "glm-5.3": "openai-chat",
+    "glm-5.2": "openai-chat",
+    "glm-5.1": "openai-chat",
+    "kimi-k3": "openai-chat",
+    "kimi-k2.7-code": "openai-chat",
+    "kimi-k2.6": "openai-chat",
+    "deepseek-v4-pro": "openai-chat",
+    "deepseek-v4-flash": "openai-chat",
+    "mimo-v2.5": "openai-chat",
+    "mimo-v2.5-pro": "openai-chat",
+    "minimax-m3": "anthropic",
+    "minimax-m2.7": "anthropic",
+    "minimax-m2.5": "anthropic",
+    "qwen3.8-max": "anthropic",
+    "qwen3.7-max": "anthropic",
+    "qwen3.7-plus": "anthropic",
+    "qwen3.6-plus": "anthropic",
+    "hy3": "openai-chat"
+  },
+  "family_sniff": [
+    { "prefix": "grok-", "protocol": "openai-responses" },
+    { "prefix": "gpt-5", "protocol": "openai-responses" },
+    { "prefix": "glm-", "protocol": "openai-chat" },
+    { "prefix": "kimi-", "protocol": "openai-chat" },
+    { "prefix": "deepseek-", "protocol": "openai-chat" },
+    { "prefix": "mimo-", "protocol": "openai-chat" },
+    { "prefix": "hy3", "protocol": "openai-chat" },
+    { "prefix": "minimax-", "protocol": "anthropic" },
+    { "prefix": "qwen", "protocol": "anthropic" }
+  ]
+}

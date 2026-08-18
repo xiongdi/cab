@@ -4,6 +4,7 @@ pub mod config;
 pub mod error;
 pub mod health;
 pub mod model_scores;
+pub mod opencode_go;
 pub mod paths;
 pub mod provider_defaults;
 pub mod routing;
@@ -32,6 +33,10 @@ pub use health::HealthTracker;
 pub use model_scores::{
     ModelIntelligenceIndices, capability_indices_missing, infer_intelligence_indices,
     normalize_legacy_missing_indices,
+};
+pub use opencode_go::{
+    is_opencode_go_provider, normalize_go_model_id, sniff_opencode_go_protocol,
+    sniff_provider_model_protocol,
 };
 pub use paths::{cab_home, default_system_cab_home, default_user_cab_home};
 pub use provider_defaults::{

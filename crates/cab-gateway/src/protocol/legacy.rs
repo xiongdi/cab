@@ -2411,6 +2411,17 @@ data: [DONE]
             convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &disabled);
         assert!(converted_disabled.get("reasoning").is_none());
         assert!(converted_disabled.get("thinking").is_none());
+
+        let adaptive = serde_json::json!({
+            "model": "gpt-5.6-luna",
+            "max_tokens": 256,
+            "thinking": {"type": "adaptive"},
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let converted_adaptive =
+            convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &adaptive);
+        assert!(converted_adaptive.get("thinking").is_none());
+        assert_eq!(converted_adaptive["reasoning"]["effort"], "medium");
     }
 
     #[test]

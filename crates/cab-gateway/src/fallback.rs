@@ -207,16 +207,9 @@ pub async fn execute_with_fallback(
                     upstream_url
                 );
 
-                let is_messages_path = is_messages_path(&request.path_suffix);
-                let is_responses_path = is_responses_path(&request.path_suffix);
-                let needs_responses_shim =
-                    endpoint.protocol != "openai-responses" && is_responses_path;
-                let needs_messages_to_responses_shim =
-                    endpoint.protocol == "openai-responses" && is_messages_path;
-
-                let client_protocol = if is_messages_path {
+                let client_protocol = if is_messages_path(&request.path_suffix) {
                     crate::protocol::PROTOCOL_ANTHROPIC
-                } else if is_responses_path {
+                } else if is_responses_path(&request.path_suffix) {
                     crate::protocol::PROTOCOL_OPENAI_RESPONSES
                 } else {
                     crate::protocol::PROTOCOL_OPENAI_CHAT
@@ -235,11 +228,6 @@ pub async fn execute_with_fallback(
                             "model".to_string(),
                             serde_json::Value::String(upstream_model_id.clone()),
                         );
-                        if needs_messages_to_responses_shim
-                            || (needs_responses_shim && endpoint.protocol != "openai-chat")
-                        {
-                            obj.insert("stream".to_string(), serde_json::Value::Bool(false));
-                        }
                     }
                     if request.shape_requests {
                         crate::shaping::shape_request(&mut converted_val, &endpoint.protocol);
@@ -255,13 +243,7 @@ pub async fn execute_with_fallback(
                     }
                 }
 
-                let upstream_stream = if needs_messages_to_responses_shim
-                    || (needs_responses_shim && endpoint.protocol != "openai-chat")
-                {
-                    false
-                } else {
-                    request.stream
-                };
+                let upstream_stream = request.stream;
 
                 let mut rate_limit_attempt: u32 = 0;
                 loop {
@@ -299,7 +281,7 @@ pub async fn execute_with_fallback(
                             status,
                             body,
                             retry_after: _,
-                        }) if status == 400 => {
+                        }) if matches!(status, 400 | 401 | 403 | 404) => {
                             tracing::warn!(
                                 "Provider {} endpoint {} returned {status} for model {}: {body}",
                                 resolved.provider_name,

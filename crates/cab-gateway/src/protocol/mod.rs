@@ -355,4 +355,62 @@ mod tests {
             "finish_reason:null must not emit extra completed events: {joined}"
         );
     }
+
+    #[test]
+    fn synthesize_anthropic_sse_keeps_tool_use_thinking_and_usage() {
+        use super::stream::synthesize_anthropic_sse_from_response;
+
+        let message = json!({
+            "id": "msg_keep",
+            "model": "mimo-v2.5",
+            "stop_reason": "tool_use",
+            "usage": {"input_tokens": 41, "output_tokens": 12},
+            "content": [
+                {"type": "thinking", "thinking": "need a tool", "signature": "sig_1"},
+                {"type": "tool_use", "id": "toolu_1", "name": "Read", "input": {"path": "/tmp"}}
+            ]
+        });
+        let sse = String::from_utf8(
+            synthesize_anthropic_sse_from_response(&message, "mimo-v2.5".into()).to_vec(),
+        )
+        .unwrap();
+        assert!(sse.contains(r#""input_tokens":41"#));
+        assert!(sse.contains(r#""output_tokens":12"#));
+        assert!(sse.contains(r#""type":"thinking_delta""#));
+        assert!(sse.contains("need a tool"));
+        assert!(sse.contains(r#""type":"input_json_delta""#));
+        assert!(sse.contains("toolu_1"));
+        assert!(sse.contains("Read"));
+        assert!(!sse.contains("need a tool\"") || sse.contains("thinking_delta"));
+    }
+
+    #[test]
+    fn responses_reasoning_item_maps_to_anthropic_thinking() {
+        let body = json!({
+            "id": "resp_1",
+            "model": "gpt-5.6-luna",
+            "output": [
+                {
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": "plan first"}]
+                },
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "done"}]
+                }
+            ],
+            "usage": {"input_tokens": 8, "output_tokens": 3}
+        });
+        let anthropic = convert_response(
+            PROTOCOL_OPENAI_RESPONSES,
+            PROTOCOL_ANTHROPIC,
+            &body,
+            "gpt-5.6-luna",
+        );
+        assert_eq!(anthropic["content"][0]["type"], "thinking");
+        assert_eq!(anthropic["content"][0]["thinking"], "plan first");
+        assert_eq!(anthropic["content"][1]["type"], "text");
+        assert_eq!(anthropic["content"][1]["text"], "done");
+        assert_eq!(anthropic["usage"]["input_tokens"], 8);
+    }
 }

@@ -5,6 +5,19 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.12] - 2026-08-18
+
+### Changed
+
+- **Protocol handshake uses the model's native wire protocol, not endpoint priority**: OpenCode Go's Responses / Chat / Anthropic URLs no longer compete by numeric priority. Incoming requests sniff the client protocol and convert only when it differs from the model's native protocol.
+- **OpenCode Go protocol lookup table**: bundled from the official [Go endpoints](https://opencode.ai/docs/go/) (`config/opencode-go-protocols.json`). Claude Code talking to `mimo-v2.5` hits `/v1/chat/completions` on the first hop; MiniMax/Qwen hit `/v1/messages`; Grok 4.5 and GPT 5.6 Luna hit `/v1/responses`. Unknown Go ids are family-sniffed (`kimi-*`, `qwen*`, …).
+
+### Fixed
+
+- **Claude Code no longer waits out a non-streaming Responses shim**: Messages→Responses (and other cross-protocol) conversions keep `stream=true` and translate official SSE. When upstream still returns a JSON body, synthesized Anthropic SSE now emits `thinking` / `tool_use` / usage instead of flattening to one text delta.
+- **Anthropic `thinking.type: adaptive`** (Claude Code default) maps to Responses `reasoning.effort: medium` instead of being dropped.
+- **Provider 401/403/404 on the wrong protocol** tries the next matching endpoint instead of failing the whole request (OpenCode Go `ModelError`).
+
 ## [0.10.11] - 2026-08-17
 
 ### Fixed

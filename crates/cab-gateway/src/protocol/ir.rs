@@ -1236,6 +1236,10 @@ pub fn encode_openai_chat_request(ir: &IrRequest) -> Value {
         encode_openai_tool_choice(&ir.tool_choice),
     );
     for (k, v) in &ir.extensions {
+        // Anthropic `thinking` is not a Chat Completions field.
+        if k == "thinking" {
+            continue;
+        }
         obj.insert(k.clone(), v.clone());
     }
     Value::Object(obj)
@@ -1339,20 +1343,7 @@ pub fn encode_responses_request(ir: &IrRequest) -> Value {
         // The Responses API does not understand `thinking` — passing it through
         // verbatim causes upstream 400 errors on reseller gateways.
         if k == "thinking" {
-            if let Some(thinking_obj) = v.as_object()
-                && thinking_obj.get("type").and_then(|t| t.as_str()) == Some("enabled")
-            {
-                let budget = thinking_obj
-                    .get("budget_tokens")
-                    .and_then(|b| b.as_u64())
-                    .unwrap_or(4096);
-                let effort = match budget {
-                    0 => continue,
-                    b if b <= 2048 => "low",
-                    b if b <= 8192 => "medium",
-                    b if b <= 32768 => "high",
-                    _ => "max",
-                };
+            if let Some(effort) = reasoning_effort_from_thinking(v) {
                 obj.insert("reasoning".into(), serde_json::json!({"effort": effort}));
             }
             continue;
@@ -1360,6 +1351,35 @@ pub fn encode_responses_request(ir: &IrRequest) -> Value {
         obj.insert(k.clone(), v.clone());
     }
     Value::Object(obj)
+}
+
+/// Map Anthropic Messages `thinking` to Responses `reasoning.effort`.
+///
+/// Official Messages types: `enabled` + `budget_tokens`, `adaptive` (Claude 4.6+),
+/// `disabled`. Official Responses effort: `low` | `medium` | `high` | `max`.
+fn reasoning_effort_from_thinking(thinking: &Value) -> Option<&'static str> {
+    let thinking_type = thinking
+        .get("type")
+        .and_then(|t| t.as_str())
+        .unwrap_or("enabled");
+    match thinking_type {
+        "disabled" | "none" => None,
+        "adaptive" => Some("medium"),
+        "enabled" => {
+            let budget = thinking
+                .get("budget_tokens")
+                .and_then(|b| b.as_u64())
+                .unwrap_or(4096);
+            Some(match budget {
+                0 => return None,
+                b if b <= 2048 => "low",
+                b if b <= 8192 => "medium",
+                b if b <= 32768 => "high",
+                _ => "max",
+            })
+        }
+        _ => Some("medium"),
+    }
 }
 
 pub fn decode_anthropic_response(body: &Value) -> IrResponse {
@@ -1543,6 +1563,15 @@ pub fn decode_responses_response(body: &Value) -> IrResponse {
                             .unwrap_or_else(|_| Value::Object(Map::new())),
                     });
                 }
+                Some("reasoning") => {
+                    let text = reasoning_text_from_responses_item(item);
+                    if !text.is_empty() {
+                        blocks.push(IrBlock::Thinking {
+                            text,
+                            signature: None,
+                        });
+                    }
+                }
                 Some("message") | None => {
                     let text = item.get("content").map(text_from_value).unwrap_or_default();
                     if !text.is_empty() {
@@ -1613,6 +1642,31 @@ pub fn decode_responses_response(body: &Value) -> IrResponse {
                 .unwrap_or(0),
         },
     }
+}
+
+fn reasoning_text_from_responses_item(item: &Value) -> String {
+    if let Some(summary) = item.get("summary").and_then(|v| v.as_array()) {
+        let joined = summary
+            .iter()
+            .filter_map(|part| {
+                part.get("text")
+                    .and_then(|t| t.as_str())
+                    .or_else(|| part.get("summary_text").and_then(|t| t.as_str()))
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        if !joined.is_empty() {
+            return joined;
+        }
+    }
+    item.get("content")
+        .map(text_from_value)
+        .or_else(|| {
+            item.get("text")
+                .and_then(|t| t.as_str())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_default()
 }
 
 fn anthropic_stop_reason(stop: &str) -> &'static str {
@@ -1721,23 +1775,36 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
     let mut output = Vec::new();
     let mut all_text = String::new();
     let mut text = String::new();
+    let flush_text = |output: &mut Vec<Value>, text: &mut String| {
+        if text.is_empty() {
+            return;
+        }
+        output.push(serde_json::json!({
+            "id": format!("msg_{}", uuid::Uuid::new_v4().simple()),
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": text.clone()}],
+        }));
+        text.clear();
+    };
     for block in &ir.blocks {
         match block {
-            IrBlock::Text { text: t } | IrBlock::Thinking { text: t, .. } => {
+            IrBlock::Text { text: t } => {
                 text.push_str(t);
                 all_text.push_str(t);
             }
+            IrBlock::Thinking { text: t, .. } => {
+                flush_text(&mut output, &mut text);
+                all_text.push_str(t);
+                output.push(serde_json::json!({
+                    "id": format!("rs_{}", uuid::Uuid::new_v4().simple()),
+                    "type": "reasoning",
+                    "summary": [{"type": "summary_text", "text": t}],
+                }));
+            }
             IrBlock::ToolUse { id, name, input } => {
-                if !text.is_empty() {
-                    output.push(serde_json::json!({
-                        "id": format!("msg_{}", uuid::Uuid::new_v4().simple()),
-                        "type": "message",
-                        "role": "assistant",
-                        "status": "completed",
-                        "content": [{"type": "output_text", "text": text}],
-                    }));
-                    text.clear();
-                }
+                flush_text(&mut output, &mut text);
                 output.push(serde_json::json!({
                     "id": format!("fc_{}", uuid::Uuid::new_v4().simple()),
                     "type": "function_call",
@@ -1750,13 +1817,14 @@ pub fn encode_responses_response(ir: &IrResponse, model_fallback: &str) -> Value
             _ => {}
         }
     }
-    if !text.is_empty() || output.is_empty() {
+    flush_text(&mut output, &mut text);
+    if output.is_empty() {
         output.push(serde_json::json!({
             "id": format!("msg_{}", uuid::Uuid::new_v4().simple()),
             "type": "message",
             "role": "assistant",
             "status": "completed",
-            "content": [{"type": "output_text", "text": text}],
+            "content": [{"type": "output_text", "text": ""}],
         }));
     }
     let model = if ir.model.is_empty() || ir.model == "unknown" {
