@@ -12,6 +12,7 @@ pub trait RouteCatalog: Send + Sync {
     async fn enabled_models(&self) -> Result<Vec<Model>, CabError>;
     async fn model_by_id(&self, id: &str) -> Result<Option<Model>, CabError>;
     async fn model_by_name(&self, name: &str) -> Result<Option<Model>, CabError>;
+    async fn models_by_name(&self, name: &str) -> Result<Vec<Model>, CabError>;
     async fn provider_by_id(&self, id: &str) -> Result<Option<Provider>, CabError>;
     async fn list_catalog_providers(&self) -> Result<Vec<Provider>, CabError>;
     async fn enabled_provider_tags_for_model(
@@ -70,6 +71,12 @@ impl RouteCatalog for InMemoryStore {
 
     async fn model_by_name(&self, name: &str) -> Result<Option<Model>, CabError> {
         crate::model::get_by_name(self, name)
+            .await
+            .map_err(CabError::Database)
+    }
+
+    async fn models_by_name(&self, name: &str) -> Result<Vec<Model>, CabError> {
+        crate::model::list_by_name(self, name)
             .await
             .map_err(CabError::Database)
     }

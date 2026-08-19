@@ -59,7 +59,8 @@ pub use tool_weights::{
     ToolSchemaCost, ToolWeightSnapshot, ToolWeightTracker, estimate_tokens, tool_schema_costs,
 };
 pub use types::{
-    NormalizedTokens, anthropic_input_includes_cache, normalize_stored_tokens, ordered_api_keys,
-    provider_has_available_key, provider_has_configured_key, select_preferred_api_key,
+    Model, NormalizedTokens, ProviderModel, anthropic_input_includes_cache,
+    normalize_stored_tokens, ordered_api_keys, provider_has_available_key,
+    provider_has_configured_key, select_preferred_api_key,
 };
 pub use vision::{model_supports_vision, request_requires_vision};

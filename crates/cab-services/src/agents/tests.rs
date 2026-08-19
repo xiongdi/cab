@@ -80,6 +80,7 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 model_count: 0,
                 logo: None,
                 catalog_models: vec![],
+                models: vec![],
             },
         );
         data.models.insert(
@@ -90,6 +91,7 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 display_name: "Model One".into(),
                 provider_id: "provider-1".into(),
                 protocol: "openai-chat".into(),
+                upstream_protocol: None,
                 context_length: 64000,
                 input_cost: Some(1.0),
                 output_cost: Some(2.0),

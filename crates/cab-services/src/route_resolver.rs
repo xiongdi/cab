@@ -382,20 +382,26 @@ async fn resolve_model(
         return Ok(None);
     }
 
-    if let Some(resolved) = try_resolve_with_provider(catalog, &model, &model.provider_id).await? {
-        return Ok(Some(resolved));
-    }
+    resolve_model_across_bindings(catalog, &model.name).await
+}
 
-    let tags = catalog.enabled_provider_tags_for_model(&model.name).await?;
-    for tag in tags {
-        if tag == model.provider_id {
+/// A canonical model may be bound to several providers (native vendor plus
+/// resellers). Try each binding in vendor-first order until one resolves to
+/// a usable provider (enabled, keyed, healthy).
+async fn resolve_model_across_bindings(
+    catalog: &impl RouteCatalog,
+    model_name: &str,
+) -> Result<Option<ResolvedModel>, cab_core::CabError> {
+    for model in catalog.models_by_name(model_name).await? {
+        if !model.enabled {
             continue;
         }
-        if let Some(resolved) = try_resolve_with_provider(catalog, &model, &tag).await? {
+        if let Some(resolved) =
+            try_resolve_with_provider(catalog, &model, &model.provider_id).await?
+        {
             return Ok(Some(resolved));
         }
     }
-
     Ok(None)
 }
 
@@ -441,29 +447,12 @@ async fn resolve_model_by_name(
     catalog: &impl RouteCatalog,
     model_name: &str,
 ) -> Result<Option<ResolvedModel>, cab_core::CabError> {
-    let Some(model) = catalog.model_by_name(model_name).await? else {
-        return Ok(None);
-    };
-
-    if !model.enabled {
+    let bindings = catalog.models_by_name(model_name).await?;
+    if bindings.is_empty() || !bindings.iter().any(|m| m.enabled) {
         return Ok(None);
     }
 
-    if let Some(resolved) = try_resolve_with_provider(catalog, &model, &model.provider_id).await? {
-        return Ok(Some(resolved));
-    }
-
-    let tags = catalog.enabled_provider_tags_for_model(&model.name).await?;
-    for tag in tags {
-        if tag == model.provider_id {
-            continue;
-        }
-        if let Some(resolved) = try_resolve_with_provider(catalog, &model, &tag).await? {
-            return Ok(Some(resolved));
-        }
-    }
-
-    Ok(None)
+    resolve_model_across_bindings(catalog, model_name).await
 }
 
 /// Re-resolve a specific model on a specific provider, bypassing scoring.
@@ -478,13 +467,18 @@ pub async fn resolve_model_on_provider(
     model_name: &str,
     provider_id: &str,
 ) -> Result<Option<ResolvedRoute>, cab_core::CabError> {
-    let Some(model) = catalog.model_by_name(model_name).await? else {
+    let bindings = catalog.models_by_name(model_name).await?;
+    // Prefer the binding pinned to the requested provider (session affinity);
+    // fall back to the vendor-first deterministic ordering.
+    let Some(model) = bindings
+        .iter()
+        .find(|m| m.provider_id == provider_id)
+        .or_else(|| bindings.first())
+        .filter(|m| m.enabled)
+    else {
         return Ok(None);
     };
-    if !model.enabled {
-        return Ok(None);
-    }
-    let Some(resolved) = try_resolve_with_provider(catalog, &model, provider_id).await? else {
+    let Some(resolved) = try_resolve_with_provider(catalog, model, provider_id).await? else {
         return Ok(None);
     };
     Ok(Some(ResolvedRoute {
@@ -529,6 +523,7 @@ mod tests {
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -582,6 +577,7 @@ mod tests {
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -592,6 +588,7 @@ mod tests {
             display_name: format!("Model {id}"),
             provider_id: provider_id.into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 128000,
             input_cost: Some(cost),
             output_cost: Some(cost * 2.0),
@@ -636,32 +633,6 @@ mod tests {
         }
     }
 
-    fn model_endpoint(id: &str, model_name: &str) -> cab_db::endpoint::ModelEndpoint {
-        cab_db::endpoint::ModelEndpoint {
-            id: id.into(),
-            model_id: model_name.into(),
-            canonical_slug: model_name.into(),
-            provider_name: "provider".into(),
-            provider_tag: format!("tag/{id}"),
-            native_model_id: model_name.into(),
-            upstream_protocol: None,
-            quantization: "unknown".into(),
-            input_cost: Some(0.0),
-            output_cost: Some(0.0),
-            cache_read_cost: None,
-            context_length: Some(128000),
-            max_completion_tokens: None,
-            status: 1,
-            uptime_30m: None,
-            uptime_5m: None,
-            uptime_1d: None,
-            supports_tools: true,
-            supports_streaming: true,
-            enabled: true,
-            updated_at: "now".into(),
-        }
-    }
-
     fn seeded_store() -> cab_db::InMemoryStore {
         let store = cab_db::InMemoryStore::new();
         {
@@ -670,19 +641,36 @@ mod tests {
                 .insert("p1".into(), active_provider("p1", "payg-key"));
             data.providers
                 .insert("p2".into(), active_provider("p2", "payg-key-2"));
-            data.models
-                .insert("cheap".into(), model("cheap", "p1", 0.1, 20.0, true));
-            data.models
-                .insert("smart".into(), model("smart", "p1", 5.0, 95.0, true));
-            data.models
-                .insert("backup".into(), model("backup", "p2", 1.0, 50.0, true));
-            for key in ["cheap", "smart", "backup"] {
-                let name = data.models[key].name.clone();
-                data.model_endpoints
-                    .insert(format!("{key}-ep"), model_endpoint(key, &name));
-            }
+            data.providers.get_mut("p1").unwrap().models = vec![
+                cab_core::ProviderModel {
+                    model: model("cheap", "p1", 0.1, 20.0, true),
+                },
+                cab_core::ProviderModel {
+                    model: model("smart", "p1", 5.0, 95.0, true),
+                },
+            ];
+            data.providers.get_mut("p2").unwrap().models = vec![cab_core::ProviderModel {
+                model: model("backup", "p2", 1.0, 50.0, true),
+            }];
         }
         store
+    }
+
+    fn bound_model_mut<'a>(data: &'a mut cab_db::StoreData, id: &str) -> &'a mut Model {
+        for provider in data.providers.values_mut() {
+            if let Some(bm) = provider.models.iter_mut().find(|bm| bm.model.id == id) {
+                return &mut bm.model;
+            }
+        }
+        panic!("model {id} not bound to any provider");
+    }
+
+    fn add_bound(data: &mut cab_db::StoreData, provider_id: &str, model: Model) {
+        data.providers
+            .get_mut(provider_id)
+            .unwrap()
+            .models
+            .push(cab_core::ProviderModel { model });
     }
 
     #[tokio::test]
@@ -695,7 +683,7 @@ mod tests {
         assert_eq!(resolved.model.id, "smart");
         assert_eq!(resolved.provider_api_key, "sub-key");
         assert_eq!(resolved.endpoint_candidates[0].protocol, "openai-chat");
-        assert_eq!(resolved.provider_routing, vec!["tag/smart"]);
+        assert!(resolved.provider_routing.is_empty());
 
         let alias = resolve_route(&store, "codex", Some("claude/cab/p1/cheap"), None)
             .await
@@ -757,11 +745,7 @@ mod tests {
                 quota_reset_at: None,
             }];
             data.providers.insert("p1".into(), provider);
-            data.models
-                .insert("m1".into(), model("m1", "p1", 1.0, 50.0, true));
-            let name = data.models["m1"].name.clone();
-            data.model_endpoints
-                .insert("m1-ep".into(), model_endpoint("m1", &name));
+            add_bound(&mut data, "p1", model("m1", "p1", 1.0, 50.0, true));
             data.agents.insert(
                 "claude-code".into(),
                 Agent {
@@ -821,12 +805,8 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models
-                .insert("mid".into(), model("mid", "p1", 2.0, 75.0, true));
-            let mid_name = data.models["mid"].name.clone();
-            data.model_endpoints
-                .insert("mid-ep".into(), model_endpoint("mid", &mid_name));
-            data.models.get_mut("backup").unwrap().enabled = false;
+            add_bound(&mut data, "p1", model("mid", "p1", 2.0, 75.0, true));
+            bound_model_mut(&mut data, "backup").enabled = false;
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-only".into(),
                 enabled: true,
@@ -865,9 +845,9 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models.get_mut("backup").unwrap().input_cost = Some(10.0);
-            data.models.get_mut("backup").unwrap().output_cost = Some(20.0);
-            data.models.get_mut("cheap").unwrap().enabled = false;
+            bound_model_mut(&mut data, "backup").input_cost = Some(10.0);
+            bound_model_mut(&mut data, "backup").output_cost = Some(20.0);
+            bound_model_mut(&mut data, "cheap").enabled = false;
             data.providers.get_mut("p2").unwrap().api_keys = vec![ApiKeyConfig {
                 key: "payg-only".into(),
                 enabled: true,
@@ -946,11 +926,7 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models
-                .insert("mid".into(), model("mid", "p1", 2.0, 75.0, true));
-            let name = data.models["mid"].name.clone();
-            data.model_endpoints
-                .insert("mid-ep".into(), model_endpoint("mid", &name));
+            add_bound(&mut data, "p1", model("mid", "p1", 2.0, 75.0, true));
         }
 
         let resolved = resolve_route(
@@ -996,11 +972,7 @@ mod tests {
                 enabled: true,
                 quota_reset_at: None,
             }];
-            data.models
-                .insert("mid".into(), model("mid", "p1", 2.0, 75.0, true));
-            let name = data.models["mid"].name.clone();
-            data.model_endpoints
-                .insert("mid-ep".into(), model_endpoint("mid", &name));
+            add_bound(&mut data, "p1", model("mid", "p1", 2.0, 75.0, true));
         }
 
         // Simulate pi sending model="balanced" with PAYG providers
@@ -1034,8 +1006,7 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models
-                .insert("disabled".into(), model("disabled", "p1", -1.0, 99.0, true));
+            add_bound(&mut data, "p1", model("disabled", "p1", -1.0, 99.0, true));
             data.providers.get_mut("p2").unwrap().enabled = false;
         }
 
@@ -1058,7 +1029,7 @@ mod tests {
         let store = seeded_store();
         {
             let mut data = store.inner.write().unwrap();
-            data.models.get_mut("smart").unwrap().enabled = false;
+            bound_model_mut(&mut data, "smart").enabled = false;
             data.providers.get_mut("p1").unwrap().enabled = false;
         }
 

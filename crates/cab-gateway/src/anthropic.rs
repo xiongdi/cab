@@ -94,6 +94,7 @@ event: message_delta\ndata: {\"usage\":{\"output_tokens\":4}}\n\n",
             display_name: name.into(),
             provider_id: provider_id.into(),
             protocol: "anthropic".into(),
+            upstream_protocol: None,
             context_length: 128000,
             input_cost: Some(1.0),
             output_cost: Some(2.0),
@@ -161,10 +162,11 @@ event: message_delta\ndata: {\"usage\":{\"output_tokens\":4}}\n\n",
                     model_count: 1,
                     logo: None,
                     catalog_models: vec![],
+                    models: vec![cab_core::ProviderModel {
+                        model: model("provider/model-1", "provider-1"),
+                    }],
                 },
             );
-            data.models
-                .insert("model-1".into(), model("provider/model-1", "provider-1"));
         }
         Arc::new(GatewayState::new(pool))
     }

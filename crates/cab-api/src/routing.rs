@@ -60,6 +60,7 @@ mod tests {
             model_count: 1,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -70,6 +71,7 @@ mod tests {
             display_name: "Model One".into(),
             provider_id: "provider-1".into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 128000,
             input_cost: Some(1.0),
             output_cost: Some(2.0),
@@ -104,8 +106,10 @@ mod tests {
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
-            data.providers.insert("provider-1".into(), provider());
-            data.models.insert("model-1".into(), model());
+            let mut provider = provider();
+            provider.models = vec![cab_core::ProviderModel { model: model() }];
+            provider.model_count = 1;
+            data.providers.insert("provider-1".into(), provider);
         }
 
         let state = ApiState { pool };

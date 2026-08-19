@@ -1951,6 +1951,7 @@ data: {"type":"message_stop"}
                     display_name: "DeepSeek V4 Flash".into(),
                     provider_id: "deepseek".into(),
                     protocol: "openai-chat".into(),
+                    upstream_protocol: None,
                     context_length: 1,
                     input_cost: Some(0.07),
                     output_cost: Some(0.3),

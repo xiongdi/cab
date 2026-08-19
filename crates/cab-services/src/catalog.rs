@@ -13,7 +13,7 @@ pub struct ModelsDevProvider {
     pub models: std::collections::HashMap<String, ModelsDevModel>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct ModelsDevModel {
     pub id: String,
     pub name: Option<String>,
@@ -45,7 +45,7 @@ pub struct ModelsDevCost {
     pub cache_write: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct ModelsDevLimit {
     context: Option<i64>,
     output: Option<i64>,
@@ -266,35 +266,6 @@ pub struct ServedModelRef {
 
 pub fn normalize_models_dev_model_key(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '_'], "-")
-}
-
-fn add_served_model_lookup_keys(
-    lookup: &mut std::collections::HashMap<String, ServedModelRef>,
-    provider_id: &str,
-    model: &ModelsDevModel,
-) {
-    let served = ServedModelRef {
-        provider_id: provider_id.to_string(),
-        native_model_id: model.id.clone(),
-        cost: models_dev_cost_for_provider_model(provider_id, model),
-    };
-    let mut keys = vec![
-        model.id.clone(),
-        format!("{provider_id}/{}", model.id),
-        normalize_models_dev_model_key(&model.id),
-        normalize_models_dev_model_key(&format!("{provider_id}/{}", model.id)),
-    ];
-    if let Some(name) = model.name.as_deref() {
-        keys.push(name.to_string());
-        keys.push(format!("{provider_id}/{name}"));
-        keys.push(normalize_models_dev_model_key(name));
-        keys.push(normalize_models_dev_model_key(&format!(
-            "{provider_id}/{name}"
-        )));
-    }
-    for key in keys {
-        lookup.entry(key).or_insert_with(|| served.clone());
-    }
 }
 
 fn resolve_canonical_model_name(
@@ -543,6 +514,12 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
         serde_json::from_value(models_json)
             .map_err(|e| CabError::Database(format!("Failed to parse models.dev models: {e}")))?;
 
+    // Non-strict binding pass for enabled providers: discover live upstream
+    // models and bind catalog-unknown models under their own id.
+    let mut providers_data = providers_data;
+    let mut models_data = models_data;
+    merge_enabled_provider_models(pool, &mut providers_data, &mut models_data, &client).await;
+
     let count = sync_models_dev_models(
         pool,
         &providers_data,
@@ -568,6 +545,113 @@ pub async fn sync_models_internal(
     sync_models_dev_catalog(pool).await
 }
 
+/// Non-strict model binding, scoped to *enabled* providers only.
+///
+/// Strict catalog matching keeps the global model list clean (thousands of
+/// reseller-only slugs would otherwise flood the catalog), but models that a
+/// user's active provider actually serves must stay usable. Two passes:
+///
+/// 1. Live upstream discovery — query the provider's OpenAI-compatible
+///    `/v1/models` endpoint and inject models the models.dev catalog does not
+///    list yet (e.g. newly launched upstream models such as `hy3-preview`).
+/// 2. Lenient canonical fallback — provider models still without a catalog
+///    entry are injected into the canonical model map under their own id so
+///    they bind and stay explicitly requestable (e.g. `muse-spark-1.2`).
+async fn merge_enabled_provider_models(
+    pool: &cab_db::InMemoryStore,
+    providers_data: &mut std::collections::HashMap<String, ModelsDevProvider>,
+    models_data: &mut std::collections::HashMap<String, ModelsDevModel>,
+    client: &reqwest::Client,
+) {
+    let Ok(store_providers) = cab_db::provider::list_catalog(pool).await else {
+        return;
+    };
+
+    for store_provider in store_providers.iter().filter(|p| p.enabled) {
+        let provider_id = store_provider.id.clone();
+        let Some(provider_entry) = providers_data.get_mut(&provider_id) else {
+            continue;
+        };
+
+        // Pass 1: live upstream model discovery (best effort).
+        let active_key = cab_core::select_preferred_api_key(&store_provider.api_keys)
+            .unwrap_or_else(|| store_provider.api_key.clone());
+        if !active_key.trim().is_empty()
+            && let Some(endpoint) = store_provider
+                .endpoints
+                .iter()
+                .find(|e| e.enabled && e.protocol == "openai-chat")
+        {
+            let url = format!("{}/models", endpoint.url.trim_end_matches('/'));
+            match client
+                .get(&url)
+                .bearer_auth(&active_key)
+                .timeout(std::time::Duration::from_secs(15))
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    if let Ok(payload) = resp.json::<serde_json::Value>().await {
+                        for id in extract_model_ids(&payload) {
+                            let id = id.trim().to_string();
+                            if id.is_empty() || provider_entry.models.contains_key(&id) {
+                                continue;
+                            }
+                            tracing::info!(
+                                provider = %provider_id,
+                                model = %id,
+                                "discovered upstream model missing from models.dev catalog"
+                            );
+                            if let Ok(minimal) = serde_json::from_value::<ModelsDevModel>(
+                                serde_json::json!({ "id": id.clone(), "name": id }),
+                            ) {
+                                provider_entry.models.insert(id, minimal);
+                            }
+                        }
+                    }
+                }
+                Ok(resp) => tracing::debug!(
+                    provider = %provider_id,
+                    status = %resp.status(),
+                    "upstream model discovery skipped (non-2xx)"
+                ),
+                Err(e) => tracing::debug!(
+                    provider = %provider_id,
+                    error = %e,
+                    "upstream model discovery failed"
+                ),
+            }
+        }
+
+        // Pass 2: lenient canonical fallback — bind unresolved models under
+        // their own id so requests for them resolve to this provider.
+        let unresolved: Vec<ModelsDevModel> = provider_entry
+            .models
+            .values()
+            .filter(|m| resolve_canonical_model_name(&provider_id, m, models_data).is_none())
+            .cloned()
+            .collect();
+        for model in unresolved {
+            models_data.entry(model.id.clone()).or_insert(model);
+        }
+    }
+}
+
+fn extract_model_ids(payload: &serde_json::Value) -> Vec<String> {
+    payload
+        .get("data")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.get("id").and_then(|v| v.as_str()))
+                .map(|s| s.to_string())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+
 #[allow(clippy::too_many_arguments, clippy::collapsible_if)]
 pub async fn sync_models_dev_models(
     pool: &cab_db::InMemoryStore,
@@ -584,27 +668,17 @@ pub async fn sync_models_dev_models(
         .map_err(CabError::Database)?;
 
     let mut provider_ids = std::collections::HashSet::new();
-    let mut fetched_names = std::collections::HashSet::new();
     let mut added_count = 0usize;
-    let mut updated_count = 0usize;
 
-    let mut served_lookup = std::collections::HashMap::new();
+    // canonical model name -> every provider that serves it (vendor + resellers)
+    let mut served_by_canonical: std::collections::HashMap<String, Vec<ServedModelRef>> =
+        std::collections::HashMap::new();
+    let mut served_dedupe = std::collections::HashSet::new();
 
     for (provider_id, provider) in providers_data {
         provider_ids.insert(provider_id.clone());
         let protocol = protocol_for_models_dev_provider(provider);
         let default_endpoint = provider.api.as_deref().map(|api| (protocol.as_str(), api));
-
-        let mut catalog_models: Vec<String> = provider
-            .models
-            .values()
-            .filter_map(|model| {
-                resolve_canonical_model_name(provider_id, model, models_data)
-                    .or_else(|| Some(format!("{provider_id}/{}", model.id)))
-            })
-            .collect();
-        catalog_models.sort();
-        catalog_models.dedup();
 
         // Download logo from models.dev and save as a static file on disk
         let logo_url = cab_core::models_dev_provider_logo_url(provider_id);
@@ -646,7 +720,7 @@ pub async fn sync_models_dev_models(
             provider.npm.as_deref(),
             provider.models.len(),
             None,
-            &catalog_models,
+            Vec::new(),
         )
         .await
         .map_err(CabError::Database)?;
@@ -656,52 +730,78 @@ pub async fn sync_models_dev_models(
             .map_err(CabError::Database)?;
 
         for model in provider.models.values() {
-            add_served_model_lookup_keys(&mut served_lookup, provider_id, model);
+            let Some(canonical) = resolve_canonical_model_name(provider_id, model, models_data)
+            else {
+                continue;
+            };
+            if !served_dedupe.insert(format!("{canonical}::{provider_id}")) {
+                continue;
+            }
+            served_by_canonical
+                .entry(canonical)
+                .or_default()
+                .push(ServedModelRef {
+                    provider_id: provider_id.to_string(),
+                    native_model_id: model.id.clone(),
+                    cost: models_dev_cost_for_provider_model(provider_id, model),
+                });
         }
     }
+
+    // Models are bound to their provider (provider → model 1:N). Collect each
+    // built model per provider, then set them back onto the provider in one pass.
+    let mut bound_by_provider: std::collections::HashMap<String, Vec<cab_core::ProviderModel>> =
+        std::collections::HashMap::new();
+    let prior_enabled: std::collections::HashMap<String, bool> = existing_models
+        .iter()
+        .map(|em| (em.name.clone(), em.enabled))
+        .collect();
 
     for (canonical_id, model) in models_data {
         let model_name = model.id.trim().to_string();
         if model_name.is_empty() {
             continue;
         }
-        fetched_names.insert(model_name.clone());
 
         let provider_prefix = model_name
             .split_once('/')
             .map(|(provider, _)| provider)
             .unwrap_or("unknown");
-        let served_model = resolve_served_model(&served_lookup, &model_name);
-        let provider_id = served_model
-            .as_ref()
-            .map(|served| served.provider_id.clone())
-            .unwrap_or_else(|| provider_prefix.to_string());
-        let provider = providers_data.get(&provider_id);
-        let native_model_id = served_model
-            .as_ref()
-            .map(|served| served.native_model_id.clone())
-            .unwrap_or_else(|| {
-                model_name
+
+        // Every provider that serves this canonical model gets its own binding,
+        // so resellers (e.g. opencode-go) stay routable when the native vendor
+        // is unavailable. Vendor gateway first, then alphabetical for determinism.
+        let mut serving = served_by_canonical
+            .get(canonical_id)
+            .cloned()
+            .unwrap_or_default();
+        if serving.is_empty() {
+            serving.push(ServedModelRef {
+                provider_id: provider_prefix.to_string(),
+                native_model_id: model_name
                     .split_once('/')
                     .map(|(_, name)| name.to_string())
-                    .unwrap_or_else(|| model_name.clone())
+                    .unwrap_or_else(|| model_name.clone()),
+                cost: None,
             });
+        }
+        serving.sort_by(|a, b| {
+            let a_native = a.provider_id == provider_prefix;
+            let b_native = b.provider_id == provider_prefix;
+            b_native
+                .cmp(&a_native)
+                .then_with(|| a.provider_id.cmp(&b.provider_id))
+        });
 
         let display_name = model
             .name
             .clone()
-            .unwrap_or_else(|| native_model_id.clone());
+            .unwrap_or_else(|| model_name.clone());
         let context_length = model
             .limit
             .as_ref()
             .and_then(|limit| limit.context)
             .unwrap_or(0);
-        let selected_cost = served_model
-            .as_ref()
-            .and_then(|served| served.cost.as_ref())
-            .or(model.cost.as_ref());
-        let input_cost = selected_cost.and_then(|cost| cost.input);
-        let output_cost = selected_cost.and_then(|cost| cost.output);
         let indices = cab_core::resolve_intelligence_indices(
             benchmark_catalog,
             aa_map,
@@ -719,118 +819,99 @@ pub async fn sync_models_dev_models(
             context_length,
         );
         let configured_enabled = model_enabled_override(settings, &model_name);
-        let existing_model = existing_models
-            .iter()
-            .find(|em| em.name.eq_ignore_ascii_case(&model_name));
         let created = parse_release_timestamp(model.release_date.as_deref());
-        let pricing = build_pricing_json(selected_cost);
         let architecture = Some(build_architecture_json(model));
-        let top_provider = Some(build_catalog_provider_json(
-            &provider_id,
-            provider,
-            &native_model_id,
-        ));
         let per_request_limits = model.limit.as_ref().map(|limit| {
             serde_json::json!({
                 "context": limit.context,
                 "output": limit.output,
             })
         });
-        let links = Some(build_links_json(
-            model,
-            &model_name,
-            &native_model_id,
-            provider,
-        ));
         let hugging_face_id = extract_huggingface_id(model);
         let knowledge_cutoff = model.knowledge.clone();
         let supported_parameters = supported_parameters_from_models_dev_model(model);
 
-        if let Some(existing) = existing_model {
-            let update_input = cab_core::types::UpdateModel {
-                name: Some(model_name.clone()),
-                display_name: Some(display_name),
-                provider_id: Some(provider_id.clone()),
-                protocol: Some(cab_db::provider::default_protocol_for_provider(
-                    &provider_id,
-                    settings,
-                    defaults,
-                )),
-                context_length: Some(context_length),
-                input_cost: Some(input_cost),
-                output_cost: Some(output_cost),
-                enabled: Some(configured_enabled.unwrap_or(existing.enabled)),
-                overall_intelligence: Some(indices.overall_intelligence),
-                coding_index: Some(indices.coding_index),
-                agentic_index: Some(indices.agentic_index),
-                math_index: Some(indices.math_index),
-                output_speed_tps: Some(performance.output_speed_tps),
-                time_to_first_token_secs: Some(performance.time_to_first_token_secs),
-                canonical_slug: Some(model_name.clone()),
-                hugging_face_id,
-                created,
-                description: model.family.clone(),
-                architecture,
-                pricing,
-                top_provider,
-                per_request_limits,
-                supported_parameters: Some(supported_parameters),
-                default_parameters: None,
-                supported_voices: None,
-                knowledge_cutoff,
-                expiration_date: None,
-                links,
+        let enabled = configured_enabled
+            .or_else(|| prior_enabled.get(&model_name).copied())
+            .unwrap_or(false);
+        let now = Utc::now().to_rfc3339();
+
+        for served in &serving {
+            let provider_id = served.provider_id.clone();
+            let provider = providers_data.get(&provider_id);
+            let native_model_id = served.native_model_id.clone();
+            let selected_cost = served.cost.as_ref().or(model.cost.as_ref());
+            let input_cost = selected_cost.and_then(|cost| cost.input);
+            let output_cost = selected_cost.and_then(|cost| cost.output);
+            let pricing = build_pricing_json(selected_cost);
+            let top_provider = Some(build_catalog_provider_json(
+                &provider_id,
+                provider,
+                &native_model_id,
+            ));
+            let links = Some(build_links_json(
+                model,
+                &model_name,
+                &native_model_id,
+                provider,
+            ));
+            let upstream_protocol =
+                provider.map(|p| upstream_protocol_for_models_dev_model(p, model));
+            let bound = cab_core::ProviderModel {
+                model: cab_core::types::Model {
+                    id: native_model_id.clone(),
+                    name: model_name.clone(),
+                    display_name: display_name.clone(),
+                    provider_id: provider_id.clone(),
+                    protocol: cab_db::provider::default_protocol_for_provider(
+                        &provider_id,
+                        settings,
+                        defaults,
+                    ),
+                    upstream_protocol,
+                    context_length,
+                    input_cost,
+                    output_cost,
+                    enabled,
+                    overall_intelligence: indices.overall_intelligence,
+                    coding_index: indices.coding_index,
+                    agentic_index: indices.agentic_index,
+                    math_index: indices.math_index,
+                    output_speed_tps: performance.output_speed_tps,
+                    time_to_first_token_secs: performance.time_to_first_token_secs,
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    canonical_slug: Some(model_name.clone()),
+                    hugging_face_id: hugging_face_id.clone(),
+                    created,
+                    description: model.family.clone(),
+                    architecture: architecture.clone(),
+                    pricing: pricing.clone(),
+                    top_provider: top_provider.clone(),
+                    per_request_limits: per_request_limits.clone(),
+                    supported_parameters: Some(supported_parameters.clone()),
+                    default_parameters: None,
+                    supported_voices: None,
+                    knowledge_cutoff: knowledge_cutoff.clone(),
+                    expiration_date: None,
+                    links: links.clone(),
+                },
             };
-            cab_db::model::update(pool, &existing.id, &update_input)
-                .await
-                .map_err(CabError::Database)?;
-            updated_count += 1;
-        } else {
-            let create_input = cab_core::types::CreateModel {
-                name: model_name.clone(),
-                display_name,
-                provider_id: provider_id.clone(),
-                protocol: cab_db::provider::default_protocol_for_provider(
-                    &provider_id,
-                    settings,
-                    defaults,
-                ),
-                context_length,
-                input_cost,
-                output_cost,
-                enabled: Some(configured_enabled.unwrap_or(false)),
-                overall_intelligence: indices.overall_intelligence,
-                coding_index: indices.coding_index,
-                agentic_index: indices.agentic_index,
-                math_index: indices.math_index,
-                output_speed_tps: performance.output_speed_tps,
-                time_to_first_token_secs: performance.time_to_first_token_secs,
-                canonical_slug: Some(model_name),
-                hugging_face_id,
-                created,
-                description: model.family.clone(),
-                architecture,
-                pricing,
-                top_provider,
-                per_request_limits,
-                supported_parameters: Some(supported_parameters),
-                default_parameters: None,
-                supported_voices: None,
-                knowledge_cutoff,
-                expiration_date: None,
-                links,
-            };
-            cab_db::model::create(pool, &create_input)
-                .await
-                .map_err(CabError::Database)?;
+            bound_by_provider
+                .entry(provider_id)
+                .or_default()
+                .push(bound);
             added_count += 1;
         }
     }
 
-    for model in &existing_models {
-        if !fetched_names.contains(&model.name) {
-            let _ = cab_db::model::delete(pool, &model.id).await;
-        }
+    let mut sorted_provider_ids: Vec<&String> = provider_ids.iter().collect();
+    sorted_provider_ids.sort();
+    for provider_id in sorted_provider_ids {
+        let bound_models = bound_by_provider.remove(provider_id).unwrap_or_default();
+        cab_db::provider::set_provider_models(pool, provider_id, bound_models)
+            .await
+            .map_err(CabError::Database)?;
     }
 
     let providers = cab_db::provider::list_catalog(pool)
@@ -843,14 +924,12 @@ pub async fn sync_models_dev_models(
     }
 
     tracing::info!(
-        "models.dev sync: added {}, updated {}, providers {}, models {}",
+        "models.dev sync: added {} bound models across {} providers",
         added_count,
-        updated_count,
-        provider_ids.len(),
-        fetched_names.len()
+        provider_ids.len()
     );
 
-    Ok(added_count + updated_count)
+    Ok(added_count)
 }
 
 pub async fn auto_seed_known_models(

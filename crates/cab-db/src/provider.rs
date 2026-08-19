@@ -42,11 +42,15 @@ pub async fn upsert_catalog_provider(
     npm: Option<&str>,
     model_count: usize,
     logo: Option<&str>,
-    catalog_models: &[String],
+    models: Vec<cab_core::ProviderModel>,
 ) -> Result<(), String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
 
     let now = chrono::Utc::now().to_rfc3339();
+    let catalog_models: Vec<String> = models
+        .iter()
+        .map(|bound| bound.model.name.clone())
+        .collect();
 
     if let Some(existing) = inner.providers.get_mut(id) {
         existing.name = name.to_string();
@@ -63,7 +67,8 @@ pub async fn upsert_catalog_provider(
         if logo.is_some() {
             existing.logo = logo.map(|s| s.to_string());
         }
-        existing.catalog_models = catalog_models.to_vec();
+        existing.catalog_models = catalog_models;
+        existing.models = models;
         existing.updated_at = now;
     } else {
         let mut endpoints = Vec::new();
@@ -97,7 +102,8 @@ pub async fn upsert_catalog_provider(
             npm: npm.map(|s| s.to_string()),
             model_count,
             logo: logo.map(|s| s.to_string()),
-            catalog_models: catalog_models.to_vec(),
+            catalog_models,
+            models,
         };
         inner.providers.insert(id.to_string(), provider);
     }
@@ -233,6 +239,43 @@ pub async fn get_by_id(store: &InMemoryStore, id: &str) -> Result<Option<Provide
     Ok(inner.providers.get(id).cloned())
 }
 
+/// Bind a provider's set of models (provider → model 1:N). Replaces any
+/// previously bound set and persists to SQLite. This is the source of truth for
+/// model availability/enablement under the provider-first model.
+pub async fn set_provider_models(
+    store: &InMemoryStore,
+    provider_id: &str,
+    models: Vec<cab_core::ProviderModel>,
+) -> Result<(), String> {
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    let Some(provider) = inner.providers.get_mut(provider_id) else {
+        return Ok(());
+    };
+    provider.catalog_models = models.iter().map(|bm| bm.model.name.clone()).collect();
+    provider.model_count = models.len();
+    provider.models = models;
+    provider.updated_at = chrono::Utc::now().to_rfc3339();
+    let updated = provider.clone();
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::upsert_catalog_provider(&conn, &updated)?;
+    }
+    Ok(())
+}
+
+/// Flatten all providers' bound models into a single list (active or not).
+pub async fn list_all_bound_models(store: &InMemoryStore) -> Result<Vec<cab_core::Model>, String> {
+    let inner = store.inner.read().map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for provider in inner.providers.values() {
+        for bound in &provider.models {
+            out.push(bound.model.clone());
+        }
+    }
+    Ok(out)
+}
+
 pub async fn create(store: &InMemoryStore, input: &CreateProvider) -> Result<Provider, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     let id = input.name.to_lowercase().replace(' ', "-");
@@ -258,6 +301,7 @@ pub async fn create(store: &InMemoryStore, input: &CreateProvider) -> Result<Pro
         model_count: input.model_count.unwrap_or(0),
         logo: input.logo.clone(),
         catalog_models: Vec::new(),
+        models: Vec::new(),
     };
     inner.providers.insert(id, provider.clone());
     drop(inner);
@@ -511,7 +555,7 @@ mod tests {
             Some("npm"),
             3,
             None,
-            &["model-a".into()],
+            vec![],
         )
         .await
         .unwrap();
@@ -531,7 +575,7 @@ mod tests {
             None,
             0,
             None,
-            &[],
+            vec![],
         )
         .await
         .unwrap();
@@ -551,7 +595,7 @@ mod tests {
             Some("npm2"),
             4,
             None,
-            &["model-b".into()],
+            vec![],
         )
         .await
         .unwrap();

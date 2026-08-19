@@ -31,14 +31,7 @@ async fn upstream_native_model_id(
     resolved: &ResolvedModel,
     fallback: &str,
 ) -> String {
-    if let Ok(Some(ep)) =
-        cab_db::endpoint::find_for_model_provider(pool, &resolved.model.name, &resolved.provider_id)
-            .await
-        && !ep.native_model_id.trim().is_empty()
-    {
-        return ep.native_model_id.clone();
-    }
-
+    let _ = pool;
     resolved
         .model
         .links
@@ -620,6 +613,7 @@ data: [DONE]\n\n",
                 display_name: name.into(),
                 provider_id: "provider-1".into(),
                 protocol: protocol.into(),
+                upstream_protocol: None,
                 context_length: 128000,
                 input_cost: Some(1.0),
                 output_cost: Some(1.0),

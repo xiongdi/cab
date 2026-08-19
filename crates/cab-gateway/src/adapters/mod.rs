@@ -139,25 +139,18 @@ pub async fn handle_proxied_request(
             CabError::NotFound(format!("Provider {} not found", resolved.provider_id))
         })?;
 
-    let endpoint_meta = cab_db::endpoint::find_for_model_provider(
-        &state.pool,
-        &resolved.model.name,
-        &resolved.provider_id,
-    )
-    .await
-    .map_err(CabError::Database)?;
-
     let client_protocol = adapter.protocol();
     let has_client_endpoint = provider
         .endpoints
         .iter()
         .any(|e| e.protocol == client_protocol && e.enabled);
-    let catalog_protocol = endpoint_meta
+    let catalog_protocol = resolved.model.upstream_protocol.as_deref();
+    let native_model_id = resolved
+        .model
+        .links
         .as_ref()
-        .and_then(|ep| ep.upstream_protocol.as_deref());
-    let native_model_id = endpoint_meta
-        .as_ref()
-        .map(|ep| ep.native_model_id.as_str())
+        .and_then(|links| links.get("native_model_id"))
+        .and_then(|native| native.as_str())
         .filter(|id| !id.trim().is_empty())
         .unwrap_or(resolved.model.name.as_str());
     let sniffed = cab_core::sniff_provider_model_protocol(&resolved.provider_id, native_model_id);

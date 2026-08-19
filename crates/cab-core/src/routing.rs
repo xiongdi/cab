@@ -1242,6 +1242,7 @@ pub(crate) mod tests {
             display_name: name.into(),
             provider_id: "p1".into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 128_000,
             input_cost: Some(input),
             output_cost: Some(output),

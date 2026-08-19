@@ -41,8 +41,12 @@ pub async fn list_model_catalog(
         .and_then(|conn| cab_db::sqlite::load_aa_benchmark_catalog(&conn));
     let aa_map = load_aa_model_map();
 
+    // A canonical model may be bound to several providers (vendor + resellers);
+    // surface each distinct model once.
+    let mut seen_names = std::collections::HashSet::new();
     let mut entries: Vec<ModelCatalogEntry> = db_models
         .into_iter()
+        .filter(|model| seen_names.insert(model.name.clone()))
         .map(|model| {
             let models_dev = models_dev_map
                 .get(&model.name)
@@ -82,6 +86,12 @@ pub async fn list_models(State(state): State<ApiState>) -> Result<impl IntoRespo
     let models = cab_db::model::list(&state.pool)
         .await
         .map_err(CabError::Database)?;
+    // Deduplicate multi-provider bindings by canonical name (first binding wins).
+    let mut seen_names = std::collections::HashSet::new();
+    let models: Vec<cab_core::types::Model> = models
+        .into_iter()
+        .filter(|model| seen_names.insert(model.name.clone()))
+        .collect();
     Ok(Json(models))
 }
 
@@ -257,6 +267,7 @@ mod tests {
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -267,6 +278,7 @@ mod tests {
             display_name: format!("Display {name}"),
             provider_id: "provider-1".into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 128000,
             input_cost: Some(1.0),
             output_cost: Some(2.0),
@@ -326,13 +338,15 @@ mod tests {
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
-            data.providers.insert("provider-1".into(), provider());
-            data.models
-                .insert("model-1".into(), model("model-1", "provider/model-1", true));
-            data.models.insert(
-                "model-2".into(),
-                model("model-2", "provider/model-2", false),
-            );
+            let mut provider = provider();
+            provider.models = vec![
+                cab_core::ProviderModel { model: model("model-1", "provider/model-1", true) },
+                cab_core::ProviderModel { model: model("model-2", "provider/model-2", false) },
+            ];
+            provider.model_count = provider.models.len();
+            provider.catalog_models =
+                provider.models.iter().map(|bm| bm.model.name.clone()).collect();
+            data.providers.insert("provider-1".into(), provider);
             data.model_endpoints.insert(
                 "endpoint-1".into(),
                 endpoint("endpoint-1", "provider/model-1", true),

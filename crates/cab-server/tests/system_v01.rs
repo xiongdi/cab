@@ -264,42 +264,42 @@ async fn st_routing_explain_returns_decision_trace() {
                 model_count: 1,
                 logo: None,
                 catalog_models: vec![],
-            },
-        );
-        data.models.insert(
-            "model-1".into(),
-            cab_core::types::Model {
-                id: "model-1".into(),
-                name: "provider/model-1".into(),
-                display_name: "Model One".into(),
-                provider_id: "provider-1".into(),
-                protocol: "openai-chat".into(),
-                context_length: 128000,
-                input_cost: Some(1.0),
-                output_cost: Some(2.0),
-                enabled: true,
-                overall_intelligence: Some(80.0),
-                coding_index: Some(85.0),
-                agentic_index: Some(80.0),
-                math_index: Some(75.0),
-                output_speed_tps: None,
-                time_to_first_token_secs: None,
-                created_at: "now".into(),
-                updated_at: "now".into(),
-                canonical_slug: None,
-                hugging_face_id: None,
-                created: None,
-                description: None,
-                architecture: None,
-                pricing: None,
-                top_provider: None,
-                per_request_limits: None,
-                supported_parameters: None,
-                default_parameters: None,
-                supported_voices: None,
-                knowledge_cutoff: None,
-                expiration_date: None,
-                links: None,
+                models: vec![cab_core::ProviderModel {
+                    model: cab_core::types::Model {
+                        id: "model-1".into(),
+                        name: "provider/model-1".into(),
+                        display_name: "Model One".into(),
+                        provider_id: "provider-1".into(),
+                        protocol: "openai-chat".into(),
+                        upstream_protocol: None,
+                        context_length: 128000,
+                        input_cost: Some(1.0),
+                        output_cost: Some(2.0),
+                        enabled: true,
+                        overall_intelligence: Some(80.0),
+                        coding_index: Some(85.0),
+                        agentic_index: Some(80.0),
+                        math_index: Some(75.0),
+                        output_speed_tps: None,
+                        time_to_first_token_secs: None,
+                        created_at: "now".into(),
+                        updated_at: "now".into(),
+                        canonical_slug: None,
+                        hugging_face_id: None,
+                        created: None,
+                        description: None,
+                        architecture: None,
+                        pricing: None,
+                        top_provider: None,
+                        per_request_limits: None,
+                        supported_parameters: None,
+                        default_parameters: None,
+                        supported_voices: None,
+                        knowledge_cutoff: None,
+                        expiration_date: None,
+                        links: None,
+                    },
+                }],
             },
         );
     }
@@ -382,6 +382,7 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 model_count: 2,
                 logo: None,
                 catalog_models: vec![],
+                models: vec![],
             },
         );
         data.providers.insert(
@@ -418,6 +419,7 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 model_count: 2,
                 logo: None,
                 catalog_models: vec![],
+                models: vec![],
             },
         );
 
@@ -435,6 +437,7 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 display_name: format!("Model {id}"),
                 provider_id: provider_id.into(),
                 protocol: "openai-chat".into(),
+                upstream_protocol: None,
                 context_length: 128000,
                 input_cost: Some(input_cost),
                 output_cost: Some(output_cost),
@@ -465,8 +468,9 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
         }
 
         // cheap model: $0.1/$0.2 per Mtok
-        data.models.insert(
-            "cheap-model".into(),
+        // mid model: $1/$2 per Mtok
+        // expensive model: $10/$20 per Mtok
+        let all_models = vec![
             make_model(
                 "cheap-model",
                 "cheap-provider/cheap",
@@ -475,10 +479,6 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 0.2,
                 40.0,
             ),
-        );
-        // mid model: $1/$2 per Mtok
-        data.models.insert(
-            "mid-model".into(),
             make_model(
                 "mid-model",
                 "cheap-provider/mid",
@@ -487,10 +487,6 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 2.0,
                 70.0,
             ),
-        );
-        // expensive model: $10/$20 per Mtok
-        data.models.insert(
-            "expensive-model".into(),
             make_model(
                 "expensive-model",
                 "pricey-provider/expensive",
@@ -499,23 +495,31 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
                 20.0,
                 95.0,
             ),
-        );
+        ];
+
+        // Bind each model to its provider (provider-first binding model).
+        for model in &all_models {
+            let provider = data.providers.get_mut(&model.provider_id).unwrap();
+            provider
+                .models
+                .push(cab_core::ProviderModel { model: model.clone() });
+        }
 
         // Add model endpoints for all models (required for gateway model listing)
-        for m in ["cheap-model", "mid-model", "expensive-model"] {
-            let model_ref = &data.models[m];
-            let name = model_ref.name.clone();
-            let provider_name = data.providers[&model_ref.provider_id].name.clone();
-            let input_cost = model_ref.input_cost.unwrap_or(0.0);
-            let output_cost = model_ref.output_cost.unwrap_or(0.0);
+        for m in &all_models {
+            let id = m.id.clone();
+            let name = m.name.clone();
+            let provider_name = data.providers[&m.provider_id].name.clone();
+            let input_cost = m.input_cost.unwrap_or(0.0);
+            let output_cost = m.output_cost.unwrap_or(0.0);
             data.model_endpoints.insert(
-                format!("{m}-ep"),
+                format!("{id}-ep"),
                 cab_db::endpoint::ModelEndpoint {
-                    id: format!("{m}-ep"),
+                    id: id.clone(),
                     model_id: name.clone(),
                     canonical_slug: name.clone(),
                     provider_name,
-                    provider_tag: format!("tag/{m}"),
+                    provider_tag: format!("tag/{id}"),
                     native_model_id: name.clone(),
                     upstream_protocol: None,
                     quantization: "unknown".into(),

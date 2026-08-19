@@ -292,6 +292,7 @@ mod handler_and_catalog_tests {
             model_count: 1,
             logo: None,
             catalog_models: vec!["provider/model-one".into()],
+            models: vec![],
         }
     }
 
@@ -610,7 +611,8 @@ mod handler_and_catalog_tests {
         )
         .await
         .unwrap();
-        assert_eq!(synced, 1);
+        // The canonical model is bound to every serving provider (vendor + reseller).
+        assert_eq!(synced, 2);
         cab_db::provider::apply_all_provider_configs(&pool)
             .await
             .unwrap();
@@ -652,6 +654,20 @@ mod handler_and_catalog_tests {
             "model-one"
         );
 
+        // Vendor-first deterministic ordering across the model's bindings.
+        let bindings = cab_db::model::list_by_name(&pool, "provider/model-one")
+            .await
+            .unwrap();
+        assert_eq!(bindings.len(), 2);
+        assert_eq!(bindings[0].provider_id, "provider");
+        assert_eq!(bindings[1].provider_id, "reseller");
+        assert_eq!(bindings[1].input_cost, Some(3.0));
+        assert_eq!(bindings[1].output_cost, Some(4.0));
+        assert_eq!(
+            bindings[1].top_provider.as_ref().unwrap()["native_model_id"],
+            "provider/model-one"
+        );
+
         let endpoints = cab_db::endpoint::list_for_model(&pool, "provider/model-one")
             .await
             .unwrap();
@@ -684,7 +700,7 @@ mod handler_and_catalog_tests {
         )
         .await
         .unwrap();
-        assert_eq!(updated, 1);
+        assert_eq!(updated, 2);
     }
 
     #[test]

@@ -56,6 +56,23 @@ pub fn ordered_api_keys(api_keys: &[ApiKeyConfig]) -> Vec<String> {
         .collect()
 }
 
+/// A model bound to its (single) provider. This replaces the legacy separate
+/// `Model` collection + `model_endpoints` join table: each model is nested
+/// inside exactly one provider, which is the sole source of truth for its
+/// availability, pricing, and enablement.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderModel {
+    #[serde(flatten)]
+    pub model: Model,
+}
+
+/// A model nested inside a provider (binding source of truth).
+impl ProviderModel {
+    pub fn model(&self) -> &Model {
+        &self.model
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Provider {
     pub id: String,
@@ -78,8 +95,12 @@ pub struct Provider {
     pub model_count: usize,
     #[serde(default)]
     pub logo: Option<String>,
+    /// Legacy catalog model-name listing (informational; see `models` for binding).
     #[serde(default)]
     pub catalog_models: Vec<String>,
+    /// Models bound to this provider (provider → model 1:N; source of truth).
+    #[serde(default)]
+    pub models: Vec<ProviderModel>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -133,6 +154,10 @@ pub struct Model {
     pub display_name: String,
     pub provider_id: String,
     pub protocol: String, // "openai" or "anthropic"
+    /// Upstream wire protocol this model expects on its provider (from models.dev
+    /// per-model npm), e.g. openai-responses for reasoning models.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_protocol: Option<String>,
     pub context_length: i64,
     pub input_cost: Option<f64>,
     pub output_cost: Option<f64>,
@@ -175,6 +200,8 @@ pub struct CreateModel {
     pub display_name: String,
     pub provider_id: String,
     pub protocol: String, // "openai" or "anthropic"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_protocol: Option<String>,
     pub context_length: i64,
     pub input_cost: Option<f64>,
     pub output_cost: Option<f64>,
@@ -208,6 +235,8 @@ pub struct UpdateModel {
     pub display_name: Option<String>,
     pub provider_id: Option<String>,
     pub protocol: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_protocol: Option<Option<String>>,
     pub context_length: Option<i64>,
     /// Outer `None` = leave unchanged; inner `None` = clear.
     pub input_cost: Option<Option<f64>>,

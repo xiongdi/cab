@@ -216,22 +216,18 @@ pub async fn handle_list_models(
     );
 
     let mut model_list = Vec::new();
+    let mut seen_names = std::collections::HashSet::new();
     for model in models {
         if !model.enabled {
             continue;
         }
         let native_active = active_provider_ids.contains(&model.provider_id);
-        let provider_tags =
-            cab_db::endpoint::enabled_provider_tags_for_model(&state.pool, &model.name)
-                .await
-                .map_err(CabError::Database)?;
-        if provider_tags.is_empty() {
+        if !native_active {
             continue;
         }
-        let reseller_active = provider_tags
-            .iter()
-            .any(|tag| active_provider_ids.contains(tag));
-        if !native_active && !reseller_active {
+        // A canonical model may be bound to several active providers; expose
+        // each distinct model once (first active binding wins).
+        if !seen_names.insert(model.name.clone()) {
             continue;
         }
 
@@ -470,6 +466,7 @@ data: [DONE]\n",
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -506,6 +503,7 @@ data: [DONE]\n",
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -526,6 +524,7 @@ data: [DONE]\n",
             display_name: format!("Display {name}"),
             provider_id: provider_id.into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 128000,
             input_cost,
             output_cost,
@@ -585,24 +584,21 @@ data: [DONE]\n",
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
-            data.providers.insert(
-                "provider-1".into(),
-                provider_with_endpoint(provider_protocol, base_url),
+            let mut bound = model(
+                "provider-model",
+                "provider/model",
+                "provider-1",
+                true,
+                50.0,
+                None,
+                Some(1.0),
+                Some(2.0),
             );
-            data.models.insert(
-                "provider-model".into(),
-                model(
-                    "provider-model",
-                    "provider/model",
-                    "provider-1",
-                    true,
-                    50.0,
-                    None,
-                    Some(1.0),
-                    Some(2.0),
-                ),
-            );
-            data.models.get_mut("provider-model").unwrap().protocol = model_protocol.into();
+            bound.protocol = model_protocol.into();
+            let mut provider = provider_with_endpoint(provider_protocol, base_url);
+            provider.models = vec![cab_core::ProviderModel { model: bound }];
+            provider.model_count = 1;
+            data.providers.insert("provider-1".into(), provider);
         }
         Arc::new(GatewayState {
             pool,
@@ -752,67 +748,38 @@ data: [DONE]\n",
         let pool = cab_db::InMemoryStore::new();
         {
             let mut data = pool.inner.write().unwrap();
-            data.providers
-                .insert("p1".into(), provider("p1", true, "key"));
-            data.providers
-                .insert("p2".into(), provider("p2", false, "key"));
-            data.providers.insert("p3".into(), provider("p3", true, ""));
-            data.models.insert(
-                "high".into(),
-                model(
-                    "high",
-                    "p1/high-model",
-                    "p1",
-                    true,
-                    90.0,
-                    Some("A very capable model with a description that is intentionally longer than sixty characters."),
-                    Some(1.25),
-                    Some(2.0),
-                ),
-            );
-            data.models.insert(
-                "low".into(),
-                model(
-                    "low",
-                    "p1/low-model",
-                    "p1",
-                    true,
-                    10.0,
-                    Some("p1"),
-                    None,
-                    None,
-                ),
-            );
-            data.models.insert(
-                "disabled".into(),
-                model(
-                    "disabled",
-                    "p1/disabled",
-                    "p1",
-                    false,
-                    100.0,
-                    None,
-                    None,
-                    None,
-                ),
-            );
-            data.models.insert(
-                "disabled-provider".into(),
-                model(
-                    "disabled-provider",
-                    "p2/model",
-                    "p2",
-                    true,
-                    100.0,
-                    None,
-                    None,
-                    None,
-                ),
-            );
-            data.models.insert(
-                "no-key".into(),
-                model("no-key", "p3/model", "p3", true, 100.0, None, None, None),
-            );
+            let mut p1 = provider("p1", true, "key");
+            p1.models = vec![
+                cab_core::ProviderModel {
+                    model: model(
+                        "high",
+                        "p1/high-model",
+                        "p1",
+                        true,
+                        90.0,
+                        Some("A very capable model with a description that is intentionally longer than sixty characters."),
+                        Some(1.25),
+                        Some(2.0),
+                    ),
+                },
+                cab_core::ProviderModel {
+                    model: model("low", "p1/low-model", "p1", true, 10.0, Some("p1"), None, None),
+                },
+                cab_core::ProviderModel {
+                    model: model("disabled", "p1/disabled", "p1", false, 100.0, None, None, None),
+                },
+            ];
+            data.providers.insert("p1".into(), p1);
+            let mut p2 = provider("p2", false, "key");
+            p2.models = vec![cab_core::ProviderModel {
+                model: model("disabled-provider", "p2/model", "p2", true, 100.0, None, None, None),
+            }];
+            data.providers.insert("p2".into(), p2);
+            let mut p3 = provider("p3", true, "");
+            p3.models = vec![cab_core::ProviderModel {
+                model: model("no-key", "p3/model", "p3", true, 100.0, None, None, None),
+            }];
+            data.providers.insert("p3".into(), p3);
             data.model_endpoints
                 .insert("high-ep".into(), endpoint("high-ep", "p1/high-model", true));
             data.model_endpoints
@@ -1003,21 +970,11 @@ data: [DONE]\n",
                     updated_at: String::new(),
                 },
             );
-            data.providers
-                .insert("p1".into(), provider("p1", true, "key"));
-            data.models.insert(
-                "high".into(),
-                model(
-                    "high",
-                    "p1/high-model",
-                    "p1",
-                    true,
-                    90.0,
-                    None,
-                    Some(1.0),
-                    Some(2.0),
-                ),
-            );
+            let mut p1 = provider("p1", true, "key");
+            p1.models = vec![cab_core::ProviderModel {
+                model: model("high", "p1/high-model", "p1", true, 90.0, None, Some(1.0), Some(2.0)),
+            }];
+            data.providers.insert("p1".into(), p1);
             data.model_endpoints
                 .insert("high-ep".into(), endpoint("high-ep", "p1/high-model", true));
         }

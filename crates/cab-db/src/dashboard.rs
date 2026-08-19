@@ -23,22 +23,13 @@ pub async fn get_stats(store: &InMemoryStore) -> Result<DashboardStats, String> 
         .filter(|p| p.enabled && (!p.api_key.is_empty() || p.id == "provider-ollama"))
         .map(|p| p.id.clone())
         .collect();
+    // Active models: enabled bound models served by an active provider.
     let models_count = inner
-        .models
+        .providers
         .values()
-        .filter(|m| {
-            if !m.enabled {
-                return false;
-            }
-            if active_provider_ids.contains(&m.provider_id) {
-                return true;
-            }
-            inner.model_endpoints.values().any(|ep| {
-                ep.model_id == m.name
-                    && ep.enabled
-                    && active_provider_ids.contains(&ep.provider_tag)
-            })
-        })
+        .filter(|p| active_provider_ids.contains(&p.id))
+        .flat_map(|p| p.models.iter())
+        .filter(|bm| bm.model.enabled)
         .count() as i64;
 
     let mut recent_requests = inner.request_logs.clone();
@@ -67,7 +58,11 @@ pub async fn get_stats(store: &InMemoryStore) -> Result<DashboardStats, String> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cab_core::types::{Model, Provider, ProviderEndpoint, RequestLog};
+    use cab_core::types::{Model, Provider, ProviderEndpoint, ProviderModel, RequestLog};
+
+    fn bind(provider: &mut Provider, models: Vec<Model>) {
+        provider.models = models.into_iter().map(|model| ProviderModel { model }).collect();
+    }
 
     fn provider(id: &str, enabled: bool, key: &str) -> Provider {
         Provider {
@@ -98,6 +93,7 @@ mod tests {
             model_count: 0,
             logo: None,
             catalog_models: vec![],
+            models: vec![],
         }
     }
 
@@ -108,6 +104,7 @@ mod tests {
             display_name: id.into(),
             provider_id: provider_id.into(),
             protocol: "openai-chat".into(),
+            upstream_protocol: None,
             context_length: 1,
             input_cost: None,
             output_cost: None,
@@ -171,11 +168,16 @@ mod tests {
                 "provider-ollama".into(),
                 provider("provider-ollama", true, ""),
             );
-            data.models.insert("m1".into(), model("m1", "p1", true));
-            data.models.insert("m2".into(), model("m2", "p2", true));
-            data.models
-                .insert("m3".into(), model("m3", "provider-ollama", true));
-            data.models.insert("m4".into(), model("m4", "p1", false));
+            bind(data.providers.get_mut("p1").unwrap(), vec![
+                model("m1", "p1", true),
+                model("m4", "p1", false),
+            ]);
+            bind(data.providers.get_mut("p2").unwrap(), vec![
+                model("m2", "p2", true),
+            ]);
+            bind(data.providers.get_mut("provider-ollama").unwrap(), vec![
+                model("m3", "provider-ollama", true),
+            ]);
             for idx in 0..6 {
                 data.request_logs
                     .push(log(&format!("log-{idx}"), "p1", "m1", idx));
@@ -194,50 +196,27 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn dashboard_counts_models_reachable_via_reseller_endpoint() {
+    async fn dashboard_counts_only_models_of_active_providers() {
         let store = InMemoryStore::new();
         {
             let mut data = store.inner.write().unwrap();
-            // Native provider `native` disabled with a key — not active on its own.
+            // Native provider disabled with a key — not active on its own.
             data.providers
                 .insert("native".into(), provider("native", false, "key"));
-            // Reseller provider `reseller` enabled with a key — active.
             data.providers
-                .insert("reseller".into(), provider("reseller", true, "key"));
-            data.models.insert("m1".into(), model("m1", "native", true));
-            // Model m2 has no provider key and no endpoint → not counted.
-            data.models.insert("m2".into(), model("m2", "native", true));
-            // Enabled endpoint for m1 served by the active reseller.
-            data.model_endpoints.insert(
-                "ep1".into(),
-                crate::endpoint::ModelEndpoint {
-                    id: "ep1".into(),
-                    model_id: "m1".into(),
-                    canonical_slug: "m1".into(),
-                    provider_name: "Reseller".into(),
-                    provider_tag: "reseller".into(),
-                    native_model_id: "m1".into(),
-                    upstream_protocol: None,
-                    quantization: "fp16".into(),
-                    input_cost: Some(1.0),
-                    output_cost: Some(2.0),
-                    cache_read_cost: None,
-                    context_length: None,
-                    max_completion_tokens: None,
-                    status: 1,
-                    uptime_30m: None,
-                    uptime_5m: None,
-                    uptime_1d: None,
-                    supports_tools: true,
-                    supports_streaming: true,
-                    enabled: true,
-                    updated_at: "now".into(),
-                },
-            );
+                .insert("active".into(), provider("active", true, "key"));
+            bind(data.providers.get_mut("native").unwrap(), vec![
+                model("m1", "native", true),
+                model("m2", "native", true),
+            ]);
+            bind(data.providers.get_mut("active").unwrap(), vec![
+                model("m3", "active", true),
+            ]);
         }
 
         let stats = get_stats(&store).await.unwrap();
-        // Native provider is disabled, but m1 is reachable via the active reseller endpoint.
+        // Only `active` is an enabled provider with a key; its enabled bound model
+        // is counted. Models bound to the disabled `native` provider are not.
         assert_eq!(stats.providers_count, 1);
         assert_eq!(stats.models_count, 1);
     }
