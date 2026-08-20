@@ -5,6 +5,17 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.3] - 2026-08-20
+
+### Changed
+
+- **AA model map merges bundled baseline with user overlay**: the embedded map is always loaded first as the authoritative baseline, then the local `~/.cab/catalog/aa-model-map.json` is layered on top. New mappings shipped in releases now take effect for existing installs without losing user customizations.
+- **Provider page model management overhaul**: models display in a detail grid with per-model enable/disable toggle switches, a "Disable all models" button, loaded-model count, and a hint for models not yet registered in the database. Endpoint and key delete buttons gain visible text labels and aria-labels for accessibility.
+
+### Fixed
+
+- **Gateway WS SSE parser**: satisfy clippy `collapsible_if` lint.
+
 ## [0.11.2] - 2026-08-20
 
 ### Fixed
