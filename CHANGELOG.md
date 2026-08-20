@@ -5,6 +5,13 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2026-08-20
+
+### Fixed
+
+- **Codex Responses WebSocket no longer falls back to HTTPS**: accept flat `response.create`, keep the socket across warmup/`generate:false` and multi-turn, emit full `response.*` event frames (via `responses_to_sse_stream`), cache `previous_response_id`, and Close cleanly.
+- **Codex auto routing on WS**: write `http_headers.x-cab-agent = "codex"` and fall back when the upgrade omits a recognizable User-Agent for placeholder model `gpt-5.5`.
+
 ## [0.11.1] - 2026-08-20
 
 ### Changed

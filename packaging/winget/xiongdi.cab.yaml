@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.singleton.1.6.0.schema.json
 
 PackageIdentifier: xiongdi.cab
-PackageVersion: 0.11.1
+PackageVersion: 0.11.2
 PackageName: CAB
 Publisher: xiongdi
 License: Auditable Commercial License v1.0
@@ -18,7 +18,7 @@ Installers:
     NestedInstallerFiles:
       - RelativeFilePath: cab.exe
         PortableCommandAlias: cab
-    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.11.1/cab-windows-x64.zip
+    InstallerUrl: https://github.com/xiongdi/cab/releases/download/v0.11.2/cab-windows-x64.zip
     InstallerSha256: 0000000000000000000000000000000000000000000000000000000000000000
 ManifestType: singleton
 ManifestVersion: 1.6.0

@@ -10,6 +10,7 @@ pub mod router;
 pub mod server;
 pub mod shaping;
 pub mod state;
+pub mod ws_responses;
 
 pub use server::gateway_router;
 pub use state::GatewayState;

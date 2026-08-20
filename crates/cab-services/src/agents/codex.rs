@@ -100,6 +100,15 @@ impl AgentIntegration for Integration {
                 toml::Value::Boolean(true),
             );
 
+            // Codex WS upgrades sometimes omit a recognizable User-Agent; force
+            // CAB agent detection via an explicit header on every hop.
+            let mut http_headers = toml::Table::new();
+            http_headers.insert(
+                "x-cab-agent".to_string(),
+                toml::Value::String("codex".to_string()),
+            );
+            cab_provider.insert("http_headers".to_string(), toml::Value::Table(http_headers));
+
             // Keep OAuth-style auth.json compatibility for Codex runtimes that
             // require it, while env_key makes the credential source explicit.
             cab_provider.insert(
