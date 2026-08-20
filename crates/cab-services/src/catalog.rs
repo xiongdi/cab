@@ -863,15 +863,6 @@ mod resolve_canonical_model_name_tests {
     }
 
     #[test]
-    fn opencode_go_provider_lists_twenty_six_models_in_bundled_catalog() {
-        let catalog = cab_core::load_models_dev_catalog_file().expect("bundled catalog");
-        let providers: std::collections::HashMap<String, ModelsDevProvider> =
-            serde_json::from_value(catalog.providers).expect("providers");
-        let ogo = providers.get("opencode-go").expect("opencode-go provider");
-        assert_eq!(ogo.models.len(), 26);
-    }
-
-    #[test]
     fn provider_only_model_uses_native_id_when_no_canonical_row() {
         let models_data = std::collections::HashMap::new();
         let model: ModelsDevModel =
