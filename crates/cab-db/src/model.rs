@@ -17,7 +17,11 @@ pub async fn list(store: &InMemoryStore) -> Result<Vec<Model>, String> {
         normalize_model(model);
     }
     // Deterministic across providers (a canonical model may be bound to several).
-    list.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.provider_id.cmp(&b.provider_id)));
+    list.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a.provider_id.cmp(&b.provider_id))
+    });
     Ok(list)
 }
 
@@ -117,9 +121,15 @@ pub async fn create(store: &InMemoryStore, input: &CreateModel) -> Result<Model,
             .iter()
             .any(|bm| bm.model.name.eq_ignore_ascii_case(&model.name));
         if !already {
-            provider.models.push(cab_core::ProviderModel { model: model.clone() });
+            provider.models.push(cab_core::ProviderModel {
+                model: model.clone(),
+            });
         }
-        provider.catalog_models = provider.models.iter().map(|bm| bm.model.name.clone()).collect();
+        provider.catalog_models = provider
+            .models
+            .iter()
+            .map(|bm| bm.model.name.clone())
+            .collect();
         provider.model_count = provider.models.len();
         provider.updated_at = chrono::Utc::now().to_rfc3339();
         let updated = provider.clone();
@@ -259,7 +269,11 @@ pub async fn update(
         if updated.is_none() {
             updated = Some(m.clone());
         }
-        provider.catalog_models = provider.models.iter().map(|bm| bm.model.name.clone()).collect();
+        provider.catalog_models = provider
+            .models
+            .iter()
+            .map(|bm| bm.model.name.clone())
+            .collect();
         provider.model_count = provider.models.len();
         persisted.push(provider.clone());
     }
@@ -282,8 +296,11 @@ pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
             .models
             .retain(|bm| bm.model.id != id && bm.model.name != id);
         if provider.models.len() != before {
-            provider.catalog_models =
-                provider.models.iter().map(|bm| bm.model.name.clone()).collect();
+            provider.catalog_models = provider
+                .models
+                .iter()
+                .map(|bm| bm.model.name.clone())
+                .collect();
             provider.model_count = provider.models.len();
             removed_provider = Some(provider.clone());
             break;

@@ -757,22 +757,51 @@ data: [DONE]\n",
                         "p1",
                         true,
                         90.0,
-                        Some("A very capable model with a description that is intentionally longer than sixty characters."),
+                        Some(
+                            "A very capable model with a description that is intentionally longer than sixty characters.",
+                        ),
                         Some(1.25),
                         Some(2.0),
                     ),
                 },
                 cab_core::ProviderModel {
-                    model: model("low", "p1/low-model", "p1", true, 10.0, Some("p1"), None, None),
+                    model: model(
+                        "low",
+                        "p1/low-model",
+                        "p1",
+                        true,
+                        10.0,
+                        Some("p1"),
+                        None,
+                        None,
+                    ),
                 },
                 cab_core::ProviderModel {
-                    model: model("disabled", "p1/disabled", "p1", false, 100.0, None, None, None),
+                    model: model(
+                        "disabled",
+                        "p1/disabled",
+                        "p1",
+                        false,
+                        100.0,
+                        None,
+                        None,
+                        None,
+                    ),
                 },
             ];
             data.providers.insert("p1".into(), p1);
             let mut p2 = provider("p2", false, "key");
             p2.models = vec![cab_core::ProviderModel {
-                model: model("disabled-provider", "p2/model", "p2", true, 100.0, None, None, None),
+                model: model(
+                    "disabled-provider",
+                    "p2/model",
+                    "p2",
+                    true,
+                    100.0,
+                    None,
+                    None,
+                    None,
+                ),
             }];
             data.providers.insert("p2".into(), p2);
             let mut p3 = provider("p3", true, "");
@@ -972,7 +1001,16 @@ data: [DONE]\n",
             );
             let mut p1 = provider("p1", true, "key");
             p1.models = vec![cab_core::ProviderModel {
-                model: model("high", "p1/high-model", "p1", true, 90.0, None, Some(1.0), Some(2.0)),
+                model: model(
+                    "high",
+                    "p1/high-model",
+                    "p1",
+                    true,
+                    90.0,
+                    None,
+                    Some(1.0),
+                    Some(2.0),
+                ),
             }];
             data.providers.insert("p1".into(), p1);
             data.model_endpoints

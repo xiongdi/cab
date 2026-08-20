@@ -12,6 +12,7 @@ fn sample_model(name: &str, scores: (f64, f64, f64, f64)) -> Model {
         display_name: name.into(),
         provider_id: "p1".into(),
         protocol: "openai-chat".into(),
+        upstream_protocol: None,
         context_length: 128_000,
         input_cost: Some(1.0),
         output_cost: Some(2.0),

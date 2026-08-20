@@ -340,12 +340,19 @@ mod tests {
             let mut data = pool.inner.write().unwrap();
             let mut provider = provider();
             provider.models = vec![
-                cab_core::ProviderModel { model: model("model-1", "provider/model-1", true) },
-                cab_core::ProviderModel { model: model("model-2", "provider/model-2", false) },
+                cab_core::ProviderModel {
+                    model: model("model-1", "provider/model-1", true),
+                },
+                cab_core::ProviderModel {
+                    model: model("model-2", "provider/model-2", false),
+                },
             ];
             provider.model_count = provider.models.len();
-            provider.catalog_models =
-                provider.models.iter().map(|bm| bm.model.name.clone()).collect();
+            provider.catalog_models = provider
+                .models
+                .iter()
+                .map(|bm| bm.model.name.clone())
+                .collect();
             data.providers.insert("provider-1".into(), provider);
             data.model_endpoints.insert(
                 "endpoint-1".into(),

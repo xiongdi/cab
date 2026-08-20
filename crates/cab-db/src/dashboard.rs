@@ -61,7 +61,10 @@ mod tests {
     use cab_core::types::{Model, Provider, ProviderEndpoint, ProviderModel, RequestLog};
 
     fn bind(provider: &mut Provider, models: Vec<Model>) {
-        provider.models = models.into_iter().map(|model| ProviderModel { model }).collect();
+        provider.models = models
+            .into_iter()
+            .map(|model| ProviderModel { model })
+            .collect();
     }
 
     fn provider(id: &str, enabled: bool, key: &str) -> Provider {
@@ -168,16 +171,18 @@ mod tests {
                 "provider-ollama".into(),
                 provider("provider-ollama", true, ""),
             );
-            bind(data.providers.get_mut("p1").unwrap(), vec![
-                model("m1", "p1", true),
-                model("m4", "p1", false),
-            ]);
-            bind(data.providers.get_mut("p2").unwrap(), vec![
-                model("m2", "p2", true),
-            ]);
-            bind(data.providers.get_mut("provider-ollama").unwrap(), vec![
-                model("m3", "provider-ollama", true),
-            ]);
+            bind(
+                data.providers.get_mut("p1").unwrap(),
+                vec![model("m1", "p1", true), model("m4", "p1", false)],
+            );
+            bind(
+                data.providers.get_mut("p2").unwrap(),
+                vec![model("m2", "p2", true)],
+            );
+            bind(
+                data.providers.get_mut("provider-ollama").unwrap(),
+                vec![model("m3", "provider-ollama", true)],
+            );
             for idx in 0..6 {
                 data.request_logs
                     .push(log(&format!("log-{idx}"), "p1", "m1", idx));
@@ -205,13 +210,14 @@ mod tests {
                 .insert("native".into(), provider("native", false, "key"));
             data.providers
                 .insert("active".into(), provider("active", true, "key"));
-            bind(data.providers.get_mut("native").unwrap(), vec![
-                model("m1", "native", true),
-                model("m2", "native", true),
-            ]);
-            bind(data.providers.get_mut("active").unwrap(), vec![
-                model("m3", "active", true),
-            ]);
+            bind(
+                data.providers.get_mut("native").unwrap(),
+                vec![model("m1", "native", true), model("m2", "native", true)],
+            );
+            bind(
+                data.providers.get_mut("active").unwrap(),
+                vec![model("m3", "active", true)],
+            );
         }
 
         let stats = get_stats(&store).await.unwrap();

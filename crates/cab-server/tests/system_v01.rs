@@ -500,9 +500,9 @@ async fn st_price_route_ranks_cheapest_model_for_grok_build_agent() {
         // Bind each model to its provider (provider-first binding model).
         for model in &all_models {
             let provider = data.providers.get_mut(&model.provider_id).unwrap();
-            provider
-                .models
-                .push(cab_core::ProviderModel { model: model.clone() });
+            provider.models.push(cab_core::ProviderModel {
+                model: model.clone(),
+            });
         }
 
         // Add model endpoints for all models (required for gateway model listing)

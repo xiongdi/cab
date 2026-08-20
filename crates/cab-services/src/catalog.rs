@@ -651,7 +651,6 @@ fn extract_model_ids(payload: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-
 #[allow(clippy::too_many_arguments, clippy::collapsible_if)]
 pub async fn sync_models_dev_models(
     pool: &cab_db::InMemoryStore,
@@ -793,10 +792,7 @@ pub async fn sync_models_dev_models(
                 .then_with(|| a.provider_id.cmp(&b.provider_id))
         });
 
-        let display_name = model
-            .name
-            .clone()
-            .unwrap_or_else(|| model_name.clone());
+        let display_name = model.name.clone().unwrap_or_else(|| model_name.clone());
         let context_length = model
             .limit
             .as_ref()
