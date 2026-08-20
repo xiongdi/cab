@@ -268,6 +268,18 @@ pub fn normalize_models_dev_model_key(value: &str) -> String {
     value.trim().to_ascii_lowercase().replace([' ', '_'], "-")
 }
 
+/// Catalog key used when binding a models.dev provider model to a gateway.
+/// Global `models` catalog rows are reference metadata; when no canonical row
+/// exists the provider's own model id is authoritative for routing.
+fn provider_binding_catalog_id(
+    provider_id: &str,
+    model: &ModelsDevModel,
+    models_data: &std::collections::HashMap<String, ModelsDevModel>,
+) -> String {
+    resolve_canonical_model_name(provider_id, model, models_data)
+        .unwrap_or_else(|| model.id.clone())
+}
+
 fn resolve_canonical_model_name(
     provider_id: &str,
     model: &ModelsDevModel,
@@ -514,12 +526,6 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
         serde_json::from_value(models_json)
             .map_err(|e| CabError::Database(format!("Failed to parse models.dev models: {e}")))?;
 
-    // Non-strict binding pass for enabled providers: discover live upstream
-    // models and bind catalog-unknown models under their own id.
-    let mut providers_data = providers_data;
-    let mut models_data = models_data;
-    merge_enabled_provider_models(pool, &mut providers_data, &mut models_data, &client).await;
-
     let count = sync_models_dev_models(
         pool,
         &providers_data,
@@ -543,112 +549,6 @@ pub async fn sync_models_internal(
     _provider_id: &str,
 ) -> Result<usize, CabError> {
     sync_models_dev_catalog(pool).await
-}
-
-/// Non-strict model binding, scoped to *enabled* providers only.
-///
-/// Strict catalog matching keeps the global model list clean (thousands of
-/// reseller-only slugs would otherwise flood the catalog), but models that a
-/// user's active provider actually serves must stay usable. Two passes:
-///
-/// 1. Live upstream discovery — query the provider's OpenAI-compatible
-///    `/v1/models` endpoint and inject models the models.dev catalog does not
-///    list yet (e.g. newly launched upstream models such as `hy3-preview`).
-/// 2. Lenient canonical fallback — provider models still without a catalog
-///    entry are injected into the canonical model map under their own id so
-///    they bind and stay explicitly requestable (e.g. `muse-spark-1.2`).
-async fn merge_enabled_provider_models(
-    pool: &cab_db::InMemoryStore,
-    providers_data: &mut std::collections::HashMap<String, ModelsDevProvider>,
-    models_data: &mut std::collections::HashMap<String, ModelsDevModel>,
-    client: &reqwest::Client,
-) {
-    let Ok(store_providers) = cab_db::provider::list_catalog(pool).await else {
-        return;
-    };
-
-    for store_provider in store_providers.iter().filter(|p| p.enabled) {
-        let provider_id = store_provider.id.clone();
-        let Some(provider_entry) = providers_data.get_mut(&provider_id) else {
-            continue;
-        };
-
-        // Pass 1: live upstream model discovery (best effort).
-        let active_key = cab_core::select_preferred_api_key(&store_provider.api_keys)
-            .unwrap_or_else(|| store_provider.api_key.clone());
-        if !active_key.trim().is_empty()
-            && let Some(endpoint) = store_provider
-                .endpoints
-                .iter()
-                .find(|e| e.enabled && e.protocol == "openai-chat")
-        {
-            let url = format!("{}/models", endpoint.url.trim_end_matches('/'));
-            match client
-                .get(&url)
-                .bearer_auth(&active_key)
-                .timeout(std::time::Duration::from_secs(15))
-                .send()
-                .await
-            {
-                Ok(resp) if resp.status().is_success() => {
-                    if let Ok(payload) = resp.json::<serde_json::Value>().await {
-                        for id in extract_model_ids(&payload) {
-                            let id = id.trim().to_string();
-                            if id.is_empty() || provider_entry.models.contains_key(&id) {
-                                continue;
-                            }
-                            tracing::info!(
-                                provider = %provider_id,
-                                model = %id,
-                                "discovered upstream model missing from models.dev catalog"
-                            );
-                            if let Ok(minimal) = serde_json::from_value::<ModelsDevModel>(
-                                serde_json::json!({ "id": id.clone(), "name": id }),
-                            ) {
-                                provider_entry.models.insert(id, minimal);
-                            }
-                        }
-                    }
-                }
-                Ok(resp) => tracing::debug!(
-                    provider = %provider_id,
-                    status = %resp.status(),
-                    "upstream model discovery skipped (non-2xx)"
-                ),
-                Err(e) => tracing::debug!(
-                    provider = %provider_id,
-                    error = %e,
-                    "upstream model discovery failed"
-                ),
-            }
-        }
-
-        // Pass 2: lenient canonical fallback — bind unresolved models under
-        // their own id so requests for them resolve to this provider.
-        let unresolved: Vec<ModelsDevModel> = provider_entry
-            .models
-            .values()
-            .filter(|m| resolve_canonical_model_name(&provider_id, m, models_data).is_none())
-            .cloned()
-            .collect();
-        for model in unresolved {
-            models_data.entry(model.id.clone()).or_insert(model);
-        }
-    }
-}
-
-fn extract_model_ids(payload: &serde_json::Value) -> Vec<String> {
-    payload
-        .get("data")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.get("id").and_then(|v| v.as_str()))
-                .map(|s| s.to_string())
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments, clippy::collapsible_if)]
@@ -729,10 +629,7 @@ pub async fn sync_models_dev_models(
             .map_err(CabError::Database)?;
 
         for model in provider.models.values() {
-            let Some(canonical) = resolve_canonical_model_name(provider_id, model, models_data)
-            else {
-                continue;
-            };
+            let canonical = provider_binding_catalog_id(provider_id, model, models_data);
             if !served_dedupe.insert(format!("{canonical}::{provider_id}")) {
                 continue;
             }
@@ -747,6 +644,19 @@ pub async fn sync_models_dev_models(
         }
     }
 
+    // Global catalog is reference metadata; provider model lists are authoritative
+    // for bindings. Include provider-only models (no canonical row) in the bind pass.
+    let mut binding_catalog = models_data.clone();
+    for (provider_id, provider) in providers_data {
+        for model in provider.models.values() {
+            if resolve_canonical_model_name(provider_id, model, models_data).is_some() {
+                continue;
+            }
+            let key = provider_binding_catalog_id(provider_id, model, models_data);
+            binding_catalog.entry(key).or_insert_with(|| model.clone());
+        }
+    }
+
     // Models are bound to their provider (provider → model 1:N). Collect each
     // built model per provider, then set them back onto the provider in one pass.
     let mut bound_by_provider: std::collections::HashMap<String, Vec<cab_core::ProviderModel>> =
@@ -756,7 +666,7 @@ pub async fn sync_models_dev_models(
         .map(|em| (em.name.clone(), em.enabled))
         .collect();
 
-    for (canonical_id, model) in models_data {
+    for (canonical_id, model) in &binding_catalog {
         let model_name = model.id.trim().to_string();
         if model_name.is_empty() {
             continue;
@@ -950,6 +860,27 @@ mod resolve_canonical_model_name_tests {
 
     fn model(id: &str) -> ModelsDevModel {
         serde_json::from_value(serde_json::json!({ "id": id })).unwrap()
+    }
+
+    #[test]
+    fn opencode_go_provider_lists_twenty_six_models_in_bundled_catalog() {
+        let catalog = cab_core::load_models_dev_catalog_file().expect("bundled catalog");
+        let providers: std::collections::HashMap<String, ModelsDevProvider> =
+            serde_json::from_value(catalog.providers).expect("providers");
+        let ogo = providers.get("opencode-go").expect("opencode-go provider");
+        assert_eq!(ogo.models.len(), 26);
+    }
+
+    #[test]
+    fn provider_only_model_uses_native_id_when_no_canonical_row() {
+        let models_data = std::collections::HashMap::new();
+        let model: ModelsDevModel =
+            serde_json::from_value(serde_json::json!({ "id": "muse-spark-1.2-contributor" }))
+                .unwrap();
+        assert_eq!(
+            super::provider_binding_catalog_id("opencode-go", &model, &models_data),
+            "muse-spark-1.2-contributor"
+        );
     }
 
     #[test]

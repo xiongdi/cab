@@ -826,6 +826,7 @@ components:
         hle:
           type: number
           nullable: true
+      additionalProperties: true
     BenchmarkPerformance:
       type: object
       properties:
@@ -838,6 +839,7 @@ components:
         median_time_to_first_answer_token:
           type: number
           nullable: true
+      additionalProperties: true
     BenchmarkModelRecord:
       type: object
       required: [id, slug, name, evaluations]
@@ -848,16 +850,27 @@ components:
           type: string
         name:
           type: string
+        creator_id:
+          type: string
+          nullable: true
         creator_slug:
           type: string
           nullable: true
         creator_name:
           type: string
           nullable: true
+        release_date:
+          type: string
+          nullable: true
         evaluations:
           $ref: '#/components/schemas/BenchmarkEvaluations'
         performance:
           $ref: '#/components/schemas/BenchmarkPerformance'
+        pricing:
+          type: object
+          additionalProperties: true
+          nullable: true
+      additionalProperties: true
     ModelCatalogEntry:
       type: object
       required: [id, catalog_id, enabled, models_dev, artificial_analysis, settings]

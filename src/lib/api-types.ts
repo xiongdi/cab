@@ -271,22 +271,28 @@ export interface BenchmarkEvaluations {
   scicode?: number | null;
   gpqa?: number | null;
   hle?: number | null;
+  [key: string]: unknown;
 }
 
 export interface BenchmarkPerformance {
   median_output_tokens_per_second?: number | null;
   median_time_to_first_token_seconds?: number | null;
   median_time_to_first_answer_token?: number | null;
+  [key: string]: unknown;
 }
 
 export interface BenchmarkModelRecord {
   id: string;
   slug: string;
   name: string;
+  creator_id?: string | null;
   creator_slug?: string | null;
   creator_name?: string | null;
+  release_date?: string | null;
   evaluations: BenchmarkEvaluations;
   performance?: BenchmarkPerformance;
+  pricing?: Record<string, unknown> | null;
+  [key: string]: unknown;
 }
 
 export interface ModelCatalogEntry {

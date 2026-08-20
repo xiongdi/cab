@@ -1,7 +1,7 @@
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkCatalogFile, BenchmarkEvaluations, BenchmarkModelRecord, BenchmarkPerformance,
-    artificial_analysis_models_path, artificial_analysis_models_url, ensure_aa_model_map_file,
+    BenchmarkCatalogFile, BenchmarkModelRecord, artificial_analysis_models_path,
+    artificial_analysis_models_url, benchmark_record_from_aa_api_model, ensure_aa_model_map_file,
     models_dev_catalog_path, models_dev_catalog_url, refresh_aa_model_map_exact_matches,
     resolve_artificial_analysis_api_key, write_catalog_file,
 };
@@ -11,28 +11,11 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 struct ArtificialAnalysisResponse {
-    data: Vec<ArtificialAnalysisModel>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ArtificialAnalysisModel {
-    id: String,
-    name: String,
-    slug: String,
-    model_creator: ArtificialAnalysisCreator,
-    evaluations: BenchmarkEvaluations,
     #[serde(default)]
-    median_output_tokens_per_second: Option<f64>,
+    status: Option<u64>,
     #[serde(default)]
-    median_time_to_first_token_seconds: Option<f64>,
-    #[serde(default)]
-    median_time_to_first_answer_token: Option<f64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ArtificialAnalysisCreator {
-    slug: String,
-    name: String,
+    prompt_options: Option<serde_json::Value>,
+    data: Vec<serde_json::Value>,
 }
 
 pub async fn sync_catalogs(
@@ -163,20 +146,9 @@ pub async fn sync_artificial_analysis_catalog(
     let models = response
         .data
         .into_iter()
-        .map(|model| BenchmarkModelRecord {
-            id: model.id,
-            slug: model.slug,
-            name: model.name,
-            creator_slug: Some(model.model_creator.slug),
-            creator_name: Some(model.model_creator.name),
-            evaluations: model.evaluations,
-            performance: BenchmarkPerformance {
-                median_output_tokens_per_second: model.median_output_tokens_per_second,
-                median_time_to_first_token_seconds: model.median_time_to_first_token_seconds,
-                median_time_to_first_answer_token: model.median_time_to_first_answer_token,
-            },
-        })
-        .collect::<Vec<_>>();
+        .map(benchmark_record_from_aa_api_model)
+        .collect::<Result<Vec<BenchmarkModelRecord>, String>>()
+        .map_err(CabError::Proxy)?;
 
     tracing::info!(
         "Synced {} Artificial Analysis benchmark records",
@@ -201,6 +173,8 @@ pub async fn sync_artificial_analysis_catalog(
     let cache_file = BenchmarkCatalogFile {
         source: "artificial-analysis".to_string(),
         synced_at: synced_at.clone(),
+        status: response.status,
+        prompt_options: response.prompt_options,
         models: models.clone(),
     };
     let cache_path = artificial_analysis_models_path();

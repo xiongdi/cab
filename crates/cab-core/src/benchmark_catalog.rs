@@ -8,10 +8,14 @@ use crate::model_scores::ModelIntelligenceIndices;
 const AA_MODELS_URL: &str = "https://artificialanalysis.ai/api/v2/data/llms/models";
 const MODELS_DEV_CATALOG_URL: &str = "https://models.dev/catalog.json";
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BenchmarkCatalogFile {
     pub source: String,
     pub synced_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub prompt_options: Option<serde_json::Value>,
     pub models: Vec<BenchmarkModelRecord>,
 }
 
@@ -23,6 +27,9 @@ pub struct BenchmarkPerformance {
     pub median_time_to_first_token_seconds: Option<f64>,
     #[serde(default)]
     pub median_time_to_first_answer_token: Option<f64>,
+    /// Any other performance keys from the AA API (percentiles, nested objects, …).
+    #[serde(default, flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,12 +38,21 @@ pub struct BenchmarkModelRecord {
     pub slug: String,
     pub name: String,
     #[serde(default)]
+    pub creator_id: Option<String>,
+    #[serde(default)]
     pub creator_slug: Option<String>,
     #[serde(default)]
     pub creator_name: Option<String>,
+    #[serde(default)]
+    pub release_date: Option<String>,
     pub evaluations: BenchmarkEvaluations,
     #[serde(default)]
     pub performance: BenchmarkPerformance,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pricing: Option<serde_json::Value>,
+    /// Remaining top-level AA model fields not mapped above.
+    #[serde(default, flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -65,6 +81,9 @@ pub struct BenchmarkEvaluations {
     pub gpqa: Option<f64>,
     #[serde(default)]
     pub hle: Option<f64>,
+    /// Remaining AA evaluation keys (aime_25, ifbench, lcr, terminalbench_v2_1, …).
+    #[serde(default, flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -545,6 +564,96 @@ pub fn indices_from_evaluations(eval: &BenchmarkEvaluations) -> ModelIntelligenc
     }
 }
 
+fn json_string(value: Option<&serde_json::Value>) -> Option<String> {
+    match value? {
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Null => None,
+        other => Some(other.to_string()),
+    }
+}
+
+fn json_f64(value: &serde_json::Value) -> Option<f64> {
+    value
+        .as_f64()
+        .or_else(|| value.as_i64().map(|n| n as f64))
+        .or_else(|| value.as_u64().map(|n| n as f64))
+}
+
+/// Map a raw AA `/api/v2/data/llms/models` item onto `BenchmarkModelRecord`
+/// without dropping unknown fields.
+pub fn benchmark_record_from_aa_api_model(
+    value: serde_json::Value,
+) -> Result<BenchmarkModelRecord, String> {
+    let serde_json::Value::Object(mut obj) = value else {
+        return Err("AA model entry is not a JSON object".to_string());
+    };
+
+    let id = json_string(obj.get("id")).ok_or_else(|| "AA model missing id".to_string())?;
+    let slug = json_string(obj.get("slug")).ok_or_else(|| "AA model missing slug".to_string())?;
+    let name = json_string(obj.get("name")).unwrap_or_else(|| slug.clone());
+    obj.remove("id");
+    obj.remove("slug");
+    obj.remove("name");
+
+    let release_date = json_string(obj.get("release_date"));
+    obj.remove("release_date");
+
+    let creator = obj
+        .remove("model_creator")
+        .unwrap_or(serde_json::Value::Null);
+    let (creator_id, creator_slug, creator_name) = match &creator {
+        serde_json::Value::Object(creator) => (
+            json_string(creator.get("id")),
+            json_string(creator.get("slug")),
+            json_string(creator.get("name")),
+        ),
+        _ => (None, None, None),
+    };
+
+    let evaluations = serde_json::from_value(
+        obj.remove("evaluations")
+            .unwrap_or_else(|| serde_json::json!({})),
+    )
+    .map_err(|e| format!("AA evaluations for {slug}: {e}"))?;
+
+    let mut performance = if let Some(perf) = obj.remove("performance") {
+        serde_json::from_value(perf).map_err(|e| format!("AA performance for {slug}: {e}"))?
+    } else {
+        BenchmarkPerformance::default()
+    };
+    if performance.median_output_tokens_per_second.is_none()
+        && let Some(v) = obj.remove("median_output_tokens_per_second")
+    {
+        performance.median_output_tokens_per_second = json_f64(&v);
+    }
+    if performance.median_time_to_first_token_seconds.is_none()
+        && let Some(v) = obj.remove("median_time_to_first_token_seconds")
+    {
+        performance.median_time_to_first_token_seconds = json_f64(&v);
+    }
+    if performance.median_time_to_first_answer_token.is_none()
+        && let Some(v) = obj.remove("median_time_to_first_answer_token")
+    {
+        performance.median_time_to_first_answer_token = json_f64(&v);
+    }
+
+    let pricing = obj.remove("pricing").filter(|v| !v.is_null());
+
+    Ok(BenchmarkModelRecord {
+        id,
+        slug,
+        name,
+        creator_id,
+        creator_slug,
+        creator_name,
+        release_date,
+        evaluations,
+        performance,
+        pricing,
+        extra: obj.into_iter().collect(),
+    })
+}
+
 fn lookup_candidates(
     catalog_model_id: &str,
     canonical_slug: Option<&str>,
@@ -690,8 +799,10 @@ mod tests {
             id: slug.to_string(),
             slug: slug.to_string(),
             name: slug.to_string(),
+            creator_id: None,
             creator_slug: Some("minimax".to_string()),
             creator_name: Some("MiniMax".to_string()),
+            release_date: None,
             evaluations: BenchmarkEvaluations {
                 artificial_analysis_intelligence_index: Some(overall),
                 artificial_analysis_coding_index: Some(coding),
@@ -699,6 +810,8 @@ mod tests {
                 ..Default::default()
             },
             performance: BenchmarkPerformance::default(),
+            pricing: None,
+            extra: HashMap::new(),
         }
     }
 
@@ -708,6 +821,7 @@ mod tests {
             source: "test".into(),
             synced_at: "now".into(),
             models: vec![sample_record("minimax-m3", 48.5, 44.0, 0.59)],
+            ..Default::default()
         });
         let aa_map = AaModelMapFile::default();
 
@@ -725,6 +839,7 @@ mod tests {
             source: "test".into(),
             synced_at: "now".into(),
             models: vec![sample_record("minimax-m1-80k", 24.4, 14.5, 0.34)],
+            ..Default::default()
         });
         let aa_map = AaModelMapFile {
             mappings: HashMap::from([(
@@ -747,6 +862,7 @@ mod tests {
             source: "test".into(),
             synced_at: "now".into(),
             models: vec![sample_record("deepseek-chat", 39.0, 31.0, 0.42)],
+            ..Default::default()
         });
         let aa_map = AaModelMapFile::default();
 
@@ -767,6 +883,7 @@ mod tests {
             source: "test".into(),
             synced_at: "now".into(),
             models: vec![],
+            ..Default::default()
         });
         let aa_map = AaModelMapFile::default();
 
@@ -823,6 +940,7 @@ mod tests {
                 source: "artificialanalysis.ai".into(),
                 synced_at: "2026-01-01T00:00:00Z".into(),
                 models: vec![sample_record("p1-m1", 80.0, 70.0, 0.6)],
+                ..Default::default()
             },
         )
         .unwrap();
@@ -871,6 +989,7 @@ mod tests {
                 source: "aa".into(),
                 synced_at: "now".into(),
                 models: vec![sample_record("minimax-m3", 48.5, 44.0, 0.59)],
+                ..Default::default()
             },
         )
         .unwrap();
@@ -895,8 +1014,10 @@ mod tests {
                     id: "fallback".into(),
                     slug: "fallback".into(),
                     name: "Fallback".into(),
+                    creator_id: None,
                     creator_slug: None,
                     creator_name: None,
+                    release_date: None,
                     evaluations: BenchmarkEvaluations {
                         artificial_analysis_math_index: Some(40.0),
                         livecodebench: Some(0.42),
@@ -907,8 +1028,11 @@ mod tests {
                         ..Default::default()
                     },
                     performance: BenchmarkPerformance::default(),
+                    pricing: None,
+                    extra: HashMap::new(),
                 },
             ],
+            ..Default::default()
         });
         assert!(catalog.synced_at.is_some());
         assert_eq!(
@@ -952,6 +1076,69 @@ mod tests {
         assert_eq!(clamped.coding_index, Some(1.0));
         assert_eq!(clamped.agentic_index, Some(100.0));
         assert_eq!(clamped.math_index, Some(1.0));
+    }
+
+    #[test]
+    fn aa_api_model_preserves_unknown_evaluation_and_pricing_fields() {
+        let record = benchmark_record_from_aa_api_model(serde_json::json!({
+            "id": "uuid-1",
+            "slug": "example-model",
+            "name": "Example",
+            "release_date": "2026-08-01",
+            "model_creator": {"id": "creator-1", "slug": "lab", "name": "Lab"},
+            "evaluations": {
+                "artificial_analysis_intelligence_index": 50.0,
+                "artificial_analysis_coding_index": 40.0,
+                "terminalbench_v2_1": 0.42,
+                "tau_banking": 0.31,
+                "lcr": 0.55,
+                "ifbench": 0.6
+            },
+            "pricing": {
+                "price_1m_input_tokens": 1.0,
+                "price_1m_output_tokens": 4.0,
+                "price_1m_blended_3_to_1": 1.75
+            },
+            "median_output_tokens_per_second": 100.0,
+            "median_time_to_first_token_seconds": 0.4,
+            "median_time_to_first_answer_token": 0.5,
+            "future_top_level": {"keep": true}
+        }))
+        .expect("parse");
+
+        assert_eq!(record.release_date.as_deref(), Some("2026-08-01"));
+        assert_eq!(record.creator_id.as_deref(), Some("creator-1"));
+        assert_eq!(
+            record.evaluations.extra.get("terminalbench_v2_1"),
+            Some(&serde_json::json!(0.42))
+        );
+        assert_eq!(
+            record.evaluations.extra.get("tau_banking"),
+            Some(&serde_json::json!(0.31))
+        );
+        assert_eq!(
+            record
+                .pricing
+                .as_ref()
+                .and_then(|p| p.get("price_1m_input_tokens")),
+            Some(&serde_json::json!(1.0))
+        );
+        assert_eq!(
+            record.performance.median_output_tokens_per_second,
+            Some(100.0)
+        );
+        assert_eq!(
+            record.extra.get("future_top_level"),
+            Some(&serde_json::json!({"keep": true}))
+        );
+
+        let roundtrip: BenchmarkModelRecord =
+            serde_json::from_value(serde_json::to_value(&record).unwrap()).unwrap();
+        assert_eq!(
+            roundtrip.evaluations.extra.get("lcr"),
+            Some(&serde_json::json!(0.55))
+        );
+        assert_eq!(roundtrip.pricing, record.pricing);
     }
 
     #[test]

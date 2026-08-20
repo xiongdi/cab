@@ -66,6 +66,18 @@ fn known_pricing(input: Option<f64>, output: Option<f64>) -> Option<(f64, f64)> 
     }
 }
 
+/// Pricing for routing comes from the provider-bound model row (models.dev
+/// provider cost), not the global catalog reference table.
+fn provider_model_pricing(model: &Model) -> Option<(f64, f64)> {
+    if let Some(pricing) = known_pricing(model.input_cost, model.output_cost) {
+        return Some(pricing);
+    }
+    let pricing = model.pricing.as_ref()?;
+    let input = pricing.get("input")?.as_f64()?;
+    let output = pricing.get("output")?.as_f64()?;
+    known_pricing(Some(input), Some(output))
+}
+
 pub async fn list_routable_model_entries(
     store: &InMemoryStore,
 ) -> Result<Vec<RoutableModelEntry>, String> {
@@ -82,7 +94,7 @@ pub async fn list_routable_model_entries(
             if !model.enabled {
                 continue;
             }
-            let Some((input, output)) = known_pricing(model.input_cost, model.output_cost) else {
+            let Some((input, output)) = provider_model_pricing(model) else {
                 continue;
             };
             entries.push(RoutableModelEntry {
@@ -220,5 +232,30 @@ mod tests {
 
         let entries = list_routable_model_entries(&store).await.unwrap();
         assert!(entries.is_empty());
+    }
+
+    #[tokio::test]
+    async fn routable_uses_provider_pricing_json_when_scalar_fields_missing() {
+        let store = InMemoryStore::new();
+        {
+            let mut inner = store.inner.write().unwrap();
+            let mut ogo = provider("opencode-go", true, "k");
+            let mut bound = model("m1", "vendor/model-a", "opencode-go", true);
+            bound.input_cost = None;
+            bound.output_cost = None;
+            bound.pricing = Some(serde_json::json!({
+                "input": 0.2,
+                "output": 1.2,
+                "cache_read": 0.02
+            }));
+            ogo.models = vec![cab_core::ProviderModel { model: bound }];
+            inner.providers.insert("opencode-go".into(), ogo);
+        }
+
+        let entries = list_routable_model_entries(&store).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].endpoint_input_cost, Some(0.2));
+        assert_eq!(entries[0].endpoint_output_cost, Some(1.2));
+        assert_eq!(entries[0].endpoint_cache_read_cost, Some(0.02));
     }
 }

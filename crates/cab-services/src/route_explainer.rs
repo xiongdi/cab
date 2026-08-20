@@ -4,7 +4,8 @@ use cab_core::types::{
 };
 use cab_core::{
     RankedRouteCandidate, RequestProfile, RouteCandidate, RoutingStrategy, TaskKind,
-    build_request_profile, model_routable_for_strategy, rank_route_candidates_with_scores,
+    build_request_profile, model_routable_for_strategy,
+    rank_route_candidates_with_scores_for_display,
 };
 use cab_db::InMemoryStore;
 use cab_db::catalog::RouteCatalog;
@@ -104,7 +105,7 @@ async fn rank_all_candidates(
     }
 
     let candidates = routable_route_candidates(&entries);
-    rank_route_candidates_with_scores(&candidates, strategy, profile)
+    rank_route_candidates_with_scores_for_display(&candidates, strategy, profile)
         .iter()
         .map(|score| ranked_model_summary(score, strategy, profile.task))
         .collect()
@@ -115,9 +116,7 @@ async fn ranked_candidates(
     strategy: RoutingStrategy,
     profile: &RequestProfile,
 ) -> Vec<RankedModelSummary> {
-    let mut ranked = rank_all_candidates(pool, strategy, profile).await;
-    ranked.truncate(10);
-    ranked
+    rank_all_candidates(pool, strategy, profile).await
 }
 
 fn strategy_id(strategy: RoutingStrategy) -> &'static str {
@@ -177,14 +176,15 @@ pub async fn strategy_board(
     .into_iter()
     .map(|strategy| {
         let effective = display_strategy(strategy, &route_candidates);
-        let candidates = rank_route_candidates_with_scores(&route_candidates, effective, &profile)
-            .iter()
-            .map(|score| ranked_model_summary(score, effective, profile.task))
-            .collect();
+        let candidates =
+            rank_route_candidates_with_scores_for_display(&route_candidates, effective, &profile)
+                .iter()
+                .map(|score| ranked_model_summary(score, effective, profile.task))
+                .collect();
         StrategyBoardStrategy {
             id: strategy_id(strategy).to_string(),
             display_strategy: strategy_id(effective).to_string(),
-            task: format!("{:?}", profile.task),
+            task: profile.task.as_str().to_string(),
             complexity: profile.complexity,
             candidates,
         }

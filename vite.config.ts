@@ -29,6 +29,14 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    // Dev UI runs on 5173; management API lives on cab serve (3125). Proxy keeps
+    // api.ts same-origin logic (window.location.port → /api) without CORS.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3125',
+        changeOrigin: true,
+      },
+    },
     watch: {
       ignored: ['**/src-tauri/**', '**/target/**'],
     },

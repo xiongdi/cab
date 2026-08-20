@@ -20,12 +20,13 @@ pub use benchmark_catalog::{
     AaModelMapFile, BenchmarkCatalog, BenchmarkCatalogFile, CatalogSourceStatus,
     ModelsDevCatalogFile, aa_model_map_path, aa_model_map_status,
     artificial_analysis_catalog_status, artificial_analysis_models_path,
-    artificial_analysis_models_url, catalog_root_dir, embedded_aa_model_map,
-    ensure_aa_model_map_file, load_aa_model_map, load_artificial_analysis_catalog,
-    load_models_dev_catalog_file, models_dev_catalog_path, models_dev_catalog_status,
-    models_dev_catalog_url, models_dev_lab_logo_url, models_dev_provider_logo_url,
-    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key,
-    resolve_intelligence_indices, resolve_performance_metrics, save_aa_model_map,
+    artificial_analysis_models_url, benchmark_record_from_aa_api_model, catalog_root_dir,
+    embedded_aa_model_map, ensure_aa_model_map_file, load_aa_model_map,
+    load_artificial_analysis_catalog, load_models_dev_catalog_file, models_dev_catalog_path,
+    models_dev_catalog_status, models_dev_catalog_url, models_dev_lab_logo_url,
+    models_dev_provider_logo_url, refresh_aa_model_map_exact_matches,
+    resolve_artificial_analysis_api_key, resolve_intelligence_indices, resolve_performance_metrics,
+    save_aa_model_map,
 };
 pub use config::CabConfig;
 pub use error::{CabError, redact_secrets};
@@ -49,7 +50,8 @@ pub use routing::{
     build_request_profile, cache_read_cost_from_model, capability_value_score, compute_cost_usd,
     effective_token_cost, effective_token_cost_for_model, model_routable_for_strategy, rank_models,
     rank_models_with_scores, rank_route_candidates, rank_route_candidates_with_scores,
-    raw_effective_token_cost, raw_effective_token_cost_for_model,
+    rank_route_candidates_with_scores_for_display, raw_effective_token_cost,
+    raw_effective_token_cost_for_model,
 };
 pub use subscription_quota::{
     DEFAULT_QUOTA_RESET_SECS, RATE_LIMIT_MAX_RETRIES, extract_retry_after, is_key_rate_limited,

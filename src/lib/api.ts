@@ -42,6 +42,7 @@ async function getApiBase(): Promise<string> {
   }
 
   // UI served by cab — same origin (any configured gateway port).
+  // Vite dev (5173) proxies /api → 3125 via vite.config.ts.
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     const port = window.location.port;
@@ -138,7 +139,7 @@ export const api = {
 
     listCatalog: () => request<ModelCatalogEntry[]>('/models/catalog'),
 
-    get: (id: string) => request<Model>(`/models/${id}`),
+    get: (id: string) => request<Model>(`/models/${encodeURIComponent(id)}`),
 
     endpoints: (modelName: string) =>
       request<ModelEndpoint[]>(`/models/${encodeURIComponent(modelName)}/endpoints`),
@@ -150,7 +151,7 @@ export const api = {
       }),
 
     update: (id: string, data: UpdateModel) =>
-      request<Model>(`/models/${id}`, {
+      request<Model>(`/models/${encodeURIComponent(id)}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),

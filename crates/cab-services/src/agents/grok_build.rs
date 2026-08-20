@@ -108,15 +108,10 @@ impl AgentIntegration for Integration {
                     for (idx, model) in enabled_models.iter().enumerate() {
                         let model_id =
                             format!("{CAB_MODEL_PREFIX}{}", sanitize_model_key(&model.name));
-                        let api_model = if let Some(pos) = model.name.find('/') {
-                            &model.name[pos + 1..]
-                        } else {
-                            model.name.as_str()
-                        };
                         insert_cab_model(
                             table,
                             &model_id,
-                            api_model,
+                            &model.name,
                             &model.display_name,
                             &ep,
                             &key,

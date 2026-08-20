@@ -13,7 +13,12 @@
 //! | `Cheapest` / `price` (价格策略) | `effective_cost` (USD per Mtok)              | 智能指数 (`overall_intelligence`)     | ASC         | DESC           |
 //! | `Intelligent` (代码能力策略) | `coding_index`                                | cost-performance                     | DESC        | DESC           |
 //! | `Speed` (速度策略)            | AA total response time for 1000 tokens (s)   | `effective_cost`                     | ASC         | ASC            |
-//! | `Auto`                        | same as `Balanced`                           | same as `Balanced`                   | DESC        | DESC           |
+//! | `Auto`                        | same as `Balanced`, primary capability from AA class | same as `Balanced`                   | DESC        | DESC           |
+//!
+//! Auto/Balanced pick a **capability class** that maps 1:1 onto an AA index
+//! (`intelligence` / `coding` / `math` / `agentic`). The class comes from
+//! request structure (agent, tools, code fences, math notation) — not prompt
+//! keyword lists.
 //!
 //! `Speed` primary is the AA-style "Total Response Time for N Output Tokens"
 //! metric: `time_to_first_token_secs + N / output_speed_tps`. It captures both
@@ -46,10 +51,25 @@ pub const OUTPUT_TOKENS_FOR_SPEED_RANKING: f64 = 1000.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskKind {
+    /// Artificial Analysis Intelligence Index (`overall_intelligence`).
+    Intelligence,
+    /// Artificial Analysis Coding Index (`coding_index`).
     Coding,
+    /// Artificial Analysis Math Index (`math_index`).
     Math,
+    /// CAB agentic composite from AA evals (`agentic_index`).
     Agentic,
-    General,
+}
+
+impl TaskKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Intelligence => "intelligence",
+            Self::Coding => "coding",
+            Self::Math => "math",
+            Self::Agentic => "agentic",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -294,7 +314,7 @@ fn task_capability_available(model: &Model, task: TaskKind) -> bool {
         TaskKind::Coding => model.coding_index.is_some() || model.overall_intelligence.is_some(),
         TaskKind::Math => model.math_index.is_some() || model.overall_intelligence.is_some(),
         TaskKind::Agentic => model.agentic_index.is_some() || model.overall_intelligence.is_some(),
-        TaskKind::General => model.overall_intelligence.is_some(),
+        TaskKind::Intelligence => model.overall_intelligence.is_some(),
     }
 }
 
@@ -333,9 +353,13 @@ fn score_parts(
     costs: &CostInputs,
 ) -> ScoreParts {
     if !model_routable_for_strategy(model, strategy, task) {
+        let primary_missing = match strategy {
+            RoutingStrategy::Cheapest | RoutingStrategy::Speed => f64::INFINITY,
+            _ => f64::NEG_INFINITY,
+        };
         return ScoreParts {
             capability: f64::NEG_INFINITY,
-            value: f64::NEG_INFINITY,
+            value: primary_missing,
         };
     }
 
@@ -622,6 +646,7 @@ fn score_route_candidates<'a>(
     candidates: &'a [RouteCandidate<'a>],
     strategy: RoutingStrategy,
     profile: &RequestProfile,
+    apply_auto_pool_filter: bool,
 ) -> Vec<(&'a Model, &'a str, f64, f64)> {
     if matches!(strategy, RoutingStrategy::Speed)
         && !candidates
@@ -631,7 +656,12 @@ fn score_route_candidates<'a>(
         tracing::warn!(
             "Speed strategy has no models with AA output speed data; falling back to cheapest"
         );
-        return score_route_candidates(candidates, RoutingStrategy::Cheapest, profile);
+        return score_route_candidates(
+            candidates,
+            RoutingStrategy::Cheapest,
+            profile,
+            apply_auto_pool_filter,
+        );
     }
 
     let context_fitting: Vec<&RouteCandidate<'_>> = candidates
@@ -685,7 +715,7 @@ fn score_route_candidates<'a>(
         })
         .collect();
 
-    if matches!(strategy, RoutingStrategy::Auto) {
+    if apply_auto_pool_filter && matches!(strategy, RoutingStrategy::Auto) {
         let min_required = min_required_capability(profile);
         let before = scored.len();
         scored.retain(|(model, _, _, _, _)| {
@@ -807,7 +837,28 @@ pub fn rank_route_candidates_with_scores<'a>(
     strategy: RoutingStrategy,
     profile: &RequestProfile,
 ) -> Vec<RankedRouteCandidate<'a>> {
-    score_route_candidates(candidates, strategy, profile)
+    score_route_candidates(candidates, strategy, profile, true)
+        .into_iter()
+        .map(
+            |(model, service_provider_id, capability, value)| RankedRouteCandidate {
+                model,
+                service_provider_id,
+                capability,
+                value,
+            },
+        )
+        .collect()
+}
+
+/// Rank the full provider pool for dashboards and route explain UI. Auto keeps
+/// its scoring order but does not drop models that fail the routing-only pool
+/// filters (capability floor / cost ceiling).
+pub fn rank_route_candidates_with_scores_for_display<'a>(
+    candidates: &'a [RouteCandidate<'a>],
+    strategy: RoutingStrategy,
+    profile: &RequestProfile,
+) -> Vec<RankedRouteCandidate<'a>> {
+    score_route_candidates(candidates, strategy, profile, false)
         .into_iter()
         .map(
             |(model, service_provider_id, capability, value)| RankedRouteCandidate {
@@ -825,7 +876,7 @@ pub fn rank_route_candidates<'a>(
     strategy: RoutingStrategy,
     profile: &RequestProfile,
 ) -> Vec<(&'a Model, &'a str)> {
-    score_route_candidates(candidates, strategy, profile)
+    score_route_candidates(candidates, strategy, profile, true)
         .into_iter()
         .map(|(model, provider, _, _)| (model, provider))
         .collect()
@@ -862,13 +913,13 @@ fn min_required_capability(profile: &RequestProfile) -> f64 {
         TaskKind::Coding => 32.0,
         TaskKind::Math => 38.0,
         TaskKind::Agentic => 42.0,
-        TaskKind::General => 24.0,
+        TaskKind::Intelligence => 24.0,
     };
     let ceiling = match profile.task {
         TaskKind::Coding => 88.0,
         TaskKind::Math => 92.0,
         TaskKind::Agentic => 95.0,
-        TaskKind::General => 78.0,
+        TaskKind::Intelligence => 78.0,
     };
     floor + profile.complexity * (ceiling - floor)
 }
@@ -881,7 +932,7 @@ fn auto_max_allowed_cost(profile: &RequestProfile) -> Option<f64> {
         return None;
     }
     let base = match profile.task {
-        TaskKind::General => 2.0,
+        TaskKind::Intelligence => 2.0,
         TaskKind::Coding => 5.0,
         TaskKind::Math => 4.0,
         TaskKind::Agentic => 8.0,
@@ -894,7 +945,7 @@ fn primary_capability_loose(model: &Model, task: TaskKind) -> f64 {
         TaskKind::Coding => model.coding_index.or(model.overall_intelligence),
         TaskKind::Math => model.math_index.or(model.overall_intelligence),
         TaskKind::Agentic => model.agentic_index.or(model.overall_intelligence),
-        TaskKind::General => model.overall_intelligence,
+        TaskKind::Intelligence => model.overall_intelligence,
     }
     .expect("task_capability_available should be checked before scoring")
 }
@@ -907,184 +958,50 @@ fn classify_request(
     estimated_output_tokens: u64,
     requires_vision: bool,
 ) -> RequestProfile {
-    let lower = text.to_ascii_lowercase();
-    let agent_lower = agent.to_ascii_lowercase();
     let estimated_input_tokens = estimate_tokens(text);
-
-    let coding_hits = count_keyword_hits(
-        &lower,
-        &[
-            "```",
-            "function",
-            "class ",
-            "import ",
-            "def ",
-            "struct ",
-            "impl ",
-            "console.log",
-            "typescript",
-            "javascript",
-            "python",
-            "rust",
-            "golang",
-            "refactor",
-            "debug",
-            "stack trace",
-            "unit test",
-            "lint",
-            "compiler",
-            "git ",
-            "npm ",
-            "cargo ",
-            "algorithm",
-            "optimize",
-            "performance",
-            "bug",
-            "error",
-            "api",
-            "database",
-            "query",
-            "sql",
-            "regex",
-            "async",
-            "await",
-            "promise",
-            "callback",
-            "pointer",
-            "memory",
-            "segmentation fault",
-            "nullpointer",
-            "exception",
-            "serialization",
-            "deserialization",
-            "endpoint",
-            "handler",
-            "middleware",
-            "schema",
-            "migration",
-            "deployment",
-            "docker",
-            "kubernetes",
-            "ci/cd",
-            "代码",
-            "函数",
-            "重构",
-            "报错",
-            "编译",
-            "算法",
-            "优化",
-            "性能",
-            "接口",
-            "数据库",
-            "部署",
-        ],
-    );
-    let math_hits = count_keyword_hits(
-        &lower,
-        &[
-            "equation",
-            "integral",
-            "derivative",
-            "matrix",
-            "probability",
-            "theorem",
-            "proof",
-            "calculate",
-            "solve for",
-            "log(",
-            "sin(",
-            "cos(",
-            "sqrt(",
-            "∫",
-            "sum of",
-            "series",
-            "limit",
-            "vector",
-            "eigen",
-            "polynomial",
-            "combinator",
-            "permutation",
-            "binomial",
-            "方差",
-            "均值",
-            "统计",
-            "几何",
-            "代数",
-            "方程",
-            "证明",
-            "微积分",
-            "概率",
-            "线性代数",
-        ],
-    );
-    let agentic_hits = count_keyword_hits(
-        &lower,
-        &[
-            "step by step",
-            "plan",
-            "workflow",
-            "orchestrat",
-            "multi-step",
-            "tool call",
-            "agent",
-            "reasoning",
-            "analyze deeply",
-            "investigate",
-            "break down",
-            "chain of thought",
-            "multi-agent",
-            "autonomous",
-            "coordinate",
-            "delegate",
-            "subtask",
-            "pipeline",
-            "end to end",
-            "逐步",
-            "规划",
-            "编排",
-            "多步",
-            "自主",
-            "协调",
-        ],
-    );
-
     let agent_is_coding = matches_agent_kind(
-        &agent_lower,
+        &agent.to_ascii_lowercase(),
         &[
             "claude", "codex", "copilot", "aider", "cline", "continue", "opencode", "grok", "code",
         ],
     );
 
-    let mut task = TaskKind::General;
-    let mut task_score = 0.0f64;
-
-    let coding_score = coding_hits as f64 * 1.4 + if agent_is_coding { 2.5 } else { 0.0 };
-    let math_score = math_hits as f64 * 1.8;
-    let agentic_score = agentic_hits as f64 * 1.3 + if has_tools { 2.0 } else { 0.0 };
-
-    if coding_score >= math_score && coding_score >= agentic_score && coding_score >= 1.0 {
-        task = TaskKind::Coding;
-        task_score = coding_score;
-    } else if math_score >= agentic_score && math_score >= 1.0 {
-        task = TaskKind::Math;
-        task_score = math_score;
-    } else if agentic_score >= 1.5 || (has_tools && message_count > 4) {
-        task = TaskKind::Agentic;
-        task_score = agentic_score;
-    } else if agent_is_coding {
-        task = TaskKind::Coding;
-        task_score = coding_score.max(1.0);
+    let fence_count = text.matches("```").count();
+    let mut coding_score = 0.0;
+    if agent_is_coding {
+        coding_score += 3.0;
     }
+    coding_score += (fence_count as f64 / 2.0).min(4.0);
+    if looks_like_source_tree(text) {
+        coding_score += 1.5;
+    }
+
+    let math_score = math_notation_score(text);
+    let mut agentic_score = 0.0;
+    if has_tools {
+        agentic_score += 3.0;
+    }
+    if message_count > 4 {
+        agentic_score += 2.0;
+    }
+    let intelligence_score = if requires_vision && fence_count == 0 && !has_tools {
+        1.5
+    } else {
+        1.0
+    };
+
+    let (task, task_score) =
+        pick_aa_capability_class(intelligence_score, coding_score, math_score, agentic_score);
 
     let length_factor = (estimated_input_tokens as f64 / 6000.0).clamp(0.0, 1.0);
     let message_factor = ((message_count.saturating_sub(1) as f64) / 12.0).clamp(0.0, 1.0);
-    let code_block_factor = (text.matches("```").count() as f64 / 4.0).clamp(0.0, 1.0);
-    let task_factor = (task_score / 6.0).clamp(0.0, 1.0);
+    let code_block_factor = (fence_count as f64 / 4.0).clamp(0.0, 1.0);
+    let class_factor = (task_score / 6.0).clamp(0.0, 1.0);
 
     let complexity = (length_factor * 0.35
         + message_factor * 0.20
         + code_block_factor * 0.25
-        + task_factor * 0.20)
+        + class_factor * 0.20)
         .clamp(0.0, 1.0);
 
     RequestProfile {
@@ -1096,12 +1013,58 @@ fn classify_request(
     }
 }
 
-fn matches_agent_kind(agent: &str, needles: &[&str]) -> bool {
-    needles.iter().any(|needle| agent.contains(needle))
+/// Choose the AA capability class. Equal scores keep the earlier, more specific
+/// class: coding > agentic > math > intelligence.
+fn pick_aa_capability_class(
+    intelligence: f64,
+    coding: f64,
+    math: f64,
+    agentic: f64,
+) -> (TaskKind, f64) {
+    [
+        (TaskKind::Coding, coding),
+        (TaskKind::Agentic, agentic),
+        (TaskKind::Math, math),
+        (TaskKind::Intelligence, intelligence),
+    ]
+    .into_iter()
+    .reduce(|best, cur| if cur.1 > best.1 { cur } else { best })
+    .unwrap_or((TaskKind::Intelligence, intelligence))
 }
 
-fn count_keyword_hits(haystack: &str, keywords: &[&str]) -> usize {
-    keywords.iter().filter(|kw| haystack.contains(*kw)).count()
+fn looks_like_source_tree(text: &str) -> bool {
+    const MARKERS: &[&str] = &[
+        "Cargo.toml",
+        "package.json",
+        "pyproject.toml",
+        "go.mod",
+        "tsconfig.json",
+        "/src/",
+        "\\src\\",
+    ];
+    MARKERS.iter().any(|m| text.contains(m))
+}
+
+fn math_notation_score(text: &str) -> f64 {
+    let mut score = 0.0;
+    if text.contains("$$") || text.contains("\\[") || text.contains("\\(") {
+        score += 2.5;
+    }
+    for cmd in [r"\frac", r"\sum", r"\int", r"\sqrt", r"\lim", r"\begin{"] {
+        if text.contains(cmd) {
+            score += 1.5;
+        }
+    }
+    let glyphs = text
+        .chars()
+        .filter(|c| "∫∑∏√∞≈≠≤≥±∂∇∈∉".contains(*c))
+        .count();
+    score += (glyphs as f64).min(3.0);
+    score
+}
+
+fn matches_agent_kind(agent: &str, needles: &[&str]) -> bool {
+    needles.iter().any(|needle| agent.contains(needle))
 }
 
 fn estimate_tokens(text: &str) -> u64 {
@@ -1417,7 +1380,7 @@ pub(crate) mod tests {
         let pricey_cheap = sample_model("pricey-cheap", 5.0, 5.0, (50.0, 30.0, 40.0, 40.0));
         let pricey_smart = sample_model("pricey-smart", 5.0, 5.0, (80.0, 50.0, 40.0, 40.0));
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
@@ -1475,7 +1438,7 @@ pub(crate) mod tests {
         let cheap = sample_model("cheap", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
         let pricey = sample_model("pricey", 5.0, 5.0, (50.0, 50.0, 40.0, 40.0));
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
@@ -1583,7 +1546,7 @@ pub(crate) mod tests {
         slow_pricey.output_speed_tps = Some(100.0);
         slow_pricey.time_to_first_token_secs = Some(1.0);
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
@@ -1608,7 +1571,7 @@ pub(crate) mod tests {
         slow_ttft.output_speed_tps = Some(100.0);
         slow_ttft.time_to_first_token_secs = Some(2.0);
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
@@ -1716,7 +1679,7 @@ pub(crate) mod tests {
         let mut pricey = sample_model("pricey", 5.0, 20.0, (50.0, 50.0, 40.0, 40.0));
         pricey.provider_id = "premium".into();
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,
@@ -1759,7 +1722,7 @@ pub(crate) mod tests {
         pricey.output_speed_tps = Some(100.0);
         pricey.time_to_first_token_secs = Some(1.0);
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
@@ -1768,6 +1731,25 @@ pub(crate) mod tests {
         let models = [pricey, cheap];
         let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
         assert_eq!(ranked[0].name, "cheap");
+    }
+
+    #[test]
+    fn speed_ranks_models_without_data_last() {
+        let mut fast = sample_model("fast", 1.0, 2.0, (60.0, 60.0, 50.0, 50.0));
+        fast.output_speed_tps = Some(200.0);
+        fast.time_to_first_token_secs = Some(0.2);
+        let no_speed = sample_model("no-speed", 0.1, 0.2, (80.0, 80.0, 70.0, 70.0));
+        let profile = RequestProfile {
+            task: TaskKind::Coding,
+            complexity: 0.3,
+            estimated_input_tokens: 1000,
+            estimated_output_tokens: 1024,
+            requires_vision: false,
+        };
+        let models = [no_speed, fast];
+        let ranked = rank_models(&models, RoutingStrategy::Speed, &profile);
+        assert_eq!(ranked[0].name, "fast");
+        assert_eq!(ranked[1].name, "no-speed");
     }
 
     #[test]
@@ -1775,7 +1757,7 @@ pub(crate) mod tests {
         let cheap = sample_model("cheap", 0.1, 0.1, (50.0, 50.0, 40.0, 40.0));
         let pricey = sample_model("pricey", 5.0, 5.0, (90.0, 90.0, 80.0, 80.0));
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.2,
             estimated_input_tokens: 200,
             estimated_output_tokens: 1024,
@@ -1787,12 +1769,65 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn detects_math_task_from_prompt() {
+    fn detects_math_class_from_notation() {
         let body = serde_json::json!({
-            "messages": [{"role": "user", "content": "Prove the integral transforms and solve the matrix equation."}]
+            "messages": [{"role": "user", "content": "Evaluate $$\\int_0^1 x^2 \\, dx$$ using \\frac{1}{3}."}]
         });
         let profile = build_request_profile(&body, "unknown");
         assert_eq!(profile.task, TaskKind::Math);
+    }
+
+    #[test]
+    fn classifies_coding_agent_as_coding_index() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "hello"}]
+        });
+        let profile = build_request_profile(&body, "claude-code");
+        assert_eq!(profile.task, TaskKind::Coding);
+    }
+
+    #[test]
+    fn classifies_unknown_plain_prompt_as_intelligence_index() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "hello"}]
+        });
+        let profile = build_request_profile(&body, "unknown");
+        assert_eq!(profile.task, TaskKind::Intelligence);
+    }
+
+    #[test]
+    fn classifies_tools_without_coding_agent_as_agentic_index() {
+        let body = serde_json::json!({
+            "tools": [{"name": "bash"}],
+            "messages": [{"role": "user", "content": "hello"}]
+        });
+        let profile = build_request_profile(&body, "unknown");
+        assert_eq!(profile.task, TaskKind::Agentic);
+    }
+
+    #[test]
+    fn classifies_code_fence_as_coding_index() {
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "fix this\n```\nfn main() {}\n```"}]
+        });
+        let profile = build_request_profile(&body, "unknown");
+        assert_eq!(profile.task, TaskKind::Coding);
+    }
+
+    #[test]
+    fn long_tool_session_prefers_agentic_over_coding_agent() {
+        let body = serde_json::json!({
+            "tools": [{"name": "bash"}],
+            "messages": [
+                {"role": "user", "content": "a"},
+                {"role": "assistant", "content": "b"},
+                {"role": "user", "content": "c"},
+                {"role": "assistant", "content": "d"},
+                {"role": "user", "content": "e"}
+            ]
+        });
+        let profile = build_request_profile(&body, "claude-code");
+        assert_eq!(profile.task, TaskKind::Agentic);
     }
 
     #[test]
@@ -1882,7 +1917,7 @@ pub(crate) mod tests {
         let text_only = text_model("deepseek-v4-flash", 0.1);
         let vision = vision_model("gemini-3-pro-preview", 2.0);
         let profile = RequestProfile {
-            task: TaskKind::General,
+            task: TaskKind::Intelligence,
             complexity: 0.3,
             estimated_input_tokens: 500,
             estimated_output_tokens: 1024,

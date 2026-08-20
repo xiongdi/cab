@@ -5,6 +5,24 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-08-20
+
+### Changed
+
+- **Auto task classification uses AA capability classes**: request profiling maps to `intelligence` / `coding` / `math` / `agentic` from structure (coding agent, code fences, tools / multi-turn, math notation) instead of keyword lists. `TaskKind::General` is renamed to `Intelligence`.
+- **Catalog sync is provider-authoritative**: enabled provider model lists drive bindings; global models.dev rows stay reference metadata. Fixes OpenCode Go candidate counts that previously inflated via `merge_enabled_provider_models`.
+- **Routing explain / strategy board show the full ranked pool**: display ranking skips the auto shortlist filter and no longer truncates to 10 — actual auto routing still uses the shortlist.
+- **Artificial Analysis sync retains full model payloads**: `release_date`, `pricing`, evaluation extras (e.g. `terminalbench_v2_1`, `tau_banking`, `lcr`), and unknown top-level fields are preserved in the benchmark catalog.
+
+### Fixed
+
+- **Speed / cheapest strategies no longer rank models missing metrics first**: unroutable ASC scores use `+∞` so incomplete models sink to the bottom.
+- **Grok Build manual mode sends full catalog ids** (e.g. `tencent/hy3`) instead of stripping the provider prefix to a bare suffix that the gateway cannot match.
+- **Dashboard model get/update encodes ids with `/`** so enabling `meta/muse-spark-1.2-contributor` and similar names works from the Vite UI.
+- **Vite dev proxies `/api` → `3125`** to avoid CORS when the Svelte UI on `5173` calls the management API.
+- **AA map**: `muse-spark-1.2-contributor` / `meta/muse-spark-1.2-contributor` → `muse-spark-1-2`.
+- **Routability pricing** can read provider `pricing` JSON when scalar `input_cost` / `output_cost` are absent.
+
 ## [0.11.0] - 2026-08-19
 
 ### Changed
