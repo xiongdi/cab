@@ -128,15 +128,39 @@ pub fn aa_model_map_path() -> PathBuf {
 }
 
 pub fn load_aa_model_map() -> AaModelMapFile {
+    // The bundled aa-model-map.json is always the authoritative baseline so
+    // that any new mappings shipped in a release take effect immediately for
+    // existing installs, without requiring the user to also edit their local
+    // ~/.cab/catalog/aa-model-map.json overlay. The overlay file (if present
+    // and valid) is then layered on top, letting users add or override
+    // individual entries without losing upstream updates.
+    let mut merged = embedded_aa_model_map();
+
     let path = aa_model_map_path();
     if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Ok(file) = serde_json::from_str::<AaModelMapFile>(&content) {
-            return file;
+        match serde_json::from_str::<AaModelMapFile>(&content) {
+            Ok(user) => {
+                for (catalog_id, aa_slug) in user.mappings {
+                    merged.mappings.insert(catalog_id, aa_slug);
+                }
+                if user.version > merged.version {
+                    merged.version = user.version;
+                }
+                if !user.description.is_empty() {
+                    merged.description = user.description;
+                }
+                return merged;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to parse AA model map at {}: {e}, using embedded map",
+                    path.display()
+                );
+            }
         }
-        tracing::warn!("Failed to parse AA model map at {}", path.display());
     }
 
-    embedded_aa_model_map()
+    merged
 }
 
 pub fn embedded_aa_model_map() -> AaModelMapFile {

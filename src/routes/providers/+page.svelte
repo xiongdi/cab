@@ -17,6 +17,7 @@
   let providerModelNames = $state<Record<string, string[]>>({});
   let loading = $state(true);
   let enablingAllFor = $state<string | null>(null);
+  let disablingAllFor = $state<string | null>(null);
   let searchQuery = $state('');
   let statusFilter = $state<'all' | 'enabled' | 'disabled'>('all');
   let keyFilter = $state<'all' | 'configured' | 'missing'>('all');
@@ -101,6 +102,49 @@
     );
   }
 
+  let togglingModelId = $state<string | null>(null);
+
+  type OrderedModelEntry =
+    | { key: string; name: string; notInDb: true }
+    | { key: string; name: string; notInDb: false; model: Model };
+
+  function buildOrderedModels(provider: ProviderRow): OrderedModelEntry[] {
+    const records = modelRecordsForProvider(provider);
+    const byName = new Map(records.map((m) => [m.name, m]));
+    const byId = new Map(records.map((m) => [m.id, m]));
+    return modelsForProvider(provider).map((name) => {
+      const match = byName.get(name) ?? byId.get(name);
+      if (match) {
+        return { key: match.id, name: match.name, notInDb: false as const, model: match };
+      }
+      return { key: `name-${name}`, name, notInDb: true as const };
+    });
+  }
+
+  async function toggleModelEnabled(model: Model) {
+    const next = !model.enabled;
+    togglingModelId = model.id;
+    try {
+      await api.models.update(model.id, { enabled: next });
+      allModels = allModels.map((m) => (m.id === model.id ? { ...m, enabled: next } : m));
+      const statusText = next ? i18n.t('common.enabled') : i18n.t('common.disabled');
+      toast.success(
+        i18n
+          .t('providers.toggle_model_success')
+          .replace('{name}', model.display_name || model.name)
+          .replace('{status}', statusText)
+      );
+      dataRevision.touchModels();
+    } catch (e) {
+      toast.error(
+        (e instanceof Error ? e.message : '') ||
+          i18n.t('providers.toggle_model_failed').replace('{name}', model.display_name || model.name)
+      );
+    } finally {
+      togglingModelId = null;
+    }
+  }
+
   async function enableAllModels(provider: ProviderRow) {
     const targets = modelRecordsForProvider(provider).filter((model) => !model.enabled);
     if (targets.length === 0) {
@@ -121,6 +165,29 @@
       toast.error(e instanceof Error ? e.message : i18n.t('providers.enable_all_models_failed'));
     } finally {
       enablingAllFor = null;
+    }
+  }
+
+  async function disableAllModels(provider: ProviderRow) {
+    const targets = modelRecordsForProvider(provider).filter((model) => model.enabled);
+    if (targets.length === 0) {
+      toast(i18n.t('providers.disable_all_models_none'));
+      return;
+    }
+    disablingAllFor = provider.id;
+    try {
+      await Promise.all(targets.map((model) => api.models.update(model.id, { enabled: false })));
+      allModels = allModels.map((model) =>
+        targets.some((t) => t.id === model.id) ? { ...model, enabled: false } : model
+      );
+      toast.success(
+        i18n.t('providers.disable_all_models_success').replace('{count}', String(targets.length))
+      );
+      dataRevision.touchModels();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : i18n.t('providers.disable_all_models_failed'));
+    } finally {
+      disablingAllFor = null;
     }
   }
 
@@ -502,19 +569,73 @@
                   >
                 </div>
                 {#if modelsForProvider(provider).length > 0}
-                  <div class="model-name-list">
-                    {#each modelsForProvider(provider) as modelName}
-                      <span class="model-name-chip mono">{modelName}</span>
+                  <div class="model-detail-grid">
+                    {#each buildOrderedModels(provider) as entry (entry.key)}
+                      {#if entry.notInDb}
+                        <div class="model-list-row not-in-db">
+                          <div class="model-list-name mono muted">
+                            {entry.name}
+                            <span class="model-list-hint">— {i18n.t('providers.models_not_in_db')}</span>
+                          </div>
+                        </div>
+                      {:else}
+                        {@const m = entry.model}
+                        <div class="model-list-row" class:enabled={m.enabled}>
+                          <div class="model-list-name mono">
+                            {#if m.display_name && m.display_name !== m.name}
+                              <strong>{m.display_name}</strong>
+                              <span class="muted">· {m.name}</span>
+                            {:else}
+                              {m.name}
+                            {/if}
+                            {#if m.protocol}
+                              <span class="badge-proto mono proto-inline">{m.protocol}</span>
+                            {/if}
+                          </div>
+                          <label
+                            class="toggle model-enable-toggle"
+                            title={m.enabled ? i18n.t('common.enabled') : i18n.t('common.disabled')}
+                            aria-busy={togglingModelId === m.id}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={m.enabled}
+                              disabled={togglingModelId === m.id}
+                              onchange={() => toggleModelEnabled(m)}
+                            />
+                            <span class="toggle-slider"></span>
+                          </label>
+                        </div>
+                      {/if}
                     {/each}
+                    {#if modelRecordsForProvider(provider).length > 0}
+                      <div class="model-list-footer-note muted text-xs">
+                        {i18n
+                          .t('providers.models_loaded_count')
+                          .replace('{count}', String(modelRecordsForProvider(provider).length))}
+                      </div>
+                    {/if}
                   </div>
                   <div class="model-actions">
                     <button
                       type="button"
                       class="btn btn-xs btn-accent"
-                      disabled={enablingAllFor === provider.id}
+                      disabled={enablingAllFor === provider.id || disablingAllFor === provider.id}
                       onclick={() => enableAllModels(provider)}
                     >
-                      {i18n.t('providers.enable_all_models')}
+                      {enablingAllFor === provider.id
+                        ? i18n.t('common.loading')
+                        : i18n.t('providers.enable_all_models')}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-xs btn-neutral"
+                      disabled={enablingAllFor === provider.id || disablingAllFor === provider.id}
+                      onclick={() => disableAllModels(provider)}
+                    >
+                      {disablingAllFor === provider.id
+                        ? i18n.t('common.loading')
+                        : i18n.t('providers.disable_all_models')}
                     </button>
                   </div>
                 {:else}
@@ -580,7 +701,8 @@
                           type="button"
                           class="btn-icon-delete"
                           onclick={() => removeEndpoint(provider, index)}
-                          title={i18n.t('common.delete')}
+                          title={i18n.t('providers.endpoint_delete')}
+                          aria-label={i18n.t('providers.endpoint_delete')}
                         >
                           <svg
                             width="12"
@@ -589,11 +711,13 @@
                             fill="none"
                             stroke="currentColor"
                             stroke-width="2"
+                            aria-hidden="true"
                           >
                             <path
                               d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
                             />
                           </svg>
+                          <span class="btn-icon-text">{i18n.t('providers.endpoint_delete')}</span>
                         </button>
                       </div>
                     {/each}
@@ -649,6 +773,7 @@
                         class="btn-icon-delete"
                         onclick={() => removeKey(provider, index)}
                         title={i18n.t('providers.delete_key')}
+                        aria-label={i18n.t('providers.delete_key')}
                       >
                         <svg
                           width="12"
@@ -657,11 +782,13 @@
                           fill="none"
                           stroke="currentColor"
                           stroke-width="2"
+                          aria-hidden="true"
                         >
                           <path
                             d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
                           />
                         </svg>
+                        <span class="btn-icon-text">{i18n.t('providers.delete_key')}</span>
                       </button>
                     </div>
                   {/each}
@@ -1064,6 +1191,117 @@
     margin: 0;
   }
 
+  .model-detail-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    max-height: 360px;
+    overflow: auto;
+  }
+
+  .model-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 8px;
+    min-height: 30px;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    border: 1px solid transparent;
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .model-list-row:hover {
+    background: var(--bg-secondary);
+    border-color: var(--border);
+  }
+
+  .model-list-row.enabled {
+    border-color: transparent;
+    background: rgba(16, 185, 129, 0.04);
+  }
+
+  .model-list-row.enabled:hover {
+    border-color: rgba(16, 185, 129, 0.18);
+  }
+
+  .model-list-row.not-in-db {
+    opacity: 0.75;
+    background: repeating-linear-gradient(
+      45deg,
+      var(--bg-primary),
+      var(--bg-primary) 6px,
+      var(--bg-secondary) 6px,
+      var(--bg-secondary) 12px
+    );
+  }
+
+  .model-list-name {
+    font-size: 11.5px;
+    line-height: 18px;
+    word-break: break-all;
+    color: var(--text-primary);
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .model-list-name strong {
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 4px;
+  }
+
+  .model-list-name .muted {
+    color: var(--text-muted);
+  }
+
+  .model-list-hint {
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .badge-proto.proto-inline {
+    font-size: 10px;
+    padding: 0 5px;
+    height: 16px;
+    line-height: 16px;
+    opacity: 0.85;
+    flex: 0 0 auto;
+  }
+
+  .model-enable-toggle {
+    flex: 0 0 auto;
+    opacity: 1;
+    width: 32px;
+    height: 18px;
+  }
+
+  .model-enable-toggle .toggle-slider::before {
+    width: 14px;
+    height: 14px;
+  }
+
+  .model-enable-toggle input:checked + .toggle-slider::before {
+    transform: translateX(14px);
+  }
+
+  .model-enable-toggle input:disabled + .toggle-slider {
+    opacity: 0.5;
+    cursor: progress;
+  }
+
+  .model-list-footer-note {
+    padding: 2px 2px 0;
+    font-size: 10.5px;
+  }
+
   .model-name-list {
     display: flex;
     flex-wrap: wrap;
@@ -1085,8 +1323,11 @@
 
   .model-actions {
     display: flex;
+    flex-wrap: wrap;
     justify-content: flex-start;
-    margin-top: 10px;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
   }
 
   .endpoint-list,
@@ -1175,12 +1416,20 @@
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
+    padding: 4px 8px 4px 6px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 4px;
     border-radius: var(--radius-sm);
     transition: all 0.2s;
+  }
+
+  .btn-icon-text {
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+    color: inherit;
   }
 
   .btn-icon-delete:hover {
