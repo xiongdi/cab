@@ -314,11 +314,9 @@ pub fn sse_data_payloads(sse: &str) -> Vec<String> {
     for line in sse.lines() {
         if let Some(rest) = line.strip_prefix("data:") {
             data_lines.push(rest.trim_start());
-        } else if line.is_empty() {
-            if !data_lines.is_empty() {
-                out.push(data_lines.join("\n"));
-                data_lines.clear();
-            }
+        } else if line.is_empty() && !data_lines.is_empty() {
+            out.push(data_lines.join("\n"));
+            data_lines.clear();
         }
     }
     if !data_lines.is_empty() {
