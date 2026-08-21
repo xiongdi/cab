@@ -989,7 +989,19 @@ mod tests {
         assert_eq!(load_aa_model_map().version, 7);
         let status = aa_model_map_status();
         assert!(status.available);
-        assert_eq!(status.models, Some(1));
+        // Status counts the merged map (bundled baseline + user overlay).
+        assert_eq!(
+            status.models,
+            Some(load_aa_model_map().mappings.len()),
+            "status.models should match merged overlay+baseline size"
+        );
+        assert!(
+            load_aa_model_map()
+                .mappings
+                .get("existing/model")
+                .map(String::as_str)
+                == Some("known")
+        );
 
         std::fs::write(aa_model_map_path(), "{bad-json").unwrap();
         assert_eq!(load_aa_model_map().version, 1);

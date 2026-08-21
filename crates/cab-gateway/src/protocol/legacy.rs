@@ -81,6 +81,9 @@ struct OpenAiChatStreamConverter {
     /// Latched from a usage-only final chunk (common for OpenAI-compat providers
     /// like LongCat that send finish_reason and usage on separate SSE events).
     last_usage: Option<Value>,
+    /// Finish reason seen before the usage-only chunk; finalize once usage (or
+    /// `[DONE]`) arrives so `stream_options.include_usage` is not dropped.
+    pending_finish_reason: Option<String>,
 }
 
 impl OpenAiChatStreamConverter {
@@ -101,6 +104,7 @@ impl OpenAiChatStreamConverter {
             finished: false,
             output_tokens: 0,
             last_usage: None,
+            pending_finish_reason: None,
         }
     }
 
@@ -418,8 +422,9 @@ impl OpenAiChatStreamConverter {
             _ => "end_turn",
         };
 
-        // Upstream is OpenAI Chat Completions (`CompletionUsage`): only
-        // prompt_tokens / completion_tokens are authoritative.
+        // Upstream is OpenAI Chat Completions (`CompletionUsage`):
+        // prompt_tokens / completion_tokens are authoritative; cache legs come
+        // from prompt_tokens_details or DeepSeek-style top-level aliases.
         let output_tokens = usage
             .and_then(|u| u.get("completion_tokens"))
             .and_then(|v| v.as_u64())
@@ -428,6 +433,25 @@ impl OpenAiChatStreamConverter {
         let input_tokens = usage
             .and_then(|u| u.get("prompt_tokens"))
             .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let details = usage.and_then(|u| u.get("prompt_tokens_details"));
+        let cache_read = details
+            .and_then(|d| d.get("cached_tokens"))
+            .and_then(|v| v.as_u64())
+            .or_else(|| {
+                usage
+                    .and_then(|u| u.get("prompt_cache_hit_tokens"))
+                    .and_then(|v| v.as_u64())
+            })
+            .unwrap_or(0);
+        let cache_creation = details
+            .and_then(|d| d.get("cache_write_tokens"))
+            .and_then(|v| v.as_u64())
+            .or_else(|| {
+                usage
+                    .and_then(|u| u.get("cache_creation_input_tokens"))
+                    .and_then(|v| v.as_u64())
+            })
             .unwrap_or(0);
 
         if self.thinking_block_started {
@@ -443,9 +467,18 @@ impl OpenAiChatStreamConverter {
                 serde_json::json!({"type": "content_block_stop", "index": self.text_block_index}),
             ));
         }
+        // Emit OpenAI-inclusive prompt_tokens as Anthropic input_tokens together
+        // with cache legs; TokenTrackingStream / normalize detect the inclusive
+        // layout and store disjoint CAB fields.
         let mut delta_usage = serde_json::json!({"output_tokens": output_tokens});
         if input_tokens > 0 {
             delta_usage["input_tokens"] = serde_json::json!(input_tokens);
+        }
+        if cache_read > 0 {
+            delta_usage["cache_read_input_tokens"] = serde_json::json!(cache_read);
+        }
+        if cache_creation > 0 {
+            delta_usage["cache_creation_input_tokens"] = serde_json::json!(cache_creation);
         }
         self.pending.push(anthropic_stream_event(
             "message_delta",
@@ -471,7 +504,8 @@ impl OpenAiChatStreamConverter {
         };
         if payload == "[DONE]" {
             let usage = self.last_usage.clone();
-            self.finish_with_reason(None, usage.as_ref());
+            let reason = self.pending_finish_reason.clone();
+            self.finish_with_reason(reason.as_deref(), usage.as_ref());
             return;
         }
         let Ok(chunk) = serde_json::from_str::<Value>(payload) else {
@@ -500,22 +534,28 @@ impl OpenAiChatStreamConverter {
         let finish_reason = choice
             .and_then(|c| c.get("finish_reason"))
             .and_then(|r| r.as_str());
-        if finish_reason.is_some() {
-            // Prefer usage on this chunk; otherwise the latched usage-only chunk.
+        if let Some(reason) = finish_reason {
             let usage = chunk
                 .get("usage")
                 .cloned()
                 .or_else(|| self.last_usage.clone());
-            self.finish_with_reason(finish_reason, usage.as_ref());
+            if usage.is_some() {
+                self.finish_with_reason(Some(reason), usage.as_ref());
+            } else {
+                // OpenAI often emits finish_reason first, then a usage-only
+                // chunk when stream_options.include_usage is set. Wait for it.
+                self.pending_finish_reason = Some(reason.to_string());
+            }
         } else if chunk.get("usage").is_some()
             && choice
                 .and_then(|c| c.get("delta"))
                 .map(|d| d.as_object().map(|o| o.is_empty()).unwrap_or(true))
                 .unwrap_or(true)
         {
-            // Usage-only final chunk with empty/missing choices (OpenAI
-            // stream_options.include_usage) — finalize with CompletionUsage.
-            self.finish_with_reason(None, chunk.get("usage"));
+            // Usage-only final chunk (include_usage) — finalize with latched
+            // finish_reason when present.
+            let reason = self.pending_finish_reason.clone();
+            self.finish_with_reason(reason.as_deref(), chunk.get("usage"));
         }
     }
 
@@ -535,7 +575,8 @@ impl OpenAiChatStreamConverter {
             self.process_openai_line(&line);
         }
         let usage = self.last_usage.clone();
-        self.finish_with_reason(None, usage.as_ref());
+        let reason = self.pending_finish_reason.clone();
+        self.finish_with_reason(reason.as_deref(), usage.as_ref());
     }
 
     fn pop_output(&mut self) -> Option<Bytes> {
@@ -1625,6 +1666,107 @@ data: [DONE]\n\n";
         assert!(sse.contains(r#""text":" there""#));
         assert!(sse.contains("event: message_stop"));
         assert!(sse.contains(r#""stop_reason":"end_turn""#));
+    }
+
+    #[tokio::test]
+    async fn transform_openai_chat_sse_to_anthropic_maps_prompt_and_cache_usage() {
+        let openai_sse = r#"data: {"choices":[{"delta":{"content":"ok"}}]}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":5,"prompt_cache_hit_tokens":40,"prompt_tokens_details":{"cached_tokens":40,"cache_write_tokens":10}}}
+
+data: [DONE]
+
+"#;
+        let upstream = futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(
+            Bytes::from(openai_sse),
+        )]);
+        let mut out = transform_openai_chat_sse_to_anthropic(upstream, "tencent/hy3".into());
+        let mut sse = String::new();
+        while let Some(chunk) = out.next().await {
+            sse.push_str(&String::from_utf8_lossy(&chunk.unwrap()));
+        }
+
+        assert!(
+            sse.contains(r#""input_tokens":100"#),
+            "expected prompt_tokens mapped into message_delta: {sse}"
+        );
+        assert!(
+            sse.contains(r#""output_tokens":5"#),
+            "expected completion_tokens mapped: {sse}"
+        );
+        assert!(
+            sse.contains(r#""cache_read_input_tokens":40"#),
+            "expected cache read mapped: {sse}"
+        );
+        assert!(
+            sse.contains(r#""cache_creation_input_tokens":10"#),
+            "expected cache write mapped: {sse}"
+        );
+    }
+
+    #[tokio::test]
+    async fn token_tracking_after_chat_to_anthropic_conversion_records_cache() {
+        // Simulates the Claude Code path: upstream Chat usage is converted to
+        // Anthropic SSE, then TokenTrackingStream logs against /v1/messages.
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-converted-hy3".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "claude-code".into(),
+            provider: "OpenCode Go".into(),
+            model: "tencent/hy3".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/messages".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let openai_sse = r#"data: {"choices":[{"delta":{"content":"hi"}}]}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":2,"prompt_cache_hit_tokens":40}}
+
+data: [DONE]
+
+"#;
+        let converted = transform_openai_chat_sse_to_anthropic(
+            futures::stream::iter(vec![Ok::<Bytes, std::convert::Infallible>(Bytes::from(
+                openai_sse,
+            ))]),
+            "tencent/hy3".into(),
+        )
+        .map(|result| result.unwrap())
+        .collect::<Vec<_>>()
+        .await;
+        let combined: Vec<u8> = converted.iter().flat_map(|b| b.iter().copied()).collect();
+        let chunks = futures::stream::iter(vec![Ok::<Bytes, axum::Error>(Bytes::from(combined))]);
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        // Inclusive prompt(100) + cache_read(40) → disjoint input 60.
+        assert_eq!(log.input_tokens, 60);
+        assert_eq!(log.cache_read_tokens, 40);
+        assert_eq!(log.output_tokens, 2);
+        assert_eq!(log.total_tokens, 102);
     }
 
     #[test]

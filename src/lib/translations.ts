@@ -138,8 +138,7 @@ export const translations = {
       detail_status: '状态',
       models_total: '共 {count} 个模型',
       models_loaded_count: '已加载 {count} 个',
-      models_not_in_db:
-        '以下模型尚未注册到数据库，请先在「模型管理」页同步目录后才能单模型开关：',
+      models_not_in_db: '以下模型尚未注册到数据库，请先在「模型管理」页同步目录后才能单模型开关：',
       toggle_model_success: '模型 “{name}” 已{status}',
       toggle_model_failed: '模型 “{name}” 切换失败',
       enable_all_models: '一键开启所有模型',

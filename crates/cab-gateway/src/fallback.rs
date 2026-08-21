@@ -231,6 +231,13 @@ pub async fn execute_with_fallback(
                         &mut converted_val,
                         &endpoint.protocol,
                     );
+                    // Streaming Chat Completions omit usage unless asked; without
+                    // this, Anthropic←Chat conversion logs input/cache as zero.
+                    crate::shaping::ensure_openai_chat_stream_usage(
+                        &mut converted_val,
+                        &endpoint.protocol,
+                        request.stream,
+                    );
                     if let Ok(new_body_bytes) = serde_json::to_vec(&converted_val) {
                         rewritten_body = bytes::Bytes::from(new_body_bytes);
                     }

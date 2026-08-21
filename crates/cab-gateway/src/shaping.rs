@@ -49,6 +49,27 @@ pub fn ensure_tool_call_reasoning(body: &mut Value, endpoint_protocol: &str) {
     }
 }
 
+/// Ensure Chat Completions streaming requests ask for a final usage chunk.
+///
+/// Without `stream_options.include_usage`, many OpenAI-compatible relays omit
+/// `prompt_tokens` / cache fields on the SSE stream. When CAB then converts
+/// that stream to Anthropic Messages, logs show `input_tokens = 0` and no
+/// cache hits even though the upstream billed a full prompt.
+pub fn ensure_openai_chat_stream_usage(body: &mut Value, endpoint_protocol: &str, stream: bool) {
+    if !stream || endpoint_protocol != "openai-chat" {
+        return;
+    }
+    let Some(obj) = body.as_object_mut() else {
+        return;
+    };
+    let opts = obj
+        .entry("stream_options")
+        .or_insert_with(|| serde_json::json!({}));
+    if let Some(map) = opts.as_object_mut() {
+        map.insert("include_usage".into(), serde_json::json!(true));
+    }
+}
+
 fn ensure_openai_chat_reasoning(body: &mut Value) {
     let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) else {
         return;
@@ -420,5 +441,32 @@ mod tests {
         let before = body.clone();
         ensure_tool_call_reasoning(&mut body, "anthropic");
         assert_eq!(body, before);
+    }
+
+    #[test]
+    fn ensure_openai_chat_stream_usage_injects_include_usage() {
+        let mut body = json!({
+            "model": "hy3",
+            "stream": true,
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        ensure_openai_chat_stream_usage(&mut body, "openai-chat", true);
+        assert_eq!(body["stream_options"]["include_usage"], true);
+
+        // Merge into existing stream_options without wiping other keys.
+        let mut body = json!({
+            "stream_options": {"foo": 1},
+            "messages": []
+        });
+        ensure_openai_chat_stream_usage(&mut body, "openai-chat", true);
+        assert_eq!(body["stream_options"]["include_usage"], true);
+        assert_eq!(body["stream_options"]["foo"], 1);
+
+        // Non-stream / non-chat: no-op.
+        let mut body = json!({"messages": []});
+        ensure_openai_chat_stream_usage(&mut body, "openai-chat", false);
+        assert!(body.get("stream_options").is_none());
+        ensure_openai_chat_stream_usage(&mut body, "anthropic", true);
+        assert!(body.get("stream_options").is_none());
     }
 }

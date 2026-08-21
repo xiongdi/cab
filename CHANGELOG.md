@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.4] - 2026-08-21
+
+### Fixed
+
+- **Anthropic→OpenAI Chat streaming usage/cache logging**: inject `stream_options.include_usage`, defer SSE finalize until the usage chunk arrives, and map `prompt_tokens` / cache legs into Anthropic `message_delta.usage`. Fixes Claude Code → hy3 (and similar Chat-native Go models) showing `input_tokens=0` and no cache hits after protocol conversion.
+
 ## [0.11.3] - 2026-08-20
 
 ### Changed
