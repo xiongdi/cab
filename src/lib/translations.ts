@@ -207,7 +207,7 @@ export const translations = {
     models: {
       title: '模型目录',
       subtitle:
-        '列表展示 models.dev 目录字段；展开查看 models.dev、Artificial Analysis 与 SQLite 数据库用户设置三部分数据',
+        '列表来自 models.dev/models.json；展开查看 models.dev、Artificial Analysis 与用户覆盖设置',
       section_models_dev: 'models.dev',
       section_aa: 'Artificial Analysis',
       section_gateways: '可用提供商',
@@ -220,7 +220,7 @@ export const translations = {
       endpoint_toggle_success: '网关 “{name}” 已{status}',
       settings_empty: '无用户覆盖项',
       aa_empty: '无 AA 基准数据',
-      models_dev_empty: 'catalog.json 中未找到该模型',
+      models_dev_empty: 'models.json 中未找到该模型',
       col_name: '名称',
       col_id: 'ID',
       col_family: '系列',
@@ -798,7 +798,7 @@ export const translations = {
     models: {
       title: 'Model Catalog',
       subtitle:
-        'List shows models.dev catalog fields; expand for models.dev, Artificial Analysis, and SQLite database overrides',
+        'List from models.dev/models.json; expand for models.dev, Artificial Analysis, and user overrides',
       section_models_dev: 'models.dev',
       section_aa: 'Artificial Analysis',
       section_gateways: 'Serving Gateways',
@@ -812,7 +812,7 @@ export const translations = {
       endpoint_toggle_success: 'Gateway “{name}” {status}',
       settings_empty: 'No user overrides',
       aa_empty: 'No AA benchmark data',
-      models_dev_empty: 'Model not found in catalog.json',
+      models_dev_empty: 'Model not found in models.json',
       col_name: 'Name',
       col_id: 'ID',
       col_family: 'Family',

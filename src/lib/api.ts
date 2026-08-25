@@ -129,6 +129,18 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(data),
       }),
+
+    setModelsEnabled: (id: string, enabled: boolean) =>
+      request<{
+        success: boolean;
+        provider_id: string;
+        enabled: boolean;
+        updated: number;
+        model_names: string[];
+      }>(`/providers/${encodeURIComponent(id)}/models/enabled`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+      }),
   },
 
   // ── Models ────────────────────────────────────────────────

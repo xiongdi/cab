@@ -287,6 +287,92 @@ pub async fn update(
     Ok(updated)
 }
 
+#[derive(Debug, Clone)]
+pub struct SetProviderModelsEnabledResult {
+    pub updated: usize,
+    pub model_names: Vec<String>,
+}
+
+/// Atomically enable/disable every model bound to `provider_id`.
+///
+/// Same-name bindings on other providers are updated too (matches single-model
+/// `update`), and all `settings.models` overrides are written in one pass so
+/// concurrent per-model PUTs cannot clobber each other.
+pub async fn set_provider_models_enabled(
+    store: &InMemoryStore,
+    provider_id: &str,
+    enabled: bool,
+) -> Result<Option<SetProviderModelsEnabledResult>, String> {
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+
+    let Some(provider) = inner.providers.get(provider_id) else {
+        return Ok(None);
+    };
+
+    let names_to_flip: std::collections::HashSet<String> = provider
+        .models
+        .iter()
+        .filter(|bm| bm.model.enabled != enabled)
+        .map(|bm| bm.model.name.clone())
+        .collect();
+
+    if names_to_flip.is_empty() {
+        return Ok(Some(SetProviderModelsEnabledResult {
+            updated: 0,
+            model_names: Vec::new(),
+        }));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut touched_provider_ids: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
+    for (pid, provider) in inner.providers.iter_mut() {
+        let mut changed = false;
+        for bm in provider.models.iter_mut() {
+            if names_to_flip.contains(&bm.model.name) {
+                bm.model.enabled = enabled;
+                bm.model.updated_at = now.clone();
+                changed = true;
+            }
+        }
+        if changed {
+            touched_provider_ids.insert(pid.clone());
+        }
+    }
+
+    for name in &names_to_flip {
+        inner.settings.models.insert(
+            name.clone(),
+            cab_core::types::ModelUserSettings {
+                enabled: Some(enabled),
+            },
+        );
+    }
+
+    let settings = inner.settings.clone();
+    let providers_to_persist: Vec<_> = touched_provider_ids
+        .iter()
+        .filter_map(|id| inner.providers.get(id).cloned())
+        .collect();
+    let mut model_names: Vec<String> = names_to_flip.into_iter().collect();
+    model_names.sort();
+    let updated = model_names.len();
+    drop(inner);
+
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        for provider in &providers_to_persist {
+            crate::sqlite::upsert_catalog_provider(&conn, provider)?;
+        }
+        crate::sqlite::save_settings(&conn, &settings)?;
+    }
+
+    Ok(Some(SetProviderModelsEnabledResult {
+        updated,
+        model_names,
+    }))
+}
+
 pub async fn delete(store: &InMemoryStore, id: &str) -> Result<bool, String> {
     let mut inner = store.inner.write().map_err(|e| e.to_string())?;
     let mut removed_provider: Option<cab_core::types::Provider> = None;
@@ -496,6 +582,162 @@ mod tests {
         assert!(!delete(&store, "provider-alpha-model").await.unwrap());
         assert!(
             get_by_id(&store, "provider-alpha-model")
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[tokio::test]
+    async fn set_provider_models_enabled_is_atomic_and_updates_shared_bindings() {
+        let store = InMemoryStore::new();
+        let model_a = Model {
+            id: "shared-a".into(),
+            name: "vendor/shared".into(),
+            display_name: "Shared".into(),
+            provider_id: "provider-a".into(),
+            protocol: "openai-chat".into(),
+            upstream_protocol: None,
+            context_length: 1000,
+            input_cost: None,
+            output_cost: None,
+            enabled: true,
+            overall_intelligence: None,
+            coding_index: None,
+            agentic_index: None,
+            math_index: None,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        };
+        let mut model_b = model_a.clone();
+        model_b.id = "shared-b".into();
+        model_b.provider_id = "provider-b".into();
+        let only_a = Model {
+            id: "only-a".into(),
+            name: "vendor/only-a".into(),
+            display_name: "Only A".into(),
+            provider_id: "provider-a".into(),
+            protocol: "openai-chat".into(),
+            upstream_protocol: None,
+            context_length: 1000,
+            input_cost: None,
+            output_cost: None,
+            enabled: true,
+            overall_intelligence: None,
+            coding_index: None,
+            agentic_index: None,
+            math_index: None,
+            output_speed_tps: None,
+            time_to_first_token_secs: None,
+            created_at: "now".into(),
+            updated_at: "now".into(),
+            canonical_slug: None,
+            hugging_face_id: None,
+            created: None,
+            description: None,
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None,
+            default_parameters: None,
+            supported_voices: None,
+            knowledge_cutoff: None,
+            expiration_date: None,
+            links: None,
+        };
+
+        {
+            let mut inner = store.inner.write().unwrap();
+            for (id, models) in [
+                (
+                    "provider-a",
+                    vec![
+                        cab_core::ProviderModel {
+                            model: model_a.clone(),
+                        },
+                        cab_core::ProviderModel {
+                            model: only_a.clone(),
+                        },
+                    ],
+                ),
+                (
+                    "provider-b",
+                    vec![cab_core::ProviderModel {
+                        model: model_b.clone(),
+                    }],
+                ),
+            ] {
+                inner.providers.insert(
+                    id.into(),
+                    cab_core::types::Provider {
+                        id: id.into(),
+                        name: id.into(),
+                        endpoints: Vec::new(),
+                        api_key: "".into(),
+                        enabled: true,
+                        created_at: "now".into(),
+                        updated_at: "now".into(),
+                        privacy_policy_url: None,
+                        terms_of_service_url: None,
+                        status_page_url: None,
+                        headquarters: None,
+                        datacenters: None,
+                        api_keys: Vec::new(),
+                        api: None,
+                        doc: None,
+                        env: None,
+                        npm: None,
+                        model_count: models.len(),
+                        logo: None,
+                        catalog_models: models.iter().map(|m| m.model.name.clone()).collect(),
+                        models,
+                    },
+                );
+            }
+        }
+
+        let result = set_provider_models_enabled(&store, "provider-a", false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(result.updated, 2);
+        assert_eq!(
+            result.model_names,
+            vec!["vendor/only-a".to_string(), "vendor/shared".to_string()]
+        );
+
+        let listed = list(&store).await.unwrap();
+        assert!(listed.iter().all(|m| !m.enabled));
+
+        let settings = store.inner.read().unwrap().settings.clone();
+        assert_eq!(settings.models["vendor/shared"].enabled, Some(false));
+        assert_eq!(settings.models["vendor/only-a"].enabled, Some(false));
+
+        let noop = set_provider_models_enabled(&store, "provider-a", false)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(noop.updated, 0);
+
+        assert!(
+            set_provider_models_enabled(&store, "missing", true)
                 .await
                 .unwrap()
                 .is_none()

@@ -2,12 +2,14 @@ use cab_core::CabError;
 use cab_core::benchmark_catalog::{
     BenchmarkCatalogFile, BenchmarkModelRecord, artificial_analysis_models_path,
     artificial_analysis_models_url, benchmark_record_from_aa_api_model, ensure_aa_model_map_file,
-    models_dev_catalog_path, models_dev_catalog_url, refresh_aa_model_map_exact_matches,
-    resolve_artificial_analysis_api_key, write_catalog_file,
+    models_dev_catalog_path, models_dev_catalog_url, models_dev_models_url,
+    refresh_aa_model_map_exact_matches, resolve_artificial_analysis_api_key, write_catalog_file,
+    write_models_dev_models_file,
 };
 use cab_db::InMemoryStore;
 use chrono::Utc;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 struct ArtificialAnalysisResponse {
@@ -35,7 +37,35 @@ pub async fn sync_catalogs(
 pub async fn sync_models_dev_catalog(
     client: &reqwest::Client,
 ) -> Result<serde_json::Value, CabError> {
-    sync_models_dev_json(client, models_dev_catalog_url()).await
+    let catalog = sync_models_dev_json(client, models_dev_catalog_url()).await?;
+    // Refresh the Models page display cache (models.json) alongside catalog.json.
+    // Failures here must not block provider/model binding sync.
+    if let Err(e) = sync_models_dev_models_cache(client).await {
+        tracing::warn!("Failed to refresh models.dev models.json cache: {e}");
+    }
+    Ok(catalog)
+}
+
+async fn sync_models_dev_models_cache(client: &reqwest::Client) -> Result<(), CabError> {
+    let url = models_dev_models_url();
+    let resp = client.get(url).send().await.map_err(|e| {
+        CabError::Proxy(format!(
+            "Failed to download models.dev models.json from {url}: {e}"
+        ))
+    })?;
+    if !resp.status().is_success() {
+        return Err(CabError::Proxy(format!(
+            "models.dev models.json returned HTTP {}",
+            resp.status().as_u16()
+        )));
+    }
+    let models: HashMap<String, serde_json::Value> = resp
+        .json()
+        .await
+        .map_err(|e| CabError::Proxy(format!("Failed to parse models.dev models.json: {e}")))?;
+    write_models_dev_models_file(&models).map_err(CabError::Database)?;
+    tracing::info!("Cached models.dev models.json ({} models)", models.len());
+    Ok(())
 }
 
 async fn sync_models_dev_json(

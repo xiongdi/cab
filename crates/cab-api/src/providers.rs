@@ -184,6 +184,29 @@ pub async fn sync_provider_models(
     })))
 }
 
+/// Atomically enable or disable all models bound to a provider.
+///
+/// Replaces the frontend's concurrent per-model `PUT /api/models/{id}` loop,
+/// which raced on `settings.models` / provider SQLite writes.
+pub async fn set_provider_models_enabled(
+    State(state): State<ApiState>,
+    Path(id): Path<String>,
+    Json(input): Json<EnabledInput>,
+) -> Result<impl IntoResponse, CabError> {
+    let result = cab_db::model::set_provider_models_enabled(&state.pool, &id, input.enabled)
+        .await
+        .map_err(CabError::Database)?
+        .ok_or_else(|| CabError::NotFound(format!("Provider {id} not found")))?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "provider_id": id,
+        "enabled": input.enabled,
+        "updated": result.updated,
+        "model_names": result.model_names,
+    })))
+}
+
 pub async fn sync_models_dev_providers(
     State(state): State<ApiState>,
 ) -> Result<impl IntoResponse, CabError> {

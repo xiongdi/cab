@@ -22,11 +22,12 @@ pub use benchmark_catalog::{
     artificial_analysis_catalog_status, artificial_analysis_models_path,
     artificial_analysis_models_url, benchmark_record_from_aa_api_model, catalog_root_dir,
     embedded_aa_model_map, ensure_aa_model_map_file, load_aa_model_map,
-    load_artificial_analysis_catalog, load_models_dev_catalog_file, models_dev_catalog_path,
-    models_dev_catalog_status, models_dev_catalog_url, models_dev_lab_logo_url,
+    load_artificial_analysis_catalog, load_models_dev_catalog_file, load_models_dev_models_file,
+    models_dev_catalog_path, models_dev_catalog_status, models_dev_catalog_url,
+    models_dev_lab_logo_url, models_dev_models_path, models_dev_models_url,
     models_dev_provider_logo_url, refresh_aa_model_map_exact_matches,
     resolve_artificial_analysis_api_key, resolve_intelligence_indices, resolve_performance_metrics,
-    save_aa_model_map,
+    save_aa_model_map, write_models_dev_models_file,
 };
 pub use config::CabConfig;
 pub use error::{CabError, redact_secrets};

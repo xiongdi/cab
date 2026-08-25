@@ -7,6 +7,7 @@ use crate::model_scores::ModelIntelligenceIndices;
 
 const AA_MODELS_URL: &str = "https://artificialanalysis.ai/api/v2/data/llms/models";
 const MODELS_DEV_CATALOG_URL: &str = "https://models.dev/catalog.json";
+const MODELS_DEV_MODELS_URL: &str = "https://models.dev/models.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct BenchmarkCatalogFile {
@@ -251,6 +252,10 @@ pub fn models_dev_catalog_path() -> PathBuf {
     catalog_root_dir().join("models.dev").join("catalog.json")
 }
 
+pub fn models_dev_models_path() -> PathBuf {
+    catalog_root_dir().join("models.dev").join("models.json")
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ModelsDevCatalogFile {
     pub providers: serde_json::Value,
@@ -268,6 +273,44 @@ pub fn load_models_dev_catalog_file() -> Result<ModelsDevCatalogFile, String> {
     serde_json::from_str(&content).map_err(|e| {
         format!(
             "Failed to parse models.dev catalog at {}: {e}",
+            path.display()
+        )
+    })
+}
+
+/// Load the display-only models.dev model encyclopedia (`models.json`).
+///
+/// This is separate from provider/model bindings used for routing.
+pub fn load_models_dev_models_file() -> Result<HashMap<String, serde_json::Value>, String> {
+    let path = models_dev_models_path();
+    let content = std::fs::read_to_string(&path).map_err(|e| {
+        format!(
+            "Failed to read models.dev models at {}: {e}",
+            path.display()
+        )
+    })?;
+    serde_json::from_str(&content).map_err(|e| {
+        format!(
+            "Failed to parse models.dev models at {}: {e}",
+            path.display()
+        )
+    })
+}
+
+/// Persist a models.dev `models.json` payload for offline display.
+pub fn write_models_dev_models_file(
+    models: &HashMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    let path = models_dev_models_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+    }
+    let bytes = serde_json::to_vec_pretty(models)
+        .map_err(|e| format!("Failed to serialize models.dev models.json: {e}"))?;
+    std::fs::write(&path, bytes).map_err(|e| {
+        format!(
+            "Failed to write models.dev models at {}: {e}",
             path.display()
         )
     })
@@ -768,6 +811,10 @@ pub fn models_dev_catalog_url() -> &'static str {
     MODELS_DEV_CATALOG_URL
 }
 
+pub fn models_dev_models_url() -> &'static str {
+    MODELS_DEV_MODELS_URL
+}
+
 pub fn models_dev_provider_logo_url(provider_id: &str) -> String {
     format!(
         "{}/logos/{}.svg",
@@ -927,6 +974,8 @@ mod tests {
         let _home = TestHome::new();
         assert!(catalog_root_dir().ends_with("catalog"));
         assert_eq!(models_dev_catalog_url(), MODELS_DEV_CATALOG_URL);
+        assert_eq!(models_dev_models_url(), MODELS_DEV_MODELS_URL);
+        assert!(models_dev_models_path().ends_with("models.dev/models.json"));
         assert_eq!(artificial_analysis_models_url(), AA_MODELS_URL);
         assert_eq!(
             models_dev_provider_logo_url("Open AI"),

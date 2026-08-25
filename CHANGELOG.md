@@ -5,6 +5,16 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.5] - 2026-08-25
+
+### Fixed
+
+- **Atomic provider bulk model enable/disable**: `PUT /api/providers/{id}/models/enabled` updates bindings and `settings.models` in one pass. The provider page no longer fires concurrent per-model `PUT /api/models/{id}` calls that raced and left settings out of sync with catalog bindings (wrong candidate counts after “disable all / enable a few”).
+
+### Changed
+
+- **Models page is display-only from `models.dev/models.json`**: `/api/models/catalog` lists the canonical encyclopedia (~355 entries) instead of every provider binding. Reads local cache first; catalog sync also refreshes `~/.cab/catalog/models.dev/models.json`. Routing and provider bindings are unchanged.
+
 ## [0.11.4] - 2026-08-21
 
 ### Fixed

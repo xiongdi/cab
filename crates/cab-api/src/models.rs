@@ -4,10 +4,12 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use cab_core::CabError;
 use cab_core::benchmark_catalog::{
-    BenchmarkModelRecord, load_aa_model_map, load_models_dev_catalog_file,
+    BenchmarkModelRecord, load_aa_model_map, load_models_dev_models_file, models_dev_models_url,
+    write_models_dev_models_file,
 };
 use cab_core::types::{CreateModel, ModelUserSettings, UpdateModel};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 use crate::ApiState;
 
@@ -21,19 +23,62 @@ pub struct ModelCatalogEntry {
     pub settings: ModelUserSettings,
 }
 
+/// Display-only: load `models.dev/models.json` from local cache, refreshing
+/// from the network only when the cache is missing.
+///
+/// Does not read provider bindings and does not change routing/sync state.
+async fn load_models_json_for_display() -> Result<HashMap<String, serde_json::Value>, CabError> {
+    match load_models_dev_models_file() {
+        Ok(models) if !models.is_empty() => return Ok(models),
+        Ok(_) => {
+            tracing::warn!("models.dev models.json cache is empty; fetching upstream");
+        }
+        Err(e) => {
+            tracing::warn!("models.dev models.json cache unavailable ({e}); fetching upstream");
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .unwrap_or_default();
+    let url = models_dev_models_url();
+
+    let resp = client.get(url).send().await.map_err(|e| {
+        CabError::Database(format!("Failed to download models.dev models.json: {e}"))
+    })?;
+    if !resp.status().is_success() {
+        return Err(CabError::Database(format!(
+            "models.dev models.json returned HTTP {}",
+            resp.status().as_u16()
+        )));
+    }
+    let models: HashMap<String, serde_json::Value> = resp
+        .json()
+        .await
+        .map_err(|e| CabError::Database(format!("Failed to parse models.dev models.json: {e}")))?;
+    if let Err(e) = write_models_dev_models_file(&models) {
+        tracing::warn!("Failed to cache models.dev models.json: {e}");
+    }
+    Ok(models)
+}
+
 pub async fn list_model_catalog(
     State(state): State<ApiState>,
 ) -> Result<impl IntoResponse, CabError> {
+    let models_dev_map = load_models_json_for_display().await?;
+
     let db_models = cab_db::model::list(&state.pool)
         .await
         .map_err(CabError::Database)?;
+    let mut db_by_name: HashMap<String, cab_core::types::Model> = HashMap::new();
+    for model in db_models {
+        db_by_name.entry(model.name.clone()).or_insert(model);
+    }
+
     let settings = cab_db::settings::get(&state.pool)
         .await
         .map_err(CabError::Database)?;
-    let catalog = load_models_dev_catalog_file().map_err(CabError::Database)?;
-    let models_dev_map: std::collections::HashMap<String, serde_json::Value> =
-        serde_json::from_value(catalog.models)
-            .map_err(|e| CabError::Database(format!("Failed to parse models.dev models: {e}")))?;
     let aa_catalog = state
         .pool
         .sqlite()
@@ -41,35 +86,43 @@ pub async fn list_model_catalog(
         .and_then(|conn| cab_db::sqlite::load_aa_benchmark_catalog(&conn));
     let aa_map = load_aa_model_map();
 
-    // A canonical model may be bound to several providers (vendor + resellers);
-    // surface each distinct model once.
-    let mut seen_names = std::collections::HashSet::new();
-    let mut entries: Vec<ModelCatalogEntry> = db_models
+    let mut entries: Vec<ModelCatalogEntry> = models_dev_map
         .into_iter()
-        .filter(|model| seen_names.insert(model.name.clone()))
-        .map(|model| {
-            let models_dev = models_dev_map
-                .get(&model.name)
-                .cloned()
-                .unwrap_or(serde_json::Value::Null);
+        .map(|(catalog_id, models_dev)| {
+            let db_model = db_by_name.get(&catalog_id);
             let settings_entry = settings
                 .models
-                .get(&model.name)
+                .get(&catalog_id)
                 .cloned()
                 .unwrap_or_default();
-            let enabled = settings_entry.enabled.unwrap_or(model.enabled);
+            let enabled = settings_entry
+                .enabled
+                .unwrap_or_else(|| db_model.map(|m| m.enabled).unwrap_or(false));
             let artificial_analysis = aa_catalog.as_ref().and_then(|catalog| {
+                let context_length = db_model
+                    .map(|m| m.context_length)
+                    .or_else(|| {
+                        models_dev
+                            .get("limit")
+                            .and_then(|l| l.get("context"))
+                            .and_then(|v| v.as_i64())
+                    })
+                    .unwrap_or(0);
                 catalog.lookup_record(
-                    &model.name,
-                    model.canonical_slug.as_deref(),
-                    Some(&model.display_name),
-                    model.context_length,
+                    &catalog_id,
+                    db_model.and_then(|m| m.canonical_slug.as_deref()),
+                    db_model
+                        .map(|m| m.display_name.as_str())
+                        .or_else(|| models_dev.get("name").and_then(|v| v.as_str())),
+                    context_length,
                     &aa_map,
                 )
             });
             ModelCatalogEntry {
-                id: model.id,
-                catalog_id: model.name,
+                id: db_model
+                    .map(|m| m.id.clone())
+                    .unwrap_or_else(|| catalog_id.clone()),
+                catalog_id,
                 enabled,
                 models_dev,
                 artificial_analysis,

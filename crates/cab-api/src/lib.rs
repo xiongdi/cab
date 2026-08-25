@@ -150,6 +150,10 @@ pub fn api_router(pool: InMemoryStore) -> Router {
         .route("/api/providers/{id}", put(providers::update_provider))
         .route("/api/providers/{id}", delete(providers::delete_provider))
         .route(
+            "/api/providers/{id}/models/enabled",
+            put(providers::set_provider_models_enabled),
+        )
+        .route(
             "/api/providers/{id}/sync",
             post(providers::sync_provider_models),
         )

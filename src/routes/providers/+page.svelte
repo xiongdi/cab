@@ -146,19 +146,19 @@
   }
 
   async function enableAllModels(provider: ProviderRow) {
-    const targets = modelRecordsForProvider(provider).filter((model) => !model.enabled);
-    if (targets.length === 0) {
-      toast(i18n.t('providers.enable_all_models_none'));
-      return;
-    }
     enablingAllFor = provider.id;
     try {
-      await Promise.all(targets.map((model) => api.models.update(model.id, { enabled: true })));
+      const result = await api.providers.setModelsEnabled(provider.id, true);
+      if (result.updated === 0) {
+        toast(i18n.t('providers.enable_all_models_none'));
+        return;
+      }
+      const names = new Set(result.model_names);
       allModels = allModels.map((model) =>
-        targets.some((t) => t.id === model.id) ? { ...model, enabled: true } : model
+        names.has(model.name) ? { ...model, enabled: true } : model
       );
       toast.success(
-        i18n.t('providers.enable_all_models_success').replace('{count}', String(targets.length))
+        i18n.t('providers.enable_all_models_success').replace('{count}', String(result.updated))
       );
       dataRevision.touchModels();
     } catch (e) {
@@ -169,19 +169,19 @@
   }
 
   async function disableAllModels(provider: ProviderRow) {
-    const targets = modelRecordsForProvider(provider).filter((model) => model.enabled);
-    if (targets.length === 0) {
-      toast(i18n.t('providers.disable_all_models_none'));
-      return;
-    }
     disablingAllFor = provider.id;
     try {
-      await Promise.all(targets.map((model) => api.models.update(model.id, { enabled: false })));
+      const result = await api.providers.setModelsEnabled(provider.id, false);
+      if (result.updated === 0) {
+        toast(i18n.t('providers.disable_all_models_none'));
+        return;
+      }
+      const names = new Set(result.model_names);
       allModels = allModels.map((model) =>
-        targets.some((t) => t.id === model.id) ? { ...model, enabled: false } : model
+        names.has(model.name) ? { ...model, enabled: false } : model
       );
       toast.success(
-        i18n.t('providers.disable_all_models_success').replace('{count}', String(targets.length))
+        i18n.t('providers.disable_all_models_success').replace('{count}', String(result.updated))
       );
       dataRevision.touchModels();
     } catch (e) {
