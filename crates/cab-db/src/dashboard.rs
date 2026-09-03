@@ -73,7 +73,7 @@ mod tests {
             name: id.into(),
             endpoints: vec![ProviderEndpoint {
                 id: "ep".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://example.test/v1".into(),
                 label: None,
                 priority: 1,
@@ -106,7 +106,7 @@ mod tests {
             name: id.into(),
             display_name: id.into(),
             provider_id: provider_id.into(),
-            protocol: "openai-chat".into(),
+            protocol: "openai-compatible".into(),
             upstream_protocol: None,
             context_length: 1,
             input_cost: None,

@@ -533,39 +533,39 @@ mod tests {
     #[test]
     fn responses_client_uses_catalog_chat_for_chat_only_model() {
         assert_eq!(
-            select_upstream_protocol("openai-responses", Some("openai-chat"), true),
-            "openai-chat"
+            select_upstream_protocol("openai-responses", Some("openai-compatible"), true),
+            "openai-compatible"
         );
     }
 
     #[test]
     fn responses_client_uses_catalog_anthropic_for_anthropic_only_model() {
         assert_eq!(
-            select_upstream_protocol("openai-responses", Some("anthropic"), true),
-            "anthropic"
+            select_upstream_protocol("openai-responses", Some("anthropic-messages"), true),
+            "anthropic-messages"
         );
     }
 
     #[test]
     fn anthropic_client_uses_model_native_chat() {
         assert_eq!(
-            select_upstream_protocol("anthropic", Some("openai-chat"), true),
-            "openai-chat"
+            select_upstream_protocol("anthropic-messages", Some("openai-compatible"), true),
+            "openai-compatible"
         );
     }
 
     #[test]
     fn unknown_model_sniffs_client_protocol_when_provider_has_it() {
         assert_eq!(
-            select_upstream_protocol("anthropic", None, true),
-            "anthropic"
+            select_upstream_protocol("anthropic-messages", None, true),
+            "anthropic-messages"
         );
     }
 
     #[test]
     fn reasoning_model_uses_responses_even_for_anthropic_client() {
         assert_eq!(
-            select_upstream_protocol("anthropic", Some("openai-responses"), true),
+            select_upstream_protocol("anthropic-messages", Some("openai-responses"), true),
             "openai-responses"
         );
     }

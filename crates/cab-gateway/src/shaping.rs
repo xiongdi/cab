@@ -23,12 +23,12 @@ use serde_json::Value;
 pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
     if let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) {
         normalize_system_messages(messages);
-        if endpoint_protocol == "openai-chat" || endpoint_protocol == "openai-responses" {
+        if endpoint_protocol == "openai-compatible" || endpoint_protocol == "openai-responses" {
             realign_openai_system_prompt(messages);
         }
     }
     sort_tools(body);
-    if endpoint_protocol == "anthropic" {
+    if endpoint_protocol == "anthropic-messages" {
         inject_anthropic_cache_control(body);
     }
 }
@@ -44,7 +44,7 @@ pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
 /// blocks can break the real Anthropic API, while OpenAI-chat empty
 /// `reasoning_content` is the documented fix for DeepSeek tool multi-turns.
 pub fn ensure_tool_call_reasoning(body: &mut Value, endpoint_protocol: &str) {
-    if endpoint_protocol == "openai-chat" {
+    if endpoint_protocol == "openai-compatible" {
         ensure_openai_chat_reasoning(body);
     }
 }
@@ -56,7 +56,7 @@ pub fn ensure_tool_call_reasoning(body: &mut Value, endpoint_protocol: &str) {
 /// that stream to Anthropic Messages, logs show `input_tokens = 0` and no
 /// cache hits even though the upstream billed a full prompt.
 pub fn ensure_openai_chat_stream_usage(body: &mut Value, endpoint_protocol: &str, stream: bool) {
-    if !stream || endpoint_protocol != "openai-chat" {
+    if !stream || endpoint_protocol != "openai-compatible" {
         return;
     }
     let Some(obj) = body.as_object_mut() else {
@@ -359,7 +359,7 @@ mod tests {
             "system": "hi",
             "tools": [{ "name": "b" }, { "name": "a" }]
         });
-        shape_request(&mut body, "openai-chat");
+        shape_request(&mut body, "openai-compatible");
         assert_eq!(tool_names(&body), vec!["a", "b"]);
         // system stays a plain string for non-anthropic endpoints.
         assert!(body["system"].is_string());
@@ -423,7 +423,7 @@ mod tests {
                 {"role": "assistant", "content": "done"}
             ]
         });
-        ensure_tool_call_reasoning(&mut body, "openai-chat");
+        ensure_tool_call_reasoning(&mut body, "openai-compatible");
         assert_eq!(body["messages"][0]["reasoning_content"], "");
         assert!(body["messages"][1].get("reasoning_content").is_none());
     }
@@ -439,7 +439,7 @@ mod tests {
             }]
         });
         let before = body.clone();
-        ensure_tool_call_reasoning(&mut body, "anthropic");
+        ensure_tool_call_reasoning(&mut body, "anthropic-messages");
         assert_eq!(body, before);
     }
 
@@ -450,7 +450,7 @@ mod tests {
             "stream": true,
             "messages": [{"role": "user", "content": "hi"}]
         });
-        ensure_openai_chat_stream_usage(&mut body, "openai-chat", true);
+        ensure_openai_chat_stream_usage(&mut body, "openai-compatible", true);
         assert_eq!(body["stream_options"]["include_usage"], true);
 
         // Merge into existing stream_options without wiping other keys.
@@ -458,15 +458,15 @@ mod tests {
             "stream_options": {"foo": 1},
             "messages": []
         });
-        ensure_openai_chat_stream_usage(&mut body, "openai-chat", true);
+        ensure_openai_chat_stream_usage(&mut body, "openai-compatible", true);
         assert_eq!(body["stream_options"]["include_usage"], true);
         assert_eq!(body["stream_options"]["foo"], 1);
 
         // Non-stream / non-chat: no-op.
         let mut body = json!({"messages": []});
-        ensure_openai_chat_stream_usage(&mut body, "openai-chat", false);
+        ensure_openai_chat_stream_usage(&mut body, "openai-compatible", false);
         assert!(body.get("stream_options").is_none());
-        ensure_openai_chat_stream_usage(&mut body, "anthropic", true);
+        ensure_openai_chat_stream_usage(&mut body, "anthropic-messages", true);
         assert!(body.get("stream_options").is_none());
     }
 }

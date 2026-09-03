@@ -37,7 +37,7 @@ pub async fn proxy_request(
 
         // Anthropic-compatible endpoints expect the key as `x-api-key`;
         // some (e.g. opencode.ai Console Go) reject `Authorization: Bearer` alone.
-        if protocol == "anthropic" {
+        if protocol == "anthropic-messages" {
             req = req.header("x-api-key", api_key);
         }
 
@@ -235,7 +235,7 @@ mod tests {
             &Client::new(),
             &format!("{}/post", server.base_url),
             "secret",
-            "openai-chat",
+            "openai-compatible",
             Bytes::from_static(br#"{"hello":"world"}"#),
             &HeaderMap::new(),
             false,
@@ -266,7 +266,7 @@ mod tests {
             &Client::new(),
             &format!("{}/post", server.base_url),
             "anthropic-key",
-            "anthropic",
+            "anthropic-messages",
             Bytes::from_static(br#"{"message":"hi"}"#),
             &headers,
             false,
@@ -292,7 +292,7 @@ mod tests {
             &Client::new(),
             &format!("{}/post", server.base_url),
             "",
-            "anthropic",
+            "anthropic-messages",
             Bytes::from_static(br#"{"message":"hi"}"#),
             &headers,
             false,
@@ -309,7 +309,7 @@ mod tests {
             &Client::new(),
             &format!("{}/post", server.base_url),
             "key",
-            "openai-chat",
+            "openai-compatible",
             Bytes::from_static(br#"{"message":"hi"}"#),
             &HeaderMap::new(),
             false,
@@ -329,7 +329,7 @@ mod tests {
             &Client::new(),
             &format!("{}/error", server.base_url),
             "secret",
-            "openai-chat",
+            "openai-compatible",
             Bytes::from_static(b"{}"),
             &HeaderMap::new(),
             false,
@@ -359,7 +359,7 @@ mod tests {
             &Client::new(),
             &format!("{}/stream", server.base_url),
             "secret",
-            "openai-chat",
+            "openai-compatible",
             Bytes::from_static(b"{}"),
             &HeaderMap::new(),
             true,
@@ -400,7 +400,7 @@ mod tests {
             &Client::new(),
             "http://127.0.0.1:1/unavailable",
             "secret",
-            "openai-chat",
+            "openai-compatible",
             Bytes::from_static(b"{}"),
             &HeaderMap::new(),
             false,

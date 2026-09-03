@@ -534,7 +534,7 @@ mod tests {
             endpoints: vec![
                 ProviderEndpoint {
                     id: format!("{id}-chat"),
-                    protocol: "openai-chat".into(),
+                    protocol: "openai-compatible".into(),
                     url: format!("https://{id}.test/v1"),
                     label: None,
                     priority: 50,
@@ -587,7 +587,7 @@ mod tests {
             name: format!("{provider_id}/{id}"),
             display_name: format!("Model {id}"),
             provider_id: provider_id.into(),
-            protocol: "openai-chat".into(),
+            protocol: "openai-compatible".into(),
             upstream_protocol: None,
             context_length: 128000,
             input_cost: Some(cost),
@@ -682,7 +682,10 @@ mod tests {
             .unwrap();
         assert_eq!(resolved.model.id, "smart");
         assert_eq!(resolved.provider_api_key, "sub-key");
-        assert_eq!(resolved.endpoint_candidates[0].protocol, "openai-chat");
+        assert_eq!(
+            resolved.endpoint_candidates[0].protocol,
+            "openai-compatible"
+        );
         assert!(resolved.provider_routing.is_empty());
 
         let alias = resolve_route(&store, "codex", Some("claude/cab/p1/cheap"), None)
@@ -1044,7 +1047,7 @@ mod tests {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "ep1".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://api.openai.com/v1".into(),
                 label: None,
                 priority: 50,
@@ -1052,14 +1055,14 @@ mod tests {
             },
             ProviderEndpoint {
                 id: "ep2".into(),
-                protocol: "anthropic".into(),
+                protocol: "anthropic-messages".into(),
                 url: "https://api.anthropic.com".into(),
                 label: None,
                 priority: 50,
                 enabled: true,
             },
         ]);
-        let picked = pick_endpoints_for_protocol(&provider, "anthropic");
+        let picked = pick_endpoints_for_protocol(&provider, "anthropic-messages");
         assert_eq!(picked.len(), 2);
         assert_eq!(picked[0].id, "ep2");
     }
@@ -1069,7 +1072,7 @@ mod tests {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "ep1".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://api.openai.com/v1".into(),
                 label: None,
                 priority: 50,
@@ -1077,14 +1080,14 @@ mod tests {
             },
             ProviderEndpoint {
                 id: "ep2".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://backup.openai.com/v1".into(),
                 label: None,
                 priority: 40,
                 enabled: true,
             },
         ]);
-        let picked = pick_endpoints_for_protocol(&provider, "openai-chat");
+        let picked = pick_endpoints_for_protocol(&provider, "openai-compatible");
         assert_eq!(picked.len(), 1);
         assert_eq!(picked[0].id, "ep2");
     }
@@ -1094,7 +1097,7 @@ mod tests {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "low".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://low-priority.com".into(),
                 label: None,
                 priority: 10,
@@ -1102,7 +1105,7 @@ mod tests {
             },
             ProviderEndpoint {
                 id: "high".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://high-priority.com".into(),
                 label: None,
                 priority: 100,
@@ -1110,14 +1113,14 @@ mod tests {
             },
             ProviderEndpoint {
                 id: "medium".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://medium-priority.com".into(),
                 label: None,
                 priority: 50,
                 enabled: true,
             },
         ]);
-        let picked = pick_endpoints_for_protocol(&provider, "openai-chat");
+        let picked = pick_endpoints_for_protocol(&provider, "openai-compatible");
         assert_eq!(picked.len(), 3);
         assert_eq!(picked[0].id, "low");
         assert_eq!(picked[1].id, "high");
@@ -1128,13 +1131,13 @@ mod tests {
     fn returns_fallback_endpoints_when_no_protocol_match() {
         let provider = make_provider(vec![ProviderEndpoint {
             id: "ep1".into(),
-            protocol: "anthropic".into(),
+            protocol: "anthropic-messages".into(),
             url: "https://api.anthropic.com".into(),
             label: None,
             priority: 50,
             enabled: true,
         }]);
-        let picked = pick_endpoints_for_protocol(&provider, "openai-chat");
+        let picked = pick_endpoints_for_protocol(&provider, "openai-compatible");
         assert_eq!(picked.len(), 1);
         assert_eq!(picked[0].id, "ep1");
     }
@@ -1144,7 +1147,7 @@ mod tests {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "openai".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://example.com/v1".into(),
                 label: None,
                 priority: 100,
@@ -1169,13 +1172,13 @@ mod tests {
     fn returns_empty_when_no_enabled_endpoints() {
         let provider = make_provider(vec![ProviderEndpoint {
             id: "ep1".into(),
-            protocol: "anthropic".into(),
+            protocol: "anthropic-messages".into(),
             url: "https://api.anthropic.com".into(),
             label: None,
             priority: 50,
             enabled: false,
         }]);
-        let picked = pick_endpoints_for_protocol(&provider, "openai-chat");
+        let picked = pick_endpoints_for_protocol(&provider, "openai-compatible");
         assert!(picked.is_empty());
     }
 
@@ -1185,7 +1188,7 @@ mod tests {
         let provider = make_provider(vec![
             ProviderEndpoint {
                 id: "china".into(),
-                protocol: "anthropic".into(),
+                protocol: "anthropic-messages".into(),
                 url: "https://api.minimax.cn/anthropic/v1".into(),
                 label: Some("China".to_string()),
                 priority: 90,
@@ -1193,14 +1196,14 @@ mod tests {
             },
             ProviderEndpoint {
                 id: "international".into(),
-                protocol: "anthropic".into(),
+                protocol: "anthropic-messages".into(),
                 url: "https://api.minimax.chat/anthropic/v1".into(),
                 label: Some("International".to_string()),
                 priority: 80,
                 enabled: true,
             },
         ]);
-        let picked = pick_endpoints_for_protocol(&provider, "anthropic");
+        let picked = pick_endpoints_for_protocol(&provider, "anthropic-messages");
         assert_eq!(picked.len(), 2);
         assert_eq!(picked[0].id, "china");
         assert_eq!(picked[1].id, "international");

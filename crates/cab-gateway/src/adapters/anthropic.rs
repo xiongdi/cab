@@ -4,7 +4,7 @@ pub struct AnthropicAdapter;
 
 impl ProtocolAdapter for AnthropicAdapter {
     fn protocol(&self) -> &'static str {
-        "anthropic"
+        "anthropic-messages"
     }
 
     fn path_suffix(&self) -> &'static str {

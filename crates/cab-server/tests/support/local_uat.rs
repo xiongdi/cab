@@ -134,7 +134,8 @@ fn provider_has_anthropic_endpoint(provider: &serde_json::Value) -> bool {
                     .get("enabled")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false)
-                    && endpoint.get("protocol").and_then(|v| v.as_str()) == Some("anthropic")
+                    && endpoint.get("protocol").and_then(|v| v.as_str())
+                        == Some("anthropic-messages")
             })
         })
 }

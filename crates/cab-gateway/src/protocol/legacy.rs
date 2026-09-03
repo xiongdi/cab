@@ -2092,7 +2092,7 @@ data: {"type":"message_stop"}
                     name: "deepseek/deepseek-v4-flash".into(),
                     display_name: "DeepSeek V4 Flash".into(),
                     provider_id: "deepseek".into(),
-                    protocol: "openai-chat".into(),
+                    protocol: "openai-compatible".into(),
                     upstream_protocol: None,
                     context_length: 1,
                     input_cost: Some(0.07),

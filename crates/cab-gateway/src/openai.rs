@@ -335,7 +335,7 @@ data: [DONE]\n",
             name: id.into(),
             endpoints: vec![ProviderEndpoint {
                 id: format!("{id}-endpoint"),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 url: "https://example.test/v1".into(),
                 label: None,
                 priority: 50,
@@ -419,7 +419,7 @@ data: [DONE]\n",
             name: name.into(),
             display_name: format!("Display {name}"),
             provider_id: provider_id.into(),
-            protocol: "openai-chat".into(),
+            protocol: "openai-compatible".into(),
             upstream_protocol: None,
             context_length: 128000,
             input_cost,
@@ -514,7 +514,7 @@ data: [DONE]\n",
         let server =
             spawn_router(Router::new().route("/v1/chat/completions", post(openai_chat_success)))
                 .await;
-        let state = state(&server.base_url, "openai-chat", "openai-chat");
+        let state = state(&server.base_url, "openai-compatible", "openai-compatible");
 
         let response = handle_chat_completions(
             State(state.clone()),
@@ -545,7 +545,7 @@ data: [DONE]\n",
         let server =
             spawn_router(Router::new().route("/v1/chat/completions", post(openai_chat_stream)))
                 .await;
-        let state = state(&server.base_url, "openai-chat", "openai-chat");
+        let state = state(&server.base_url, "openai-compatible", "openai-compatible");
 
         let response = handle_chat_completions(
             State(state.clone()),
@@ -603,7 +603,7 @@ data: [DONE]\n",
     async fn chat_completions_error_logs_provider_failure() {
         let server =
             spawn_router(Router::new().route("/v1/chat/completions", post(openai_error))).await;
-        let state = state(&server.base_url, "openai-chat", "openai-chat");
+        let state = state(&server.base_url, "openai-compatible", "openai-compatible");
 
         let err = handle_chat_completions(
             State(state.clone()),

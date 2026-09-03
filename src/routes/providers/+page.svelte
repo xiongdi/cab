@@ -335,7 +335,7 @@
     }
     endpointDrafts[providerId].push({
       id: crypto.randomUUID(),
-      protocol: 'openai-chat',
+      protocol: 'openai-compatible',
       url: '',
       label: null,
       priority: 50,
@@ -665,8 +665,8 @@
                           bind:value={ep.protocol}
                           onchange={() => autoSaveEndpoints(provider)}
                         >
-                          <option value="openai-chat">openai-chat</option>
-                          <option value="anthropic">anthropic</option>
+                          <option value="openai-compatible">openai-compatible</option>
+                          <option value="anthropic-messages">anthropic-messages</option>
                           <option value="openai-responses">openai-responses</option>
                         </select>
                         <input

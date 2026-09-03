@@ -15,7 +15,7 @@ struct ModelsDevProvider {
 /// Infer the protocol from model.dev hints. Order of precedence:
 /// 1. `npm` field (e.g. `@ai-sdk/anthropic` => anthropic)
 /// 2. URL pattern fallback (`/anthropic` => anthropic, `/responses` => openai-responses)
-/// 3. Default to openai-chat
+/// 3. Default to openai-compatible
 pub fn infer_protocol(npm: Option<&str>, api_url: Option<&str>) -> String {
     if let Some(npm) = npm {
         let lower = npm.to_ascii_lowercase();
@@ -23,22 +23,22 @@ pub fn infer_protocol(npm: Option<&str>, api_url: Option<&str>) -> String {
             return "openai-responses".to_string();
         }
         if lower.contains("anthropic") {
-            return "anthropic".to_string();
+            return "anthropic-messages".to_string();
         }
         if lower.contains("openai") {
-            return "openai-chat".to_string();
+            return "openai-compatible".to_string();
         }
     }
     if let Some(url) = api_url {
         let lower = url.to_ascii_lowercase();
         if lower.contains("/anthropic") {
-            return "anthropic".to_string();
+            return "anthropic-messages".to_string();
         }
         if lower.contains("/responses") {
             return "openai-responses".to_string();
         }
     }
-    "openai-chat".to_string()
+    "openai-compatible".to_string()
 }
 
 #[derive(Debug, Clone)]
@@ -85,7 +85,10 @@ mod tests {
 
     #[test]
     fn infers_anthropic_from_npm() {
-        assert_eq!(infer_protocol(Some("@ai-sdk/anthropic"), None), "anthropic");
+        assert_eq!(
+            infer_protocol(Some("@ai-sdk/anthropic"), None),
+            "anthropic-messages"
+        );
     }
 
     #[test]
@@ -98,14 +101,17 @@ mod tests {
 
     #[test]
     fn infers_openai_chat_from_npm() {
-        assert_eq!(infer_protocol(Some("@ai-sdk/openai"), None), "openai-chat");
+        assert_eq!(
+            infer_protocol(Some("@ai-sdk/openai"), None),
+            "openai-compatible"
+        );
     }
 
     #[test]
     fn infers_anthropic_from_url_pattern() {
         assert_eq!(
             infer_protocol(None, Some("https://api.minimaxi.com/anthropic")),
-            "anthropic"
+            "anthropic-messages"
         );
     }
 
@@ -121,9 +127,9 @@ mod tests {
     fn defaults_to_openai_chat() {
         assert_eq!(
             infer_protocol(None, Some("https://api.deepseek.com/v1")),
-            "openai-chat"
+            "openai-compatible"
         );
-        assert_eq!(infer_protocol(None, None), "openai-chat");
+        assert_eq!(infer_protocol(None, None), "openai-compatible");
     }
 
     #[test]
@@ -134,7 +140,7 @@ mod tests {
                 Some("@ai-sdk/openai"),
                 Some("https://example.com/anthropic")
             ),
-            "openai-chat"
+            "openai-compatible"
         );
     }
 
@@ -166,7 +172,7 @@ mod tests {
         let result = load_provider_default_endpoint("minimax", &temp_dir);
         assert!(result.is_some());
         let ep = result.unwrap();
-        assert_eq!(ep.protocol, "anthropic");
+        assert_eq!(ep.protocol, "anthropic-messages");
         assert_eq!(ep.url, "https://api.minimax.chat/anthropic/v1");
 
         // Cleanup

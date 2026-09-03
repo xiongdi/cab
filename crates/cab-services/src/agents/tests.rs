@@ -53,7 +53,7 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 name: "Provider One".into(),
                 endpoints: vec![ProviderEndpoint {
                     id: "chat".into(),
-                    protocol: "openai-chat".into(),
+                    protocol: "openai-compatible".into(),
                     url: "https://provider.test/v1".into(),
                     label: None,
                     priority: 50,
@@ -90,7 +90,7 @@ fn pool_with_models() -> cab_db::InMemoryStore {
                 name: "provider/model-1".into(),
                 display_name: "Model One".into(),
                 provider_id: "provider-1".into(),
-                protocol: "openai-chat".into(),
+                protocol: "openai-compatible".into(),
                 upstream_protocol: None,
                 context_length: 64000,
                 input_cost: Some(1.0),

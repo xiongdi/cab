@@ -269,7 +269,7 @@
           <select class="select filter-select" bind:value={selectedProtocol}>
             <option value="all">{i18n.t('datatable.all_protocols')}</option>
             <option value="openai">{i18n.t('datatable.protocol_openai')}</option>
-            <option value="anthropic">{i18n.t('datatable.protocol_anthropic')}</option>
+            <option value="anthropic-messages">{i18n.t('datatable.protocol_anthropic')}</option>
           </select>
         {/if}
 

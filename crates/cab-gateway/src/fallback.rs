@@ -52,7 +52,7 @@ async fn upstream_native_model_id(
 fn build_upstream_url(endpoint: &cab_core::types::ProviderEndpoint) -> String {
     let base = endpoint.url.trim_end_matches('/').to_string();
     match endpoint.protocol.as_str() {
-        "anthropic" => {
+        "anthropic-messages" => {
             if base.ends_with("/v1/messages") || base.ends_with("/messages") {
                 base
             } else if base.ends_with("/v1") {
@@ -681,8 +681,12 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "anthropic",
-            vec![endpoint("anthropic", "anthropic", &server.base_url)],
+            "anthropic-messages",
+            vec![endpoint(
+                "anthropic-messages",
+                "anthropic-messages",
+                &server.base_url,
+            )],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(br#"{"model":"provider/model","messages":[{"role":"system","content":"sys"},{"role":"user","content":"hi"}]}"#),
@@ -724,8 +728,8 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -858,8 +862,8 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -905,8 +909,8 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -952,8 +956,8 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -1006,12 +1010,16 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "plain-model",
-            "openai-chat",
+            "openai-compatible",
             vec![
-                endpoint("bad", "openai-chat", &format!("{}/bad/v1", server.base_url)),
+                endpoint(
+                    "bad",
+                    "openai-compatible",
+                    &format!("{}/bad/v1", server.base_url),
+                ),
                 endpoint(
                     "good",
-                    "openai-chat",
+                    "openai-compatible",
                     &format!("{}/good/v1", server.base_url),
                 ),
             ],
@@ -1062,8 +1070,8 @@ data: [DONE]\n\n",
 
         let mut primary = model(
             "minimax/MiniMax-M3",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &sub_server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &sub_server.base_url)],
         );
         primary.provider_id = "minimax".into();
         primary.provider_name = "MiniMax".into();
@@ -1075,8 +1083,8 @@ data: [DONE]\n\n",
 
         let mut fallback = model(
             "deepseek/deepseek-v4-flash",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &payg_server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &payg_server.base_url)],
         );
         fallback.provider_id = "opencode-go".into();
         fallback.provider_name = "OpenCode Go".into();
@@ -1120,8 +1128,8 @@ data: [DONE]\n\n",
 
         let primary = model(
             "meituan/longcat-2.0",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(
@@ -1155,7 +1163,7 @@ data: [DONE]\n\n",
 
     #[tokio::test]
     async fn returns_last_error_when_no_endpoint_or_no_key_or_rate_limited() {
-        let no_endpoint = model("plain-model", "openai-chat", vec![]);
+        let no_endpoint = model("plain-model", "openai-compatible", vec![]);
         let request = ProxyRequest {
             body: Bytes::from_static(b"{}"),
             headers: HeaderMap::new(),
@@ -1176,8 +1184,8 @@ data: [DONE]\n\n",
 
         let mut no_key = model(
             "plain-model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", "http://127.0.0.1:1")],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", "http://127.0.0.1:1")],
         );
         no_key.api_keys.clear();
         no_key.provider_api_key.clear();
@@ -1202,8 +1210,8 @@ data: [DONE]\n\n",
         .await;
         let rate_limited_model = model(
             "plain-model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let err = execute_with_fallback(
             &reqwest::Client::new(),
@@ -1229,8 +1237,8 @@ data: [DONE]\n\n",
 
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", "http://127.0.0.1:1")],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", "http://127.0.0.1:1")],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(b"{}"),
@@ -1255,8 +1263,8 @@ data: [DONE]\n\n",
         let store = cab_db::InMemoryStore::new();
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", "http://127.0.0.1:1")],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", "http://127.0.0.1:1")],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(b"{}"),
@@ -1301,8 +1309,8 @@ data: [DONE]\n\n",
         .await;
         let primary = model(
             "provider/model",
-            "openai-chat",
-            vec![endpoint("chat", "openai-chat", &server.base_url)],
+            "openai-compatible",
+            vec![endpoint("chat", "openai-compatible", &server.base_url)],
         );
         let request = ProxyRequest {
             body: Bytes::from_static(

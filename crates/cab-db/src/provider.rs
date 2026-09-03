@@ -510,7 +510,11 @@ mod tests {
     fn create_provider() -> CreateProvider {
         CreateProvider {
             name: "Provider One".into(),
-            endpoints: Some(vec![endpoint("ep-1", "openai-chat", "https://one.test/v1")]),
+            endpoints: Some(vec![endpoint(
+                "ep-1",
+                "openai-compatible",
+                "https://one.test/v1",
+            )]),
             api_key: "legacy-key".into(),
             enabled: Some(true),
             privacy_policy_url: Some("https://privacy.test".into()),
@@ -543,7 +547,7 @@ mod tests {
             &store,
             "catalog-b",
             "Catalog B",
-            Some(("openai-chat", "https://catalog-b.test/v1")),
+            Some(("openai-compatible", "https://catalog-b.test/v1")),
             Some("privacy"),
             Some("terms"),
             Some("status"),
@@ -616,9 +620,9 @@ mod tests {
             &store,
             "provider-one",
             &[
-                ("openai-chat", "https://one.test/v1", Some("dup"), 1),
+                ("openai-compatible", "https://one.test/v1", Some("dup"), 1),
                 (
-                    "anthropic",
+                    "anthropic-messages",
                     "https://one.test/anthropic",
                     Some("Anthropic"),
                     2,
@@ -645,7 +649,11 @@ mod tests {
             "provider-one",
             &UpdateProvider {
                 name: Some("Provider Updated".into()),
-                endpoints: Some(vec![endpoint("ep-2", "anthropic", "https://two.test")]),
+                endpoints: Some(vec![endpoint(
+                    "ep-2",
+                    "anthropic-messages",
+                    "https://two.test",
+                )]),
                 api_key: Some("new-legacy".into()),
                 enabled: Some(false),
                 privacy_policy_url: None,
@@ -668,7 +676,7 @@ mod tests {
         assert_eq!(updated.name, "Provider Updated");
         assert_eq!(updated.api_key, "new-sub");
         assert!(!updated.enabled);
-        assert_eq!(updated.endpoints[0].protocol, "anthropic");
+        assert_eq!(updated.endpoints[0].protocol, "anthropic-messages");
         assert_eq!(updated.model_count, 9);
         assert!(
             update(
@@ -770,7 +778,7 @@ mod tests {
         let settings = crate::settings::default_settings();
         assert_eq!(
             default_protocol_for_provider("unknown", &settings, &defaults),
-            "openai-chat"
+            "openai-compatible"
         );
     }
 }

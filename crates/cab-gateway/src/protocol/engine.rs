@@ -17,8 +17,8 @@ use bytes::Bytes;
 use futures::Stream;
 use serde_json::Value;
 
-pub const PROTOCOL_ANTHROPIC: &str = "anthropic";
-pub const PROTOCOL_OPENAI_CHAT: &str = "openai-chat";
+pub const PROTOCOL_ANTHROPIC: &str = "anthropic-messages";
+pub const PROTOCOL_OPENAI_CHAT: &str = "openai-compatible";
 pub const PROTOCOL_OPENAI_RESPONSES: &str = "openai-responses";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

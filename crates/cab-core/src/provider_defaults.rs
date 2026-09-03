@@ -136,7 +136,7 @@ pub fn resolve_provider_default_protocol(
     {
         return protocol;
     }
-    "openai-chat".to_string()
+    "openai-compatible".to_string()
 }
 
 pub fn templates_to_endpoints(templates: &[DefaultEndpointTemplate]) -> Vec<ProviderEndpoint> {
@@ -201,13 +201,17 @@ mod tests {
     #[test]
     fn merge_endpoints_adds_missing_bundled_entries() {
         let user = vec![sample_endpoint(
-            "anthropic",
+            "anthropic-messages",
             "https://api.minimaxi.com/anthropic/v1",
             50,
         )];
         let bundled = vec![
-            sample_endpoint("openai-chat", "https://api.minimaxi.com/v1", 60),
-            sample_endpoint("anthropic", "https://api.minimaxi.com/anthropic/v1", 50),
+            sample_endpoint("openai-compatible", "https://api.minimaxi.com/v1", 60),
+            sample_endpoint(
+                "anthropic-messages",
+                "https://api.minimaxi.com/anthropic/v1",
+                50,
+            ),
             sample_endpoint("openai-responses", "https://api.minimaxi.com/v1", 70),
         ];
 
@@ -216,7 +220,7 @@ mod tests {
         assert!(
             merged
                 .iter()
-                .any(|e| e.protocol == "openai-chat" && e.url.contains("minimaxi.com/v1"))
+                .any(|e| e.protocol == "openai-compatible" && e.url.contains("minimaxi.com/v1"))
         );
     }
 
@@ -226,9 +230,9 @@ mod tests {
         providers.insert(
             "minimax-cn-coding-plan".to_string(),
             ProviderDefaultsEntry {
-                default_protocol: "anthropic".to_string(),
+                default_protocol: "anthropic-messages".to_string(),
                 endpoints: vec![DefaultEndpointTemplate {
-                    protocol: "openai-chat".to_string(),
+                    protocol: "openai-compatible".to_string(),
                     url: "https://api.minimaxi.com/v1".to_string(),
                     label: Some("OpenAI Chat".to_string()),
                     priority: 60,
@@ -256,7 +260,7 @@ mod tests {
                 api_key: None,
                 api_keys: None,
                 endpoints: Some(vec![sample_endpoint(
-                    "anthropic",
+                    "anthropic-messages",
                     "https://api.minimaxi.com/anthropic/v1",
                     50,
                 )]),

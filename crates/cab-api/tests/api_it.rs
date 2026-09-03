@@ -39,7 +39,7 @@ async fn store_with_catalog() -> InMemoryStore {
                         name: "model-test".into(),
                         display_name: "Test Model".into(),
                         provider_id: "provider-test".into(),
-                        protocol: "openai-chat".into(),
+                        protocol: "openai-compatible".into(),
                         upstream_protocol: None,
                         context_length: 4096,
                         input_cost: None,

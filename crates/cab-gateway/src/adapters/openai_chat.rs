@@ -4,7 +4,7 @@ pub struct OpenAiChatAdapter;
 
 impl ProtocolAdapter for OpenAiChatAdapter {
     fn protocol(&self) -> &'static str {
-        "openai-chat"
+        "openai-compatible"
     }
 
     fn path_suffix(&self) -> &'static str {

@@ -153,7 +153,7 @@ pub struct Model {
     pub name: String,
     pub display_name: String,
     pub provider_id: String,
-    pub protocol: String, // "openai" or "anthropic"
+    pub protocol: String, // "openai-compatible" or "anthropic-messages"
     /// Upstream wire protocol this model expects on its provider (from models.dev
     /// per-model npm), e.g. openai-responses for reasoning models.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -199,7 +199,7 @@ pub struct CreateModel {
     pub name: String,
     pub display_name: String,
     pub provider_id: String,
-    pub protocol: String, // "openai" or "anthropic"
+    pub protocol: String, // "openai-compatible" or "anthropic-messages"
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub upstream_protocol: Option<String>,
     pub context_length: i64,

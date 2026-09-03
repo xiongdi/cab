@@ -103,27 +103,27 @@ mod tests {
         );
         assert_eq!(
             sniff_opencode_go_protocol("xiaomi/mimo-v2.5").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
         assert_eq!(
             sniff_opencode_go_protocol("kimi-k3").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
         assert_eq!(
             sniff_opencode_go_protocol("deepseek/deepseek-v4-flash").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
         assert_eq!(
             sniff_opencode_go_protocol("minimax-m3").as_deref(),
-            Some("anthropic")
+            Some("anthropic-messages")
         );
         assert_eq!(
             sniff_opencode_go_protocol("qwen3.8-max").as_deref(),
-            Some("anthropic")
+            Some("anthropic-messages")
         );
         assert_eq!(
             sniff_opencode_go_protocol("hy3").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
     }
 
@@ -131,19 +131,19 @@ mod tests {
     fn family_sniff_covers_unpublished_go_ids() {
         assert_eq!(
             sniff_opencode_go_protocol("kimi-k2.5").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
         assert_eq!(
             sniff_opencode_go_protocol("hy3-preview").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
         assert_eq!(
             sniff_opencode_go_protocol("qwen3.5-plus").as_deref(),
-            Some("anthropic")
+            Some("anthropic-messages")
         );
         assert_eq!(
             sniff_opencode_go_protocol("glm-5").as_deref(),
-            Some("openai-chat")
+            Some("openai-compatible")
         );
     }
 

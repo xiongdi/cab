@@ -297,7 +297,7 @@ mod handler_and_catalog_tests {
         Provider {
             id: id.into(),
             name: "Provider One".into(),
-            endpoints: vec![endpoint("chat", "openai-chat")],
+            endpoints: vec![endpoint("chat", "openai-compatible")],
             api_key: "key".into(),
             enabled: true,
             created_at: "now".into(),
@@ -606,7 +606,7 @@ mod handler_and_catalog_tests {
                 enabled: Some(true),
                 api_key: Some("settings-key".into()),
                 api_keys: Some(vec![api_key("settings-key", true)]),
-                endpoints: Some(vec![endpoint("settings-anthropic", "anthropic")]),
+                endpoints: Some(vec![endpoint("settings-anthropic", "anthropic-messages")]),
                 logo: None,
             },
         );
@@ -651,7 +651,7 @@ mod handler_and_catalog_tests {
             .unwrap();
         assert!(catalog_provider.enabled);
         assert_eq!(catalog_provider.api_key, "settings-key");
-        assert_eq!(catalog_provider.endpoints[0].protocol, "anthropic");
+        assert_eq!(catalog_provider.endpoints[0].protocol, "anthropic-messages");
 
         let model = cab_db::model::get_by_name(&pool, "provider/model-one")
             .await
@@ -660,7 +660,7 @@ mod handler_and_catalog_tests {
         assert!(model.enabled);
         assert_eq!(model.display_name, "Canonical Model One");
         assert_eq!(model.provider_id, "provider");
-        assert_eq!(model.protocol, "anthropic");
+        assert_eq!(model.protocol, "anthropic-messages");
         assert_eq!(model.input_cost, Some(1.5));
         assert_eq!(model.output_cost, Some(2.5));
         assert_eq!(
@@ -731,8 +731,14 @@ mod handler_and_catalog_tests {
         let mut providers = providers_data();
         let anthropic = providers.remove("provider").unwrap();
         let openai = providers.remove("reseller").unwrap();
-        assert_eq!(protocol_for_models_dev_provider(&anthropic), "anthropic");
-        assert_eq!(protocol_for_models_dev_provider(&openai), "openai-chat");
+        assert_eq!(
+            protocol_for_models_dev_provider(&anthropic),
+            "anthropic-messages"
+        );
+        assert_eq!(
+            protocol_for_models_dev_provider(&openai),
+            "openai-compatible"
+        );
 
         let model = models_data().remove("provider/model-one").unwrap();
         assert_eq!(

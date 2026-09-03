@@ -123,10 +123,10 @@ fn is_openai_served_model(provider: &ModelsDevProvider, model: &ModelsDevModel) 
 fn protocol_from_npm_and_api(npm: Option<&str>, api: Option<&str>) -> String {
     let npm = npm.unwrap_or_default().to_ascii_lowercase();
     let api = api.unwrap_or_default().to_ascii_lowercase();
-    if npm.contains("anthropic") || api.contains("anthropic") {
-        "anthropic".to_string()
+    if npm.contains("anthropic") || api.contains("/anthropic") {
+        "anthropic-messages".to_string()
     } else {
-        "openai-chat".to_string()
+        "openai-compatible".to_string()
     }
 }
 
@@ -771,7 +771,7 @@ pub async fn sync_models_dev_models(
             // A provider's default is only a fallback.  OpenCode Go publishes
             // the wire protocol per model, so expose that same value as the
             // model default too.  Otherwise every Go binding is incorrectly
-            // persisted as openai-chat and routing has to probe endpoints.
+            // persisted as openai-compatible and routing has to probe endpoints.
             let protocol = upstream_protocol.clone().unwrap_or_else(|| {
                 cab_db::provider::default_protocol_for_provider(&provider_id, settings, defaults)
             });
@@ -934,11 +934,11 @@ mod resolve_canonical_model_name_tests {
 
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &anthropic_model),
-            "anthropic"
+            "anthropic-messages"
         );
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &chat_model),
-            "openai-chat"
+            "openai-compatible"
         );
     }
 
@@ -959,7 +959,7 @@ mod resolve_canonical_model_name_tests {
             "provider": { "npm": "@ai-sdk/openai" }
         }))
         .unwrap();
-        // Non-reasoning OpenAI model stays on openai-chat.
+        // Non-reasoning OpenAI model stays on openai-compatible.
         let non_reasoning: ModelsDevModel = serde_json::from_value(serde_json::json!({
             "id": "gpt-4.1-mini",
             "reasoning": false,
@@ -973,7 +973,7 @@ mod resolve_canonical_model_name_tests {
         );
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &non_reasoning),
-            "openai-chat"
+            "openai-compatible"
         );
     }
 
@@ -1019,7 +1019,7 @@ mod resolve_canonical_model_name_tests {
 
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &reasoning_model),
-            "openai-chat"
+            "openai-compatible"
         );
     }
 
@@ -1048,11 +1048,11 @@ mod resolve_canonical_model_name_tests {
 
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &mimo),
-            "openai-chat"
+            "openai-compatible"
         );
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &minimax),
-            "anthropic"
+            "anthropic-messages"
         );
         assert_eq!(
             upstream_protocol_for_models_dev_model(&provider, &luna),

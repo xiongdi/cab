@@ -2,10 +2,10 @@
   "_comment": "Bundled default provider protocols/endpoints. Verified against official docs and models.dev. User overrides: ~/.cab/settings.json",
   "providers": {
     "ai21": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.ai21.com/studio/v1",
           "label": "Default",
           "priority": 50,
@@ -14,10 +14,10 @@
       ]
     },
     "akashml": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://chatapi.akash.network/api/v1",
           "label": "Default",
           "priority": 50,
@@ -26,17 +26,17 @@
       ]
     },
     "alibaba": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
           "label": "International",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
           "label": "China",
           "priority": 50,
@@ -45,7 +45,7 @@
       ]
     },
     "amazon-bedrock": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
           "protocol": "openai-responses",
@@ -55,14 +55,14 @@
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://bedrock-mantle.us-east-1.api.aws/v1",
           "label": "Mantle Chat",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
           "label": "Runtime OpenAI",
           "priority": 55,
@@ -71,10 +71,10 @@
       ]
     },
     "amazon-nova": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.nova.amazon.com/v1",
           "label": "Default",
           "priority": 50,
@@ -83,10 +83,10 @@
       ]
     },
     "ambient": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.ambient.xyz/v1",
           "label": "Default",
           "priority": 50,
@@ -95,10 +95,10 @@
       ]
     },
     "anthropic": {
-      "default_protocol": "anthropic",
+      "default_protocol": "anthropic-messages",
       "endpoints": [
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.anthropic.com",
           "label": "Default",
           "priority": 50,
@@ -107,10 +107,10 @@
       ]
     },
     "arcee-ai": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://conductor.arcee.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -119,10 +119,10 @@
       ]
     },
     "avian": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.avian.io/v1",
           "label": "Default",
           "priority": 50,
@@ -131,10 +131,10 @@
       ]
     },
     "azure": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
           "label": "Azure OpenAI v1 (replace YOUR-RESOURCE)",
           "priority": 50,
@@ -150,10 +150,10 @@
       ]
     },
     "baidu": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://qianfan.baidubce.com/v2",
           "label": "Default",
           "priority": 50,
@@ -162,10 +162,10 @@
       ]
     },
     "baseten": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://inference.baseten.co/v1",
           "label": "Default",
           "priority": 50,
@@ -174,10 +174,10 @@
       ]
     },
     "black-forest-labs": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.bfl.ai/v1",
           "label": "FLUX API (image)",
           "priority": 50,
@@ -186,10 +186,10 @@
       ]
     },
     "cerebras": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.cerebras.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -198,10 +198,10 @@
       ]
     },
     "chutes": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://llm.chutes.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -210,10 +210,10 @@
       ]
     },
     "clarifai": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.clarifai.com/v2/ext/openai/v1",
           "label": "Default",
           "priority": 50,
@@ -222,10 +222,10 @@
       ]
     },
     "cloudflare": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.cloudflare.com/client/v4/ai/v1",
           "label": "Default",
           "priority": 50,
@@ -234,10 +234,10 @@
       ]
     },
     "cohere": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.cohere.ai/compatibility/v1",
           "label": "Default",
           "priority": 50,
@@ -246,10 +246,10 @@
       ]
     },
     "crusoe": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.crusoe.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -258,10 +258,10 @@
       ]
     },
     "deepinfra": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.deepinfra.com/v1/openai",
           "label": "Default",
           "priority": 50,
@@ -270,17 +270,17 @@
       ]
     },
     "deepseek": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.deepseek.com/v1",
           "label": "OpenAI Chat",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.deepseek.com/anthropic",
           "label": "Anthropic Messages",
           "priority": 50,
@@ -289,10 +289,10 @@
       ]
     },
     "digitalocean": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://inference.do-ai.run/v1",
           "label": "Default",
           "priority": 50,
@@ -301,10 +301,10 @@
       ]
     },
     "featherless": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.featherless.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -313,10 +313,10 @@
       ]
     },
     "fireworks": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.fireworks.ai/inference/v1",
           "label": "Default",
           "priority": 50,
@@ -325,10 +325,10 @@
       ]
     },
     "friendli": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.friendli.ai/serverless/v1",
           "label": "Default",
           "priority": 50,
@@ -337,10 +337,10 @@
       ]
     },
     "gmicloud": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.gmi-serving.com/v1",
           "label": "Default",
           "priority": 50,
@@ -349,10 +349,10 @@
       ]
     },
     "google-ai-studio": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://generativelanguage.googleapis.com/v1beta/openai",
           "label": "OpenAI-compatible",
           "priority": 100,
@@ -361,10 +361,10 @@
       ]
     },
     "google-vertex": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://us-central1-aiplatform.googleapis.com/v1",
           "label": "Default",
           "priority": 50,
@@ -373,10 +373,10 @@
       ]
     },
     "groq": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.groq.com/openai/v1",
           "label": "Default",
           "priority": 50,
@@ -385,10 +385,10 @@
       ]
     },
     "inception": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.inceptionlabs.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -397,10 +397,10 @@
       ]
     },
     "inceptron": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.inceptron.io/v1",
           "label": "Default",
           "priority": 50,
@@ -409,10 +409,10 @@
       ]
     },
     "inference-net": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.inference.net/v1",
           "label": "Default",
           "priority": 50,
@@ -421,10 +421,10 @@
       ]
     },
     "inflection": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://layerapi.com/v1",
           "label": "Default",
           "priority": 50,
@@ -433,10 +433,10 @@
       ]
     },
     "io-net": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.intelligence.io.solutions/api/v1",
           "label": "Default",
           "priority": 50,
@@ -445,10 +445,10 @@
       ]
     },
     "liquid": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.liquid.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -457,17 +457,17 @@
       ]
     },
     "minimax": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.minimaxi.com/v1",
           "label": "OpenAI Chat (CN)",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.minimaxi.com/anthropic/v1",
           "label": "Anthropic (CN)",
           "priority": 50,
@@ -481,14 +481,14 @@
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.minimax.io/v1",
           "label": "OpenAI Chat (INTL)",
           "priority": 55,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.minimax.io/anthropic/v1",
           "label": "Anthropic (INTL)",
           "priority": 45,
@@ -497,17 +497,17 @@
       ]
     },
     "minimax-cn": {
-      "default_protocol": "anthropic",
+      "default_protocol": "anthropic-messages",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.minimaxi.com/v1",
           "label": "OpenAI Chat",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.minimaxi.com/anthropic/v1",
           "label": "Anthropic Messages",
           "priority": 50,
@@ -523,17 +523,17 @@
       ]
     },
     "minimax-cn-coding-plan": {
-      "default_protocol": "anthropic",
+      "default_protocol": "anthropic-messages",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.minimaxi.com/v1",
           "label": "OpenAI Chat",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.minimaxi.com/anthropic/v1",
           "label": "Anthropic Messages",
           "priority": 50,
@@ -549,10 +549,10 @@
       ]
     },
     "mistral": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.mistral.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -561,17 +561,17 @@
       ]
     },
     "moonshotai": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.moonshot.ai/v1",
           "label": "International",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.moonshot.cn/v1",
           "label": "China",
           "priority": 50,
@@ -580,10 +580,10 @@
       ]
     },
     "morph": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.morphllm.com/v1",
           "label": "Default",
           "priority": 50,
@@ -592,10 +592,10 @@
       ]
     },
     "nebius": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.tokenfactory.nebius.com/v1",
           "label": "Default",
           "priority": 50,
@@ -604,10 +604,10 @@
       ]
     },
     "nex-agi": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.nex-agi.cn/v1",
           "label": "Default",
           "priority": 50,
@@ -616,10 +616,10 @@
       ]
     },
     "novita": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.novita.ai/v3/openai",
           "label": "Default",
           "priority": 50,
@@ -628,10 +628,10 @@
       ]
     },
     "nvidia": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://integrate.api.nvidia.com/v1",
           "label": "Default",
           "priority": 50,
@@ -640,10 +640,10 @@
       ]
     },
     "open-inference": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://inference.net/v1",
           "label": "Default",
           "priority": 50,
@@ -652,7 +652,7 @@
       ]
     },
     "opencode-go": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
           "protocol": "openai-responses",
@@ -662,14 +662,14 @@
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://opencode.ai/zen/go/v1",
           "label": "OpenAI Chat Completions",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://opencode.ai/zen/go/v1",
           "label": "Anthropic Messages",
           "priority": 55,
@@ -678,10 +678,10 @@
       ]
     },
     "openai": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.openai.com/v1",
           "label": "Chat Completions",
           "priority": 60,
@@ -697,10 +697,10 @@
       ]
     },
     "parasail": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.parasail.io/v1",
           "label": "Default",
           "priority": 50,
@@ -709,10 +709,10 @@
       ]
     },
     "perplexity": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.perplexity.ai",
           "label": "Sonar API",
           "priority": 60,
@@ -728,10 +728,10 @@
       ]
     },
     "phala": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.red-pill.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -740,10 +740,10 @@
       ]
     },
     "poolside": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://inference.poolside.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -752,10 +752,10 @@
       ]
     },
     "recraft": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://external.api.recraft.ai/v1",
           "label": "Image API",
           "priority": 50,
@@ -764,10 +764,10 @@
       ]
     },
     "reka": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.reka.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -776,10 +776,10 @@
       ]
     },
     "sambanova": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.sambanova.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -788,10 +788,10 @@
       ]
     },
     "seed": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://ark.cn-beijing.volces.com/api/v3",
           "label": "Default",
           "priority": 50,
@@ -800,17 +800,17 @@
       ]
     },
     "siliconflow": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.siliconflow.com/v1",
           "label": "International",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.siliconflow.cn/v1",
           "label": "China",
           "priority": 50,
@@ -819,10 +819,10 @@
       ]
     },
     "stepfun": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.stepfun.com/v1",
           "label": "Default",
           "priority": 50,
@@ -831,10 +831,10 @@
       ]
     },
     "streamlake": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.streamlake.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -843,10 +843,10 @@
       ]
     },
     "switchpoint": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.switchpoint.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -855,10 +855,10 @@
       ]
     },
     "together": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.together.xyz/v1",
           "label": "Default",
           "priority": 50,
@@ -867,10 +867,10 @@
       ]
     },
     "upstage": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.upstage.ai/v1/solar",
           "label": "Default",
           "priority": 50,
@@ -879,10 +879,10 @@
       ]
     },
     "venice": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.venice.ai/api/v1",
           "label": "Default",
           "priority": 50,
@@ -891,10 +891,10 @@
       ]
     },
     "wandb": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.inference.wandb.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -903,10 +903,10 @@
       ]
     },
     "xai": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.x.ai/v1",
           "label": "Default",
           "priority": 50,
@@ -915,10 +915,10 @@
       ]
     },
     "xiaomi": {
-      "default_protocol": "openai-chat",
+      "default_protocol": "openai-compatible",
       "endpoints": [
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.xiaomimimo.com/v1",
           "label": "Default",
           "priority": 50,
@@ -927,17 +927,17 @@
       ]
     },
     "z-ai": {
-      "default_protocol": "anthropic",
+      "default_protocol": "anthropic-messages",
       "endpoints": [
         {
-          "protocol": "anthropic",
+          "protocol": "anthropic-messages",
           "url": "https://api.z.ai/api/anthropic",
           "label": "Anthropic",
           "priority": 60,
           "enabled": true
         },
         {
-          "protocol": "openai-chat",
+          "protocol": "openai-compatible",
           "url": "https://api.z.ai/api/paas/v4",
           "label": "OpenAI",
           "priority": 50,
