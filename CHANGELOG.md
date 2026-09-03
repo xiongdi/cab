@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.9] - 2026-09-03
+
+### Fixed
+
+- Migrate legacy protocol names in existing SQLite state and cap upstream request latency at 60 seconds.
+
 ## [0.11.7] - 2026-09-03
 
 ### Changed
