@@ -114,6 +114,10 @@ mod tests {
             Some("openai-compatible")
         );
         assert_eq!(
+            sniff_opencode_go_protocol("deepseek-v4-flash-vision-exp").as_deref(),
+            Some("openai-compatible")
+        );
+        assert_eq!(
             sniff_opencode_go_protocol("minimax-m3").as_deref(),
             Some("anthropic-messages")
         );
