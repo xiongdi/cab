@@ -5,6 +5,14 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.7] - 2026-09-03
+
+### Changed
+
+- Catalog synchronization now treats provider model bindings as authoritative, clears obsolete global snapshots, and preserves each OpenCode Go model's wire protocol.
+- Added current OpenCode Go model protocol mappings and made catalog refresh fail atomically when the display cache cannot be refreshed.
+- Release automation now selects the next available patch version automatically when a tag already exists.
+
 ## [0.11.5] - 2026-08-25
 
 ### Fixed
