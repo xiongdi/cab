@@ -25,6 +25,18 @@ pub async fn list(store: &InMemoryStore) -> Result<Vec<Model>, String> {
     Ok(list)
 }
 
+/// Clear the obsolete global catalog-model cache.
+pub async fn clear_catalog_cache(store: &InMemoryStore) -> Result<(), String> {
+    let mut inner = store.inner.write().map_err(|e| e.to_string())?;
+    inner.models.clear();
+    drop(inner);
+    if let Some(pool) = &store.pool {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        crate::sqlite::clear_catalog_models(&conn)?;
+    }
+    Ok(())
+}
+
 /// Deterministic order across bindings of the same canonical model name:
 /// the model's native vendor gateway first, then other providers alphabetically.
 fn sort_bindings_for_name(models: &mut [Model], name: &str) {

@@ -639,6 +639,14 @@ pub fn delete_catalog_model(conn: &Connection, id: &str) -> Result<bool, String>
     Ok(n > 0)
 }
 
+/// Remove the legacy global model snapshot. Provider bindings are now the
+/// authoritative model source after catalog synchronization.
+pub fn clear_catalog_models(conn: &Connection) -> Result<(), String> {
+    conn.execute("DELETE FROM catalog_models", [])
+        .map_err(|e| format!("Clear catalog models: {e}"))?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Model Endpoints CRUD
 // ---------------------------------------------------------------------------

@@ -38,11 +38,11 @@ pub async fn sync_models_dev_catalog(
     client: &reqwest::Client,
 ) -> Result<serde_json::Value, CabError> {
     let catalog = sync_models_dev_json(client, models_dev_catalog_url()).await?;
-    // Refresh the Models page display cache (models.json) alongside catalog.json.
-    // Failures here must not block provider/model binding sync.
-    if let Err(e) = sync_models_dev_models_cache(client).await {
-        tracing::warn!("Failed to refresh models.dev models.json cache: {e}");
-    }
+    // A catalog refresh is one logical snapshot: provider/model bindings and
+    // the display encyclopedia must advance together.  Do not report success
+    // when models.json could not be refreshed, otherwise the UI and routing
+    // observe different generations of the catalog.
+    sync_models_dev_models_cache(client).await?;
     Ok(catalog)
 }
 

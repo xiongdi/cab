@@ -537,6 +537,11 @@ pub async fn sync_models_dev_catalog(pool: &cab_db::InMemoryStore) -> Result<usi
         &client,
     )
     .await?;
+    // Provider bindings are the sole source of truth. Purge the obsolete
+    // global snapshot so removed models cannot survive a sync.
+    cab_db::model::clear_catalog_cache(pool)
+        .await
+        .map_err(CabError::Database)?;
     cab_db::provider::apply_all_provider_configs(pool)
         .await
         .map_err(CabError::Database)?;
@@ -763,17 +768,20 @@ pub async fn sync_models_dev_models(
             ));
             let upstream_protocol =
                 provider.map(|p| upstream_protocol_for_models_dev_model(p, model));
+            // A provider's default is only a fallback.  OpenCode Go publishes
+            // the wire protocol per model, so expose that same value as the
+            // model default too.  Otherwise every Go binding is incorrectly
+            // persisted as openai-chat and routing has to probe endpoints.
+            let protocol = upstream_protocol.clone().unwrap_or_else(|| {
+                cab_db::provider::default_protocol_for_provider(&provider_id, settings, defaults)
+            });
             let bound = cab_core::ProviderModel {
                 model: cab_core::types::Model {
                     id: native_model_id.clone(),
                     name: model_name.clone(),
                     display_name: display_name.clone(),
                     provider_id: provider_id.clone(),
-                    protocol: cab_db::provider::default_protocol_for_provider(
-                        &provider_id,
-                        settings,
-                        defaults,
-                    ),
+                    protocol,
                     upstream_protocol,
                     context_length,
                     input_cost,
