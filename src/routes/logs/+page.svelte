@@ -96,6 +96,14 @@
     }
   }
 
+  function agentProtocol(row: RequestLog): string {
+    if (row.agent_protocol) return row.agent_protocol;
+    if (row.path === '/v1/messages') return 'anthropic-messages';
+    if (row.path === '/v1/responses') return 'openai-responses';
+    if (row.path === '/v1/chat/completions') return 'openai-compatible';
+    return '—';
+  }
+
   // Tool-schema weight diagnostics (cache prefix).
   let toolWeights = $state<ToolWeightSnapshot[]>([]);
 
@@ -394,8 +402,16 @@
             <span class="detail-value">{row.agent}</span>
           </div>
           <div class="detail-row">
+            <span class="detail-label">{i18n.t('logs.agent_protocol')}</span>
+            <span class="detail-value mono">{agentProtocol(row)}</span>
+          </div>
+          <div class="detail-row">
             <span class="detail-label">{i18n.t('logs.provider')}</span>
             <span class="detail-value">{row.provider}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">{i18n.t('logs.provider_protocol')}</span>
+            <span class="detail-value mono">{row.provider_protocol || '—'}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">{i18n.t('logs.model')}</span>

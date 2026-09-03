@@ -216,6 +216,9 @@ export interface RequestLog {
   error_message?: string;
   /** Client-facing path: `/v1/messages` | `/v1/chat/completions` | `/v1/responses`. */
   path?: string;
+  /** Protocols recorded by newer gateways; absent on legacy log entries. */
+  agent_protocol?: string;
+  provider_protocol?: string;
   stream?: boolean;
   request_body?: string;
   response_body?: string;
