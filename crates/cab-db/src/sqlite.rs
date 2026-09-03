@@ -10,7 +10,7 @@ use serde_json;
 
 use crate::endpoint::ModelEndpoint;
 
-const SCHEMA_VERSION: u32 = 5;
+const SCHEMA_VERSION: u32 = 6;
 
 pub fn db_path() -> PathBuf {
     cab_core::paths::cab_home().join("cab.db")
@@ -104,6 +104,8 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
              status INTEGER NOT NULL,
              error TEXT,
              path TEXT NOT NULL,
+             agent_protocol TEXT,
+             provider_protocol TEXT,
              stream INTEGER NOT NULL DEFAULT 0,
              cache_read_tokens INTEGER NOT NULL DEFAULT 0,
              cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
@@ -216,6 +218,9 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
             }
             if v < 5 {
                 migrate_v4_to_v5(conn)?;
+            }
+            if v < 6 {
+                migrate_v5_to_v6(conn)?;
             }
         }
         _ => {}
@@ -411,6 +416,28 @@ fn migrate_v4_to_v5(conn: &Connection) -> Result<(), String> {
             }
         }
     }
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
+        [SCHEMA_VERSION],
+    )
+    .map_err(|e| format!("Failed to set schema version: {e}"))?;
+    Ok(())
+}
+
+fn migrate_v5_to_v6(conn: &Connection) -> Result<(), String> {
+    tracing::info!("Migrating schema from v5 to v6: adding request protocol fields");
+
+    // Existing databases may already have one of these columns if a partial
+    // migration was interrupted; the duplicate-column error is harmless.
+    let _ = conn.execute(
+        "ALTER TABLE request_logs ADD COLUMN agent_protocol TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE request_logs ADD COLUMN provider_protocol TEXT",
+        [],
+    );
+
     conn.execute(
         "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
         [SCHEMA_VERSION],
@@ -954,8 +981,8 @@ pub fn load_state(conn: &Connection) -> Result<PersistedState, String> {
 pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
     conn.execute(
         "INSERT OR REPLACE INTO request_logs
-         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+         (id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, agent_protocol, provider_protocol, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
         rusqlite::params![
             log.id,
             log.timestamp,
@@ -969,6 +996,8 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
             log.status,
             log.error,
             log.path,
+            log.agent_protocol,
+            log.provider_protocol,
             log.stream as i64,
             log.cache_read_tokens,
             log.cache_creation_tokens,
@@ -983,7 +1012,7 @@ pub fn append_log(conn: &Connection, log: &RequestLog) -> Result<(), String> {
 pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body
+            "SELECT id, timestamp, agent, provider, model, input_tokens, output_tokens, total_tokens, latency_ms, status, error, path, agent_protocol, provider_protocol, stream, cache_read_tokens, cache_creation_tokens, request_body, response_body
              FROM request_logs ORDER BY timestamp DESC LIMIT ?1",
         )
         .map_err(|e| e.to_string())?;
@@ -1002,11 +1031,13 @@ pub fn load_logs(conn: &Connection, limit: usize) -> Result<Vec<RequestLog>, Str
                 status: row.get(9)?,
                 error: row.get(10)?,
                 path: row.get(11)?,
-                stream: row.get::<_, i64>(12)? != 0,
-                cache_read_tokens: row.get(13)?,
-                cache_creation_tokens: row.get(14)?,
-                request_body: row.get(15)?,
-                response_body: row.get(16)?,
+                agent_protocol: row.get(12)?,
+                provider_protocol: row.get(13)?,
+                stream: row.get::<_, i64>(14)? != 0,
+                cache_read_tokens: row.get(15)?,
+                cache_creation_tokens: row.get(16)?,
+                request_body: row.get(17)?,
+                response_body: row.get(18)?,
             })
         })
         .map_err(|e| e.to_string())?;

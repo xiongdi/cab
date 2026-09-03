@@ -318,7 +318,13 @@ pub struct RequestLog {
     pub id: String,
     pub timestamp: String,
     pub agent: String,
+    /// Client-facing protocol used by the agent request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_protocol: Option<String>,
     pub provider: String,
+    /// Wire protocol used for the selected provider endpoint.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_protocol: Option<String>,
     pub model: String,
     /// Non-cached-read prompt tokens only (excludes cache **read**).
     /// On Anthropic this also excludes cache **write**; on OpenAI write usually

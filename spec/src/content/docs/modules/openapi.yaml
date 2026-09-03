@@ -297,7 +297,7 @@ components:
           type: string
         protocol:
           type: string
-          enum: [openai-chat, anthropic, openai-responses]
+          enum: [openai-compatible, anthropic-messages, openai-responses]
         url:
           type: string
         label:
@@ -364,6 +364,11 @@ components:
           type: array
           items:
             type: string
+        models:
+          type: array
+          description: Models bound to this provider, including the selected upstream protocol.
+          items:
+            $ref: '#/components/schemas/Model'
     UpdateProvider:
       type: object
       properties:
@@ -436,6 +441,10 @@ components:
           type: string
         protocol:
           type: string
+        upstream_protocol:
+          type: string
+          nullable: true
+          description: Upstream wire protocol selected for this model on its provider.
         context_length:
           type: integer
         input_cost:
@@ -550,6 +559,10 @@ components:
           type: string
         native_model_id:
           type: string
+        upstream_protocol:
+          type: string
+          nullable: true
+          description: Upstream wire protocol selected for this model endpoint.
         quantization:
           type: string
         input_cost:
@@ -694,8 +707,14 @@ components:
           type: string
         agent:
           type: string
+        agent_protocol:
+          type: string
+          description: Client-facing protocol used by the agent request.
         provider:
           type: string
+        provider_protocol:
+          type: string
+          description: Wire protocol used for the selected provider endpoint.
         model:
           type: string
         input_tokens:

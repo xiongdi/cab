@@ -191,7 +191,9 @@ async fn st_logs_survive_restart_via_sqlite() {
             id: "log-uat-11".into(),
             timestamp: chrono::Utc::now().to_rfc3339(),
             agent: "codex".into(),
+            agent_protocol: Some("openai-compatible".into()),
             provider: "provider-1".into(),
+            provider_protocol: Some("openai-compatible".into()),
             model: "provider/model-1".into(),
             input_tokens: 3,
             output_tokens: 5,
@@ -223,6 +225,14 @@ async fn st_logs_survive_restart_via_sqlite() {
     .expect("query logs");
     assert_eq!(page.total, 1);
     assert_eq!(page.data[0].id, "log-uat-11");
+    assert_eq!(
+        page.data[0].agent_protocol.as_deref(),
+        Some("openai-compatible")
+    );
+    assert_eq!(
+        page.data[0].provider_protocol.as_deref(),
+        Some("openai-compatible")
+    );
 }
 
 #[tokio::test]

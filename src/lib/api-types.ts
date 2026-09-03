@@ -13,7 +13,7 @@ export interface ApiKeyConfig {
 
 export interface ProviderEndpoint {
   id: string;
-  protocol: 'openai-compatible' | 'anthropic' | 'openai-responses';
+  protocol: 'openai-compatible' | 'anthropic-messages' | 'openai-responses';
   url: string;
   label?: string | null;
   priority: number;
@@ -41,6 +41,8 @@ export interface Provider {
   model_count: number;
   logo?: string | null;
   catalog_models?: Array<string>;
+  /** Models bound to this provider, including the selected upstream protocol. */
+  models?: Array<Model>;
 }
 
 export interface UpdateProvider {
@@ -69,6 +71,8 @@ export interface Model {
   provider_id: string;
   provider_name?: string;
   protocol: string;
+  /** Upstream wire protocol selected for this model on its provider. */
+  upstream_protocol?: string | null;
   context_length: number;
   input_cost?: number | null;
   output_cost?: number | null;
@@ -104,6 +108,8 @@ export interface RoutableModel {
   provider_id: string;
   provider_name?: string;
   protocol: string;
+  /** Upstream wire protocol selected for this model on its provider. */
+  upstream_protocol?: string | null;
   context_length: number;
   input_cost?: number | null;
   output_cost?: number | null;
@@ -143,6 +149,8 @@ export interface ModelEndpoint {
   provider_name: string;
   provider_tag: string;
   native_model_id: string;
+  /** Upstream wire protocol selected for this model endpoint. */
+  upstream_protocol?: string | null;
   quantization: string;
   input_cost?: number | null;
   output_cost?: number | null;

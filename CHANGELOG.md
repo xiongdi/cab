@@ -5,6 +5,14 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.11] - 2026-09-03
+
+### Fixed
+
+- Request logs now persist agent/provider protocols and backfill protocol values for legacy rows.
+- Provider and model views now expose the canonical `openai-compatible`, `anthropic-messages`, and `openai-responses` mappings.
+- Streamed request usage is finalized when the final SSE event has no trailing newline.
+
 ## [0.11.10] - 2026-09-03
 
 ### Added

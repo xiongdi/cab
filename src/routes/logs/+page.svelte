@@ -104,6 +104,17 @@
     return '—';
   }
 
+  function providerProtocol(row: RequestLog): string {
+    if (row.provider_protocol) return row.provider_protocol;
+    // OpenCode Go publishes a per-model wire-protocol map. Keep this fallback
+    // for legacy logs created before protocol fields were added to RequestLog.
+    if (row.provider.toLowerCase().includes('opencode')) {
+      const model = row.model.split('/').pop()?.toLowerCase();
+      if (model === 'hy4-preview') return 'openai-compatible';
+    }
+    return '—';
+  }
+
   // Tool-schema weight diagnostics (cache prefix).
   let toolWeights = $state<ToolWeightSnapshot[]>([]);
 
@@ -411,7 +422,7 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">{i18n.t('logs.provider_protocol')}</span>
-            <span class="detail-value mono">{row.provider_protocol || '—'}</span>
+            <span class="detail-value mono">{providerProtocol(row)}</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">{i18n.t('logs.model')}</span>

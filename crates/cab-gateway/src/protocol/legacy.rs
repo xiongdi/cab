@@ -1100,17 +1100,29 @@ impl<S> TokenTrackingStream<S> {
         self.buffer.extend_from_slice(bytes);
         while let Some(pos) = self.buffer.iter().position(|&b| b == b'\n') {
             let line_bytes = self.buffer.drain(..=pos).collect::<Vec<u8>>();
-            let line = String::from_utf8_lossy(&line_bytes);
-            let trimmed = line.trim();
-            if let Some(data_content) = trimmed.strip_prefix("data:") {
-                let data_content = data_content.trim();
-                if data_content != "[DONE]"
-                    && !data_content.is_empty()
-                    && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
-                {
-                    self.track_protocol_event(&json_val);
-                }
+            self.process_sse_line(&line_bytes);
+        }
+    }
+
+    /// Process an SSE line, including a final line that is not newline-terminated.
+    fn process_sse_line(&mut self, line_bytes: &[u8]) {
+        let line = String::from_utf8_lossy(line_bytes);
+        let trimmed = line.trim();
+        if let Some(data_content) = trimmed.strip_prefix("data:") {
+            let data_content = data_content.trim();
+            if data_content != "[DONE]"
+                && !data_content.is_empty()
+                && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
+            {
+                self.track_protocol_event(&json_val);
             }
+        }
+    }
+
+    fn flush_buffer(&mut self) {
+        if !self.buffer.is_empty() {
+            let remaining = std::mem::take(&mut self.buffer);
+            self.process_sse_line(&remaining);
         }
     }
 
@@ -1310,7 +1322,10 @@ where
                 Poll::Ready(Some(Ok(bytes)))
             }
             Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Ready(None) => {
+                this.flush_buffer();
+                Poll::Ready(None)
+            }
             Poll::Pending => Poll::Pending,
         }
     }
@@ -1318,6 +1333,9 @@ where
 
 impl<S> Drop for TokenTrackingStream<S> {
     fn drop(&mut self) {
+        // A final SSE data event is allowed to omit the trailing newline.
+        // Flush it before persisting the log so final usage is not lost.
+        self.flush_buffer();
         // Physical token total — cache write is only added when it is a disjoint
         // Anthropic prompt part (`/v1/messages`). On OpenAI it overlays input.
         self.log.total_tokens = match self.log.path.as_str() {
@@ -1716,7 +1734,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "claude-code".into(),
+            agent_protocol: None,
             provider: "OpenCode Go".into(),
+            provider_protocol: None,
             model: "tencent/hy3".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -1988,7 +2008,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "claude-code".into(),
+            agent_protocol: None,
             provider: "test".into(),
+            provider_protocol: None,
             model: "model".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2053,7 +2075,9 @@ data: {"type":"message_stop"}
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "claude-code".into(),
+            agent_protocol: None,
             provider: "OpenCode Go".into(),
+            provider_protocol: None,
             model: "deepseek/deepseek-v4-flash".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2184,7 +2208,9 @@ data: {"type":"message_stop"}
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "claude-code".into(),
+            agent_protocol: None,
             provider: "OpenCode Go".into(),
+            provider_protocol: None,
             model: "deepseek/deepseek-v4-flash".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2235,7 +2261,9 @@ data: {"type":"message_stop"}
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "opencode".into(),
+            agent_protocol: None,
             provider: "deepseek".into(),
+            provider_protocol: None,
             model: "deepseek-chat".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2282,7 +2310,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "grok-build".into(),
+            agent_protocol: None,
             provider: "LongCat".into(),
+            provider_protocol: None,
             model: "meituan/longcat-2.0".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2326,7 +2356,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "opencode".into(),
+            agent_protocol: None,
             provider: "openai".into(),
+            provider_protocol: None,
             model: "gpt".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2373,7 +2405,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "codex".into(),
+            agent_protocol: None,
             provider: "openai".into(),
+            provider_protocol: None,
             model: "gpt".into(),
             input_tokens: 0,
             output_tokens: 0,
@@ -2419,7 +2453,9 @@ data: [DONE]
             id: log_id.clone(),
             timestamp: "now".into(),
             agent: "codex".into(),
+            agent_protocol: None,
             provider: "LongCat".into(),
+            provider_protocol: None,
             model: "meituan/longcat-2.0".into(),
             input_tokens: 0,
             output_tokens: 0,

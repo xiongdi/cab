@@ -92,10 +92,19 @@
     if (provider.catalog_models && provider.catalog_models.length > 0) {
       return provider.catalog_models;
     }
+    if (provider.models && provider.models.length > 0) {
+      return provider.models.map((model) => model.name);
+    }
     return providerModelNames[provider.id] || [];
   }
 
   function modelRecordsForProvider(provider: ProviderRow): Model[] {
+    // `/api/providers` includes the provider-bound model records, including
+    // disabled models and their selected upstream protocol. Prefer these over
+    // `/api/models`, which is a filtered/routable view and may omit them.
+    if (provider.models && provider.models.length > 0) {
+      return provider.models;
+    }
     const names = new Set(modelsForProvider(provider));
     return allModels.filter(
       (model) => model.provider_id === provider.id || names.has(model.name)
@@ -588,8 +597,10 @@
                             {:else}
                               {m.name}
                             {/if}
-                            {#if m.protocol}
-                              <span class="badge-proto mono proto-inline">{m.protocol}</span>
+                            {#if m.upstream_protocol || m.protocol}
+                              <span class="badge-proto mono proto-inline"
+                                >{m.upstream_protocol || m.protocol}</span
+                              >
                             {/if}
                           </div>
                           <label

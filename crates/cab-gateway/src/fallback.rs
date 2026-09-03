@@ -138,6 +138,21 @@ pub async fn execute_with_fallback(
     fallbacks: &[ResolvedModel],
     request: &ProxyRequest,
 ) -> Result<(Response, String, String), CabError> {
+    execute_with_fallback_with_protocol(client, pool, primary, fallbacks, request)
+        .await
+        .map(|(response, provider, model, _provider_protocol)| (response, provider, model))
+}
+
+/// Try each model in order and return the endpoint protocol that actually
+/// produced the response. The short tuple-returning wrapper above is kept for
+/// callers that only need the routed provider/model names.
+pub async fn execute_with_fallback_with_protocol(
+    client: &Client,
+    pool: &cab_db::InMemoryStore,
+    primary: &ResolvedModel,
+    fallbacks: &[ResolvedModel],
+    request: &ProxyRequest,
+) -> Result<(Response, String, String, String), CabError> {
     let all_models = std::iter::once(primary).chain(fallbacks.iter());
 
     let mut last_error = CabError::Proxy("No models available".to_string());
@@ -275,6 +290,7 @@ pub async fn execute_with_fallback(
                                 final_response,
                                 resolved.provider_name.clone(),
                                 resolved.model.name.clone(),
+                                endpoint.protocol.clone(),
                             ));
                         }
                         Err(CabError::ProviderError {

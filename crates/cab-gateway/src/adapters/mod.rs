@@ -17,7 +17,7 @@ use chrono::Utc;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::fallback::{ProxyRequest, execute_with_fallback};
+use crate::fallback::{ProxyRequest, execute_with_fallback_with_protocol};
 use crate::router::{
     ResolvedRoute, pick_endpoints_for_protocol, resolve_model_on_provider, resolve_route,
 };
@@ -172,7 +172,7 @@ pub async fn handle_proxied_request(
         shape_requests: cache_request_shaping_enabled,
     };
 
-    let result = execute_with_fallback(
+    let result = execute_with_fallback_with_protocol(
         &state.client,
         &state.pool,
         &primary,
@@ -184,7 +184,7 @@ pub async fn handle_proxied_request(
     let latency_ms = start.elapsed().as_millis() as i64;
 
     match result {
-        Ok((response, provider_name, model_name)) => {
+        Ok((response, provider_name, model_name, provider_protocol)) => {
             let log_id = Uuid::new_v4().to_string();
             let mut input_tokens = 0;
             let mut output_tokens = 0;
@@ -203,7 +203,9 @@ pub async fn handle_proxied_request(
                     id: log_id,
                     timestamp: Utc::now().to_rfc3339(),
                     agent: agent.clone(),
+                    agent_protocol: Some(client_protocol.to_string()),
                     provider: provider_name,
+                    provider_protocol: Some(provider_protocol.clone()),
                     model: model_name.clone(),
                     input_tokens: 0,
                     output_tokens: 0,
@@ -269,7 +271,9 @@ pub async fn handle_proxied_request(
                     id: log_id,
                     timestamp: Utc::now().to_rfc3339(),
                     agent: agent.clone(),
+                    agent_protocol: Some(client_protocol.to_string()),
                     provider: provider_name,
+                    provider_protocol: Some(provider_protocol),
                     model: model_name.clone(),
                     input_tokens,
                     output_tokens,
@@ -325,7 +329,9 @@ pub async fn handle_proxied_request(
                 id: Uuid::new_v4().to_string(),
                 timestamp: Utc::now().to_rfc3339(),
                 agent,
+                agent_protocol: Some(adapter.protocol().to_string()),
                 provider: resolved.provider_name.clone(),
+                provider_protocol: Some(upstream_protocol.to_string()),
                 model: resolved.model.name.clone(),
                 input_tokens: 0,
                 output_tokens: 0,

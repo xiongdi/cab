@@ -703,6 +703,9 @@
                           <div class="gateway-native mono">{ep.native_model_id}</div>
                         {/if}
                         <div class="gateway-meta">
+                          {#if ep.upstream_protocol}
+                            <span class="gateway-badge gateway-protocol mono">{ep.upstream_protocol}</span>
+                          {/if}
                           {#if ep.quantization && ep.quantization !== 'unknown'}
                             <span class="gateway-badge">{ep.quantization}</span>
                           {/if}
