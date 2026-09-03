@@ -10,7 +10,7 @@ use serde_json;
 
 use crate::endpoint::ModelEndpoint;
 
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 5;
 
 pub fn db_path() -> PathBuf {
     cab_core::paths::cab_home().join("cab.db")
@@ -214,6 +214,9 @@ pub fn init_schema(conn: &Connection) -> Result<(), String> {
             if v < 4 {
                 migrate_v3_to_v4(conn)?;
             }
+            if v < 5 {
+                migrate_v4_to_v5(conn)?;
+            }
         }
         _ => {}
     }
@@ -332,6 +335,87 @@ fn migrate_v3_to_v4(conn: &Connection) -> Result<(), String> {
     .map_err(|e| format!("Failed to update schema version: {e}"))?;
 
     tracing::info!("Schema migration v3 → v4 complete");
+    Ok(())
+}
+
+fn normalize_protocol_values(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, child) in map.iter_mut() {
+                if matches!(
+                    key.as_str(),
+                    "protocol" | "default_protocol" | "upstream_protocol"
+                ) && child.as_str() == Some("openai-chat")
+                {
+                    *child = serde_json::Value::String("openai-compatible".into());
+                } else if matches!(
+                    key.as_str(),
+                    "protocol" | "default_protocol" | "upstream_protocol"
+                ) && child.as_str() == Some("anthropic")
+                {
+                    *child = serde_json::Value::String("anthropic-messages".into());
+                } else {
+                    normalize_protocol_values(child);
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                normalize_protocol_values(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn migrate_v4_to_v5(conn: &Connection) -> Result<(), String> {
+    tracing::info!("Migrating schema from v4 to v5: standardizing protocol names");
+    for table in [
+        "settings",
+        "catalog_providers",
+        "catalog_models",
+        "model_endpoints",
+    ] {
+        let rows: Vec<(String, String)> = if table == "settings" {
+            conn.prepare("SELECT CAST(id AS TEXT), data FROM settings")
+                .map_err(|e| e.to_string())?
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<_, _>>()
+                .map_err(|e| e.to_string())?
+        } else {
+            conn.prepare(&format!("SELECT id, data FROM {table}"))
+                .map_err(|e| e.to_string())?
+                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+                .map_err(|e| e.to_string())?
+                .collect::<Result<_, _>>()
+                .map_err(|e| e.to_string())?
+        };
+        for (id, data) in rows {
+            let mut value: serde_json::Value = serde_json::from_str(&data)
+                .map_err(|e| format!("Invalid JSON in {table}/{id}: {e}"))?;
+            normalize_protocol_values(&mut value);
+            let normalized = serde_json::to_string(&value).map_err(|e| e.to_string())?;
+            if table == "settings" {
+                conn.execute(
+                    "UPDATE settings SET data = ?1 WHERE id = ?2",
+                    (&normalized, id.parse::<i64>().unwrap_or(1)),
+                )
+                .map_err(|e| e.to_string())?;
+            } else {
+                conn.execute(
+                    &format!("UPDATE {table} SET data = ?1 WHERE id = ?2"),
+                    (&normalized, &id),
+                )
+                .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_version (version) VALUES (?1)",
+        [SCHEMA_VERSION],
+    )
+    .map_err(|e| format!("Failed to set schema version: {e}"))?;
     Ok(())
 }
 
