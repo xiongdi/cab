@@ -12,7 +12,8 @@ impl GatewayState {
     pub fn new(pool: cab_db::InMemoryStore) -> Self {
         let client = Client::builder()
             .timeout(std::time::Duration::from_secs(600))
-            .connect_timeout(std::time::Duration::from_secs(5))
+            .connect_timeout(std::time::Duration::from_secs(30))
+            .tcp_keepalive(std::time::Duration::from_secs(30))
             .build()
             .expect("Failed to create HTTP client");
         Self { pool, client }

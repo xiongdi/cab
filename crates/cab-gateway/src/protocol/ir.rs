@@ -172,16 +172,30 @@ fn tool_result_content_to_openai_chat(blocks: &[IrBlock]) -> Value {
 }
 
 /// Render tool-result content blocks into an OpenAI Responses
-/// `function_call_output.output` array (round-trips Codex's image shape).
+/// `function_call_output.output` value.
+///
+/// In standard OpenAI Responses API, `output` is a plain string.
+/// Codex's multimodal `view_image` extension uses an array of
+/// `input_image` (and optionally `input_text`) parts.
 fn tool_result_content_to_responses(blocks: &[IrBlock]) -> Value {
     if blocks.is_empty() {
         return Value::String(String::new());
+    }
+    let has_images = blocks.iter().any(|b| matches!(b, IrBlock::Image { .. }));
+    if !has_images {
+        let mut text = String::new();
+        for b in blocks {
+            if let IrBlock::Text { text: t } = b {
+                text.push_str(t);
+            }
+        }
+        return Value::String(text);
     }
     Value::Array(
         blocks
             .iter()
             .map(|b| match b {
-                IrBlock::Text { text } => serde_json::json!({"type": "output_text", "text": text}),
+                IrBlock::Text { text } => serde_json::json!({"type": "input_text", "text": text}),
                 IrBlock::Image { source, .. } => {
                     let url = match source {
                         IrImageSource::Url(u) => u.clone(),
@@ -189,7 +203,7 @@ fn tool_result_content_to_responses(blocks: &[IrBlock]) -> Value {
                     };
                     serde_json::json!({"type": "input_image", "image_url": url})
                 }
-                _ => serde_json::json!({"type": "output_text", "text": ""}),
+                _ => serde_json::json!({"type": "input_text", "text": ""}),
             })
             .collect(),
     )
@@ -1116,7 +1130,10 @@ fn ir_message_to_openai_messages(msg: &IrMessage) -> Vec<Value> {
     } else if !tool_results.is_empty() {
         out.extend(tool_results);
     } else if !text_parts.is_empty() || !msg.blocks.is_empty() {
-        out.push(serde_json::json!({"role": msg.role, "content": text_parts.join("")}));
+        let cleaned = strip_claude_total_tokens(&text_parts.join(""));
+        if !cleaned.is_empty() {
+            out.push(serde_json::json!({"role": msg.role, "content": cleaned}));
+        }
     }
     out
 }
@@ -1130,6 +1147,22 @@ fn encode_openai_tool_choice(choice: &IrToolChoice) -> Value {
             serde_json::json!({"type": "function", "function": {"name": name}})
         }
     }
+}
+
+/// Anthropic Messages-exclusive request body extensions that should not be
+/// passed to OpenAI Responses or Chat Completions endpoints.
+pub fn is_anthropic_exclusive_extension(key: &str) -> bool {
+    matches!(
+        key,
+        "thinking"
+            | "context_management"
+            | "output_config"
+            | "betas"
+            | "anthropic_beta"
+            | "anthropic_version"
+            | "top_k"
+            | "container"
+    )
 }
 
 pub fn encode_openai_chat_request(ir: &IrRequest) -> Value {
@@ -1236,13 +1269,66 @@ pub fn encode_openai_chat_request(ir: &IrRequest) -> Value {
         encode_openai_tool_choice(&ir.tool_choice),
     );
     for (k, v) in &ir.extensions {
-        // Anthropic `thinking` is not a Chat Completions field.
-        if k == "thinking" {
+        if k == "output_config" {
+            if let Some(format) = v.get("format").and_then(|f| f.as_object()) {
+                let fmt_type = format.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                if fmt_type == "json_schema" {
+                    let mut schema_obj = serde_json::Map::new();
+                    let name = format
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("response_schema");
+                    schema_obj.insert("name".into(), Value::String(name.into()));
+                    if let Some(schema) = format.get("schema") {
+                        schema_obj.insert("schema".into(), schema.clone());
+                    }
+                    obj.insert(
+                        "response_format".into(),
+                        serde_json::json!({
+                            "type": "json_schema",
+                            "json_schema": schema_obj
+                        }),
+                    );
+                } else if fmt_type == "json_object" {
+                    obj.insert(
+                        "response_format".into(),
+                        serde_json::json!({"type": "json_object"}),
+                    );
+                }
+            }
+            continue;
+        }
+        // Anthropic `thinking` and other Anthropic-exclusive extensions are not Chat fields.
+        if is_anthropic_exclusive_extension(k) {
             continue;
         }
         obj.insert(k.clone(), v.clone());
     }
     Value::Object(obj)
+}
+
+/// Strip Claude Code ephemeral `<total_tokens>... tokens left</total_tokens>` tags.
+/// When Claude Code inserts these between turns, they act as ephemeral token-counter
+/// probes. Passing them into upstream models as user or system turns breaks the
+/// function_call -> function_call_output continuity, causing models to halt early
+/// instead of completing multi-turn tool loops.
+pub fn strip_claude_total_tokens(text: &str) -> String {
+    if !text.contains("<total_tokens>") {
+        return text.to_string();
+    }
+    let mut result = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("<total_tokens>") {
+        result.push_str(&rest[..start]);
+        if let Some(end) = rest[start..].find("</total_tokens>") {
+            rest = &rest[start + end + "</total_tokens>".len()..];
+        } else {
+            rest = "";
+            break;
+        }
+    }
+    result.push_str(rest);
+    result.trim().to_string()
 }
 
 fn ir_message_to_responses_items(msg: &IrMessage) -> Vec<Value> {
@@ -1251,12 +1337,13 @@ fn ir_message_to_responses_items(msg: &IrMessage) -> Vec<Value> {
     for block in &msg.blocks {
         match block {
             IrBlock::Text { text: t } => text.push_str(t),
-            IrBlock::Thinking { text: t, .. } => text.push_str(t),
+            IrBlock::Thinking { .. } => {}
             IrBlock::ToolUse { id, name, input } => {
-                if !text.is_empty() {
-                    items.push(serde_json::json!({"role": "assistant", "content": text}));
-                    text.clear();
+                let cleaned_text = strip_claude_total_tokens(&text);
+                if !cleaned_text.is_empty() {
+                    items.push(serde_json::json!({"role": "assistant", "content": cleaned_text}));
                 }
+                text.clear();
                 items.push(serde_json::json!({
                     "type": "function_call",
                     "call_id": id,
@@ -1278,10 +1365,22 @@ fn ir_message_to_responses_items(msg: &IrMessage) -> Vec<Value> {
             IrBlock::Image { .. } => {}
         }
     }
-    if !text.is_empty() {
-        items.push(serde_json::json!({"role": msg.role, "content": text}));
+    let cleaned_text = strip_claude_total_tokens(&text);
+    if !cleaned_text.is_empty() {
+        items.push(serde_json::json!({"role": msg.role, "content": cleaned_text}));
     }
     items
+}
+
+fn encode_responses_tool_choice(choice: &IrToolChoice) -> Value {
+    match choice {
+        IrToolChoice::Auto => Value::String("auto".into()),
+        IrToolChoice::None => Value::String("none".into()),
+        IrToolChoice::Required | IrToolChoice::Any => Value::String("required".into()),
+        IrToolChoice::Tool { name } => {
+            serde_json::json!({"type": "function", "name": name})
+        }
+    }
 }
 
 pub fn encode_responses_request(ir: &IrRequest) -> Value {
@@ -1336,7 +1435,7 @@ pub fn encode_responses_request(ir: &IrRequest) -> Value {
     }
     obj.insert(
         "tool_choice".into(),
-        encode_openai_tool_choice(&ir.tool_choice),
+        encode_responses_tool_choice(&ir.tool_choice),
     );
     for (k, v) in &ir.extensions {
         // Convert Anthropic `thinking` to OpenAI Responses `reasoning.effort`.
@@ -1346,6 +1445,26 @@ pub fn encode_responses_request(ir: &IrRequest) -> Value {
             if let Some(effort) = reasoning_effort_from_thinking(v) {
                 obj.insert("reasoning".into(), serde_json::json!({"effort": effort}));
             }
+            continue;
+        }
+        if k == "output_config" {
+            if let Some(effort) = v.get("effort").and_then(|e| e.as_str())
+                && !obj.contains_key("reasoning")
+            {
+                obj.insert("reasoning".into(), serde_json::json!({"effort": effort}));
+            }
+            if let Some(format) = v.get("format").and_then(|f| f.as_object()) {
+                let mut fmt = format.clone();
+                if fmt.get("type").and_then(|t| t.as_str()) == Some("json_schema")
+                    && fmt.get("name").is_none()
+                {
+                    fmt.insert("name".into(), Value::String("response_schema".into()));
+                }
+                obj.insert("text".into(), serde_json::json!({"format": fmt}));
+            }
+            continue;
+        }
+        if is_anthropic_exclusive_extension(k) {
             continue;
         }
         obj.insert(k.clone(), v.clone());

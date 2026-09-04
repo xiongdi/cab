@@ -59,6 +59,7 @@ struct ToolTracker {
     pending_args: String,
     started: bool,
     stopped: bool,
+    streamed_args: bool,
 }
 
 struct AnthropicSseEmitter {
@@ -71,6 +72,7 @@ struct AnthropicSseEmitter {
     text_index: Option<u32>,
     next_index: u32,
     tools: HashMap<String, ToolTracker>,
+    alias_to_tool: HashMap<String, String>,
     finished: bool,
     output_tokens: u64,
 }
@@ -87,6 +89,7 @@ impl AnthropicSseEmitter {
             text_index: None,
             next_index: 0,
             tools: HashMap::new(),
+            alias_to_tool: HashMap::new(),
             finished: false,
             output_tokens: 0,
         }
@@ -153,10 +156,24 @@ impl AnthropicSseEmitter {
         ));
     }
 
+    fn close_thinking(&mut self) {
+        if let Some(idx) = self.thinking_index.take() {
+            self.ensure_thinking_signature_for(idx);
+            self.stop_block(idx);
+        }
+    }
+
+    fn close_text(&mut self) {
+        if let Some(idx) = self.text_index.take() {
+            self.stop_block(idx);
+        }
+    }
+
     fn push_text(&mut self, text: &str) {
         if text.is_empty() {
             return;
         }
+        self.close_thinking();
         if self.text_index.is_none() {
             let idx = self.start_block("text", serde_json::json!({"type": "text", "text": ""}));
             self.text_index = Some(idx);
@@ -187,10 +204,7 @@ impl AnthropicSseEmitter {
         );
     }
 
-    fn ensure_thinking_signature(&mut self) {
-        let Some(idx) = self.thinking_index else {
-            return;
-        };
+    fn ensure_thinking_signature_for(&mut self, idx: u32) {
         if self.thinking_signature_emitted {
             return;
         }
@@ -204,6 +218,86 @@ impl AnthropicSseEmitter {
         );
     }
 
+    fn ensure_tool(
+        &mut self,
+        item_id: &str,
+        call_id: &str,
+        output_index: Option<u64>,
+        name: &str,
+    ) -> String {
+        let existing_key = (!call_id.is_empty() && self.alias_to_tool.contains_key(call_id))
+            .then(|| self.alias_to_tool.get(call_id).cloned())
+            .flatten()
+            .or_else(|| {
+                (!item_id.is_empty() && self.alias_to_tool.contains_key(item_id))
+                    .then(|| self.alias_to_tool.get(item_id).cloned())
+                    .flatten()
+            })
+            .or_else(|| {
+                output_index.and_then(|idx| self.alias_to_tool.get(&format!("idx:{idx}")).cloned())
+            });
+
+        let key = if let Some(k) = existing_key {
+            k
+        } else {
+            let canonical = if !call_id.is_empty() {
+                call_id.to_string()
+            } else if !item_id.is_empty() {
+                item_id.to_string()
+            } else if let Some(idx) = output_index {
+                format!("idx:{idx}")
+            } else {
+                format!("tool_{}", self.tools.len())
+            };
+            let block_index = self.alloc_index();
+            let display_id = if !call_id.is_empty() {
+                call_id.to_string()
+            } else if !item_id.is_empty() {
+                item_id.to_string()
+            } else {
+                format!("toolu_{}", uuid::Uuid::new_v4().simple())
+            };
+            self.tools.insert(
+                canonical.clone(),
+                ToolTracker {
+                    block_index,
+                    id: display_id,
+                    name: name.to_string(),
+                    pending_args: String::new(),
+                    started: false,
+                    stopped: false,
+                    streamed_args: false,
+                },
+            );
+            canonical
+        };
+
+        if !call_id.is_empty() {
+            self.alias_to_tool.insert(call_id.to_string(), key.clone());
+        }
+        if !item_id.is_empty() {
+            self.alias_to_tool.insert(item_id.to_string(), key.clone());
+        }
+        if let Some(idx) = output_index {
+            self.alias_to_tool.insert(format!("idx:{idx}"), key.clone());
+        }
+
+        if let Some(tool) = self.tools.get_mut(&key) {
+            if tool.name.is_empty() && !name.is_empty() {
+                tool.name = name.to_string();
+            }
+            if !call_id.is_empty()
+                && (tool.id.is_empty()
+                    || tool.id.starts_with("toolu_")
+                    || tool.id.starts_with("fc_"))
+            {
+                tool.id = call_id.to_string();
+            }
+        }
+
+        key
+    }
+
     fn push_tool_args(&mut self, key: &str, partial: &str) {
         if partial.is_empty() {
             return;
@@ -211,7 +305,13 @@ impl AnthropicSseEmitter {
         let Some(tool) = self.tools.get(key) else {
             return;
         };
+        if tool.stopped {
+            return;
+        }
         if tool.name.is_empty() {
+            if let Some(t) = self.tools.get_mut(key) {
+                t.pending_args.push_str(partial);
+            }
             return;
         }
         let (block_index, id, name, started) = (
@@ -220,6 +320,8 @@ impl AnthropicSseEmitter {
             tool.name.clone(),
             tool.started,
         );
+        self.close_thinking();
+        self.close_text();
         if !started {
             if let Some(t) = self.tools.get_mut(key) {
                 t.started = true;
@@ -232,12 +334,15 @@ impl AnthropicSseEmitter {
                     "index": block_index,
                     "content_block": {
                         "type": "tool_use",
-                        "id": if id.is_empty() { format!("toolu_{}", uuid::Uuid::new_v4().simple()) } else { id.clone() },
+                        "id": if id.is_empty() { format!("toolu_{}", uuid::Uuid::new_v4().simple()) } else { id },
                         "name": name,
                         "input": {}
                     }
                 }),
             ));
+        }
+        if let Some(t) = self.tools.get_mut(key) {
+            t.streamed_args = true;
         }
         self.output_tokens = self.output_tokens.saturating_add(partial.len() as u64);
         self.push_delta(
@@ -246,49 +351,82 @@ impl AnthropicSseEmitter {
         );
     }
 
-    fn finish(&mut self, stop_reason: &str, output_tokens: Option<u64>) {
+    fn flush_tool_pending_args(&mut self, key: &str) {
+        let pending = self
+            .tools
+            .get_mut(key)
+            .filter(|t| !t.name.is_empty() && !t.pending_args.is_empty())
+            .map(|t| std::mem::take(&mut t.pending_args));
+        if let Some(args) = pending {
+            self.push_tool_args(key, &args);
+        }
+    }
+
+    fn stop_tool(&mut self, key: &str) {
+        self.flush_tool_pending_args(key);
+        let stopped_index = self
+            .tools
+            .get_mut(key)
+            .filter(|tool| tool.started && !tool.stopped)
+            .map(|tool| {
+                tool.stopped = true;
+                tool.block_index
+            });
+        if let Some(index) = stopped_index {
+            self.stop_block(index);
+        }
+    }
+
+    fn finish(&mut self, stop_reason: &str, usage: Option<&Value>) {
         if self.finished {
             return;
         }
         self.finished = true;
         self.ensure_message();
-        let pending: Vec<(String, String)> = self
-            .tools
-            .iter_mut()
-            .filter(|(_, tool)| !tool.pending_args.is_empty() && !tool.name.is_empty())
-            .map(|(key, tool)| (key.clone(), std::mem::take(&mut tool.pending_args)))
-            .collect();
-        for (key, args) in pending {
-            self.push_tool_args(&key, &args);
+
+        let keys: Vec<String> = self.tools.keys().cloned().collect();
+        for key in keys {
+            self.flush_tool_pending_args(&key);
+            let need_start = self
+                .tools
+                .get(&key)
+                .map(|t| !t.started && !t.name.is_empty())
+                .unwrap_or(false);
+            if need_start {
+                self.push_tool_args(&key, "{}");
+            }
+            self.stop_tool(&key);
         }
-        let stop_indices: Vec<u32> = self
-            .tools
-            .values_mut()
-            .filter(|tool| tool.started && !tool.stopped)
-            .map(|tool| {
-                tool.stopped = true;
-                tool.block_index
-            })
-            .collect();
-        for index in stop_indices {
-            self.stop_block(index);
-        }
-        if self.thinking_index.is_some() {
-            self.ensure_thinking_signature();
-            if let Some(idx) = self.thinking_index {
-                self.stop_block(idx);
+
+        self.close_thinking();
+        self.close_text();
+
+        let mut delta_usage = serde_json::json!({
+            "output_tokens": usage
+                .and_then(|u| u.get("output_tokens"))
+                .and_then(|v| v.as_u64())
+                .unwrap_or(self.output_tokens)
+        });
+        if let Some(u) = usage {
+            if let Some(in_tok) = u.get("input_tokens").and_then(|v| v.as_u64()) {
+                delta_usage["input_tokens"] = serde_json::json!(in_tok);
+            }
+            if let Some(cached) = u
+                .get("input_tokens_details")
+                .and_then(|d| d.get("cached_tokens"))
+                .and_then(|v| v.as_u64())
+                .filter(|&v| v > 0)
+            {
+                delta_usage["cache_read_input_tokens"] = serde_json::json!(cached);
             }
         }
-        if let Some(idx) = self.text_index {
-            self.stop_block(idx);
-        }
-        let out = output_tokens.unwrap_or(self.output_tokens);
+
         self.pending.push(anthropic_stream_event(
             "message_delta",
             serde_json::json!({
                 "type": "message_delta",
                 "delta": {"stop_reason": stop_reason, "stop_sequence": null},
-                "usage": {"output_tokens": out}
+                "usage": delta_usage
             }),
         ));
         self.pending.push(anthropic_stream_event(
@@ -333,7 +471,12 @@ where
                     return;
                 };
                 if payload == "[DONE]" {
-                    emitter.finish("end_turn", None);
+                    let stop = if emitter.tools.values().any(|t| t.started) {
+                        "tool_use"
+                    } else {
+                        "end_turn"
+                    };
+                    emitter.finish(stop, None);
                     return;
                 }
                 let Ok(event) = serde_json::from_str::<Value>(payload) else {
@@ -346,126 +489,145 @@ where
                             emitter.push_text(delta);
                         }
                     }
+                    "response.output_text.done" | "response.content_part.done" => {
+                        emitter.close_text();
+                    }
                     "response.reasoning_text.delta" | "response.reasoning_summary_text.delta" => {
                         if let Some(delta) = event.get("delta").and_then(|d| d.as_str()) {
                             emitter.push_thinking(delta);
                         }
                     }
-                    "response.output_item.added" => {
-                        if let Some(item) = event.get("item")
-                            && item.get("type").and_then(|t| t.as_str()) == Some("function_call")
-                        {
-                            let call_id = item
-                                .get("call_id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string();
-                            let name = item
-                                .get("name")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string();
-                            let block_index = emitter.alloc_index();
-                            let id = if call_id.is_empty() {
-                                format!("toolu_{}", uuid::Uuid::new_v4().simple())
-                            } else {
-                                call_id.clone()
-                            };
-                            emitter.tools.insert(
-                                call_id.clone(),
-                                ToolTracker {
-                                    block_index,
-                                    id,
-                                    name,
-                                    pending_args: String::new(),
-                                    started: false,
-                                    stopped: false,
-                                },
-                            );
-                        }
+                    "response.reasoning_text.done" => {
+                        emitter.close_thinking();
                     }
-                    "response.function_call_arguments.delta" => {
-                        let call_id = event
-                            .get("item_id")
-                            .or_else(|| event.get("call_id"))
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("")
-                            .to_string();
-                        let key = if call_id.is_empty() {
-                            "idx:0".into()
-                        } else {
-                            call_id.clone()
-                        };
-                        if !emitter.tools.contains_key(&key) {
-                            let block_index = emitter.alloc_index();
-                            emitter.tools.insert(
-                                key.clone(),
-                                ToolTracker {
-                                    block_index,
-                                    id: call_id.clone(),
-                                    name: String::new(),
-                                    pending_args: String::new(),
-                                    started: false,
-                                    stopped: false,
-                                },
-                            );
-                        }
-                        if let Some(delta) = event.get("delta").and_then(|d| d.as_str()) {
-                            if emitter
-                                .tools
-                                .get(&key)
-                                .map(|t| t.name.is_empty())
-                                .unwrap_or(true)
-                            {
-                                if let Some(t) = emitter.tools.get_mut(&key) {
-                                    t.pending_args.push_str(delta);
+                    "response.output_item.added" => {
+                        if let Some(item) = event.get("item") {
+                            let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                            if item_type == "function_call" {
+                                let item_id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                                let call_id =
+                                    item.get("call_id").and_then(|v| v.as_str()).unwrap_or("");
+                                let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                let output_index =
+                                    event.get("output_index").and_then(|v| v.as_u64());
+                                let key = emitter.ensure_tool(item_id, call_id, output_index, name);
+                                if let Some(args) = item.get("arguments").and_then(|a| a.as_str())
+                                    && !args.is_empty()
+                                {
+                                    emitter.push_tool_args(&key, args);
                                 }
-                            } else {
-                                emitter.push_tool_args(&key, delta);
+                            } else if item_type == "message" {
+                                emitter.close_thinking();
                             }
                         }
                     }
+                    "response.function_call_arguments.delta" => {
+                        let item_id = event
+                            .get("item_id")
+                            .or_else(|| event.get("call_id"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let output_index = event.get("output_index").and_then(|v| v.as_u64());
+                        let key = emitter.ensure_tool(item_id, "", output_index, "");
+                        if let Some(delta) = event.get("delta").and_then(|d| d.as_str()) {
+                            emitter.push_tool_args(&key, delta);
+                        }
+                    }
                     "response.function_call_arguments.done" => {
+                        let item_id = event
+                            .get("item_id")
+                            .or_else(|| event.get("call_id"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("");
+                        let output_index = event.get("output_index").and_then(|v| v.as_u64());
+                        let name = event.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                        let key = emitter.ensure_tool(item_id, "", output_index, name);
+                        let streamed = emitter
+                            .tools
+                            .get(&key)
+                            .map(|t| t.streamed_args)
+                            .unwrap_or(false);
+                        if !streamed
+                            && let Some(args) = event.get("arguments").and_then(|a| a.as_str())
+                            && !args.is_empty()
+                        {
+                            emitter.push_tool_args(&key, args);
+                        }
+                        emitter.stop_tool(&key);
+                    }
+                    "response.output_item.done" => {
                         if let Some(item) = event.get("item") {
-                            let call_id = item
-                                .get("call_id")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("")
-                                .to_string();
-                            let key = if call_id.is_empty() {
-                                "idx:0".into()
-                            } else {
-                                call_id
-                            };
-                            if let Some(t) = emitter.tools.get_mut(&key) {
-                                if t.name.is_empty() {
-                                    t.name = item
-                                        .get("name")
-                                        .and_then(|v| v.as_str())
-                                        .unwrap_or("")
-                                        .to_string();
+                            let item_type = item.get("type").and_then(|t| t.as_str()).unwrap_or("");
+                            if item_type == "function_call" {
+                                let item_id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                                let call_id =
+                                    item.get("call_id").and_then(|v| v.as_str()).unwrap_or("");
+                                let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                let output_index =
+                                    event.get("output_index").and_then(|v| v.as_u64());
+                                let key = emitter.ensure_tool(item_id, call_id, output_index, name);
+                                let streamed = emitter
+                                    .tools
+                                    .get(&key)
+                                    .map(|t| t.streamed_args)
+                                    .unwrap_or(false);
+                                if !streamed {
+                                    let args = item
+                                        .get("arguments")
+                                        .and_then(|a| a.as_str())
+                                        .unwrap_or("{}");
+                                    emitter.push_tool_args(
+                                        &key,
+                                        if args.is_empty() { "{}" } else { args },
+                                    );
                                 }
-                                if !t.pending_args.is_empty() {
-                                    let args = std::mem::take(&mut t.pending_args);
-                                    emitter.push_tool_args(&key, &args);
-                                }
-                                if let Some(args) = item.get("arguments").and_then(|a| a.as_str()) {
-                                    emitter.push_tool_args(&key, args);
-                                }
+                                emitter.stop_tool(&key);
+                            } else if item_type == "message" {
+                                emitter.close_text();
+                            } else if item_type == "reasoning" {
+                                emitter.close_thinking();
                             }
                         }
                     }
                     "response.completed" => {
+                        if let Some(outputs) = event
+                            .get("response")
+                            .and_then(|r| r.get("output"))
+                            .and_then(|o| o.as_array())
+                        {
+                            for item in outputs {
+                                if item.get("type").and_then(|t| t.as_str())
+                                    == Some("function_call")
+                                {
+                                    let item_id =
+                                        item.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                                    let call_id =
+                                        item.get("call_id").and_then(|v| v.as_str()).unwrap_or("");
+                                    let name =
+                                        item.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                                    let key = emitter.ensure_tool(item_id, call_id, None, name);
+                                    let args = item
+                                        .get("arguments")
+                                        .and_then(|a| a.as_str())
+                                        .unwrap_or("{}");
+                                    let tool_started =
+                                        emitter.tools.get(&key).map(|t| t.started).unwrap_or(false);
+                                    if !tool_started {
+                                        emitter.push_tool_args(
+                                            &key,
+                                            if args.is_empty() { "{}" } else { args },
+                                        );
+                                    }
+                                    emitter.stop_tool(&key);
+                                }
+                            }
+                        }
                         let stop = if emitter.tools.values().any(|t| t.started) {
                             "tool_use"
                         } else {
                             "end_turn"
                         };
-                        let usage = event
-                            .get("response")
-                            .and_then(|r| r.get("usage"))
-                            .and_then(|u| u.get("output_tokens"))
-                            .and_then(|v| v.as_u64());
+                        let usage = event.get("response").and_then(|r| r.get("usage"));
                         emitter.finish(stop, usage);
                     }
                     _ => {}
@@ -484,7 +646,12 @@ where
                         process_line(&line, &mut emitter);
                     }
                     if !emitter.finished {
-                        emitter.finish("end_turn", None);
+                        let stop = if emitter.tools.values().any(|t| t.started) {
+                            "tool_use"
+                        } else {
+                            "end_turn"
+                        };
+                        emitter.finish(stop, None);
                     }
                     done = true;
                 }
@@ -1081,6 +1248,9 @@ where
                             let idx = *next_tool_idx;
                             *next_tool_idx += 1;
                             tool_index.insert(call_id.clone(), idx);
+                            if let Some(item_id) = item.get("id").and_then(|v| v.as_str()) {
+                                tool_index.insert(item_id.to_string(), idx);
+                            }
                             tool_names.insert(call_id.clone(), name.clone());
                             push_chat(
                                 pending,

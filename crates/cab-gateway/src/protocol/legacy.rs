@@ -2592,6 +2592,7 @@ data: [DONE]
         assert_eq!(converted["tool_choice"], "required");
         assert_eq!(converted["input"][0]["type"], "function_call");
         assert_eq!(converted["input"][1]["type"], "function_call_output");
+        assert_eq!(converted["input"][1]["output"], "ok");
     }
 
     #[test]
@@ -2641,6 +2642,65 @@ data: [DONE]
             convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &adaptive);
         assert!(converted_adaptive.get("thinking").is_none());
         assert_eq!(converted_adaptive["reasoning"]["effort"], "medium");
+    }
+
+    #[test]
+    fn convert_request_anthropic_context_management_stripped_for_responses_and_chat() {
+        use crate::protocol::{
+            PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, PROTOCOL_OPENAI_RESPONSES, convert_request,
+        };
+        let body = serde_json::json!({
+            "model": "claude-opus-5",
+            "max_tokens": 256,
+            "context_management": {
+                "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+            },
+            "custom_metadata_extension": "preserve_me",
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let responses_req = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &body);
+        assert!(responses_req.get("context_management").is_none());
+        assert_eq!(responses_req["custom_metadata_extension"], "preserve_me");
+
+        let chat_req = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, &body);
+        assert!(chat_req.get("context_management").is_none());
+        assert_eq!(chat_req["custom_metadata_extension"], "preserve_me");
+    }
+
+    #[test]
+    fn convert_request_anthropic_output_config_mapped_for_responses_and_chat() {
+        use crate::protocol::{
+            PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, PROTOCOL_OPENAI_RESPONSES, convert_request,
+        };
+        let body = serde_json::json!({
+            "model": "claude-opus-5",
+            "max_tokens": 256,
+            "output_config": {
+                "effort": "high",
+                "format": {
+                    "type": "json_schema",
+                    "schema": {
+                        "type": "object",
+                        "properties": {"title": {"type": "string"}},
+                        "required": ["title"]
+                    }
+                }
+            },
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        let responses_req = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_RESPONSES, &body);
+        assert!(responses_req.get("output_config").is_none());
+        assert_eq!(responses_req["reasoning"]["effort"], "high");
+        assert_eq!(responses_req["text"]["format"]["type"], "json_schema");
+        assert_eq!(responses_req["text"]["format"]["name"], "response_schema");
+
+        let chat_req = convert_request(PROTOCOL_ANTHROPIC, PROTOCOL_OPENAI_CHAT, &body);
+        assert!(chat_req.get("output_config").is_none());
+        assert_eq!(chat_req["response_format"]["type"], "json_schema");
+        assert_eq!(
+            chat_req["response_format"]["json_schema"]["name"],
+            "response_schema"
+        );
     }
 
     #[test]
@@ -2776,5 +2836,63 @@ data: {"type":"message_stop"}
             .unwrap();
         assert_eq!(log.input_tokens, 100);
         assert_eq!(log.output_tokens, 25);
+    }
+
+    #[test]
+    fn responses_input_drops_ephemeral_total_tokens_and_preserves_system_role() {
+        use super::super::ir::{
+            decode_anthropic_request, encode_responses_request, strip_claude_total_tokens,
+        };
+
+        assert_eq!(
+            strip_claude_total_tokens("<total_tokens>12345 tokens left</total_tokens>"),
+            ""
+        );
+        assert_eq!(
+            strip_claude_total_tokens(
+                "Instructions\n<total_tokens>12345 tokens left</total_tokens>"
+            ),
+            "Instructions"
+        );
+
+        let anthropic_req = serde_json::json!({
+            "model": "claude-sonnet-5",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "List files"
+                },
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "Listing:"},
+                        {"type": "tool_use", "id": "call_1", "name": "ls", "input": {}}
+                    ]
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "tool_result", "tool_use_id": "call_1", "content": "file1.txt"}
+                    ]
+                },
+                {
+                    "role": "system",
+                    "content": "<total_tokens>14974623 tokens left</total_tokens>"
+                }
+            ]
+        });
+
+        let ir = decode_anthropic_request(&anthropic_req);
+        let responses = encode_responses_request(&ir);
+
+        let input = responses["input"].as_array().expect("input array");
+        // User message, Assistant text, Function call, Function call output.
+        // The trailing <total_tokens> system turn must be completely dropped!
+        assert_eq!(input.len(), 4);
+        assert_eq!(input[0]["role"], "user");
+        assert_eq!(input[1]["role"], "assistant");
+        assert_eq!(input[2]["type"], "function_call");
+        assert_eq!(input[3]["type"], "function_call_output");
+        assert_eq!(input[3]["output"], "file1.txt");
     }
 }

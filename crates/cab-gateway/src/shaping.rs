@@ -23,9 +23,14 @@ use serde_json::Value;
 pub fn shape_request(body: &mut Value, endpoint_protocol: &str) {
     if let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) {
         normalize_system_messages(messages);
-        if endpoint_protocol == "openai-compatible" || endpoint_protocol == "openai-responses" {
+        if endpoint_protocol == "openai-compatible" {
             realign_openai_system_prompt(messages);
         }
+    }
+    if let Some(input) = body.get_mut("input").and_then(Value::as_array_mut)
+        && endpoint_protocol == "openai-responses"
+    {
+        realign_openai_system_prompt(input);
     }
     sort_tools(body);
     if endpoint_protocol == "anthropic-messages" {
@@ -67,6 +72,57 @@ pub fn ensure_openai_chat_stream_usage(body: &mut Value, endpoint_protocol: &str
         .or_insert_with(|| serde_json::json!({}));
     if let Some(map) = opts.as_object_mut() {
         map.insert("include_usage".into(), serde_json::json!(true));
+    }
+}
+
+/// Ensure Responses API requests don't fail on reseller gateways.
+///
+/// 1. Clamps `max_output_tokens` to at least 4096 if set small (e.g. 64 from Claude Code
+///    security monitor), because reasoning models (like muse-spark-1.3-contributor)
+///    require hundreds of reasoning tokens and will be truncated with empty output.
+/// 2. Normalizes `tool_choice` to `"auto"` if it's named or `"required"`/`"none"`,
+///    because reseller gateways like OpenCode Go reject all non-"auto" tool_choices with HTTP 400.
+/// 3. Injects an autonomous execution directive when tools are present, so models like
+///    `muse-spark-1.3-contributor` do not halt after introductory text ending in a colon
+///    instead of immediately calling the next tool.
+pub fn ensure_responses_safety(body: &mut Value, endpoint_protocol: &str) {
+    if endpoint_protocol != "openai-responses" {
+        return;
+    }
+    let Some(obj) = body.as_object_mut() else {
+        return;
+    };
+    if let Some(max_tokens) = obj.get("max_output_tokens").and_then(|v| v.as_u64())
+        && max_tokens < 1024
+    {
+        obj.insert("max_output_tokens".into(), serde_json::json!(4096));
+    }
+    if let Some(tool_choice) = obj.get_mut("tool_choice")
+        && *tool_choice != serde_json::json!("auto")
+    {
+        *tool_choice = serde_json::json!("auto");
+    }
+
+    let has_tools = obj
+        .get("tools")
+        .and_then(Value::as_array)
+        .is_some_and(|t| !t.is_empty());
+    if has_tools {
+        const AUTONOMY_DIRECTIVE: &str = "\n\nIMPORTANT: You are an autonomous agent executing a multi-step task. When executing consecutive actions or tasks, NEVER stop after writing an introductory title, explanation, or sentence ending with a colon. You MUST immediately invoke the appropriate tool call in the same turn to complete the action. Do not wait for user input between tool calls.";
+        if let Some(inst) = obj.get_mut("instructions") {
+            if let Some(s) = inst.as_str()
+                && !s.contains("autonomous agent executing a multi-step task")
+            {
+                let mut new_inst = s.to_string();
+                new_inst.push_str(AUTONOMY_DIRECTIVE);
+                *inst = Value::String(new_inst);
+            }
+        } else {
+            obj.insert(
+                "instructions".into(),
+                Value::String(AUTONOMY_DIRECTIVE.trim_start().to_string()),
+            );
+        }
     }
 }
 
@@ -159,7 +215,16 @@ fn realign_openai_system_prompt(messages: &mut Vec<Value>) {
                 "role": "system",
                 "content": dyn_part
             });
-            messages.push(dyn_message);
+            // If the last message in `messages` is a user message or tool result,
+            // appending a system message after it turns the trailing prompt into a
+            // non-actionable turn, which confuses models (like Muse Spark) into halting
+            // instead of executing the pending tool or next turn. Insert right after
+            // the static system message instead!
+            if idx + 1 < messages.len() {
+                messages.insert(idx + 1, dyn_message);
+            } else {
+                messages.push(dyn_message);
+            }
         }
     }
 }
@@ -400,12 +465,13 @@ mod tests {
 
         assert_eq!(messages.len(), 3);
         assert_eq!(messages[0]["content"], "You are a helpful assistant.");
-        assert_eq!(messages[1]["content"], "Hello");
-        assert_eq!(messages[2]["role"], "system");
+        assert_eq!(messages[1]["role"], "system");
         assert_eq!(
-            messages[2]["content"],
+            messages[1]["content"],
             "gitStatus: modified files\n\n# currentDate\nToday's date is 2026/06/29."
         );
+        assert_eq!(messages[2]["role"], "user");
+        assert_eq!(messages[2]["content"], "Hello");
     }
 
     #[test]
@@ -468,5 +534,25 @@ mod tests {
         assert!(body.get("stream_options").is_none());
         ensure_openai_chat_stream_usage(&mut body, "anthropic-messages", true);
         assert!(body.get("stream_options").is_none());
+    }
+
+    #[test]
+    fn ensure_responses_safety_injects_autonomy_directive_when_tools_present() {
+        let mut body = json!({
+            "instructions": "Base instructions.",
+            "tools": [{"type": "function", "name": "Write"}],
+            "max_output_tokens": 100,
+            "tool_choice": "required"
+        });
+        ensure_responses_safety(&mut body, "openai-responses");
+        assert_eq!(body["max_output_tokens"], 4096);
+        assert_eq!(body["tool_choice"], "auto");
+        let inst = body["instructions"].as_str().unwrap().to_string();
+        assert!(inst.contains("Base instructions."));
+        assert!(inst.contains("autonomous agent executing a multi-step task"));
+
+        // Second call should not double-inject
+        ensure_responses_safety(&mut body, "openai-responses");
+        assert_eq!(inst, body["instructions"].as_str().unwrap());
     }
 }

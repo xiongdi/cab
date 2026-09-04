@@ -5,6 +5,16 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.13] - 2026-09-04
+
+### Fixed
+
+- **Protocol conversion compatibility**: Filter out Anthropic-exclusive extensions (`context_management`, `output_config`, `betas`, `top_k`) when routing Anthropic requests to OpenAI-compatible and OpenAI Responses endpoints, preventing HTTP 400 `invalid_request_error`.
+- **OpenAI Responses tool formatting**: Format text-only `function_call_output` as a plain string and multimodal outputs with `input_text`/`input_image`, matching upstream Responses API requirements.
+- **Claude Code agent loop reliability**: Strip ephemeral `<total_tokens>` prompts from message history to prevent upstream reasoning models from halting prematurely.
+- **SSE streaming transformation**: Map tool call IDs robustly across Responses SSE event lifecycle (`call_id`, `item_id`), enforce strict Anthropic content block open/close sequencing, and report accurate `tool_use` stop reasons.
+- **Request shaping & safety**: Realign dynamic system prompts directly after static system prompts, inject autonomous tool execution directives for Responses API agent workflows, clamp reasoning model `max_output_tokens` to at least 4096, and add transient connection retry with TCP keepalive.
+
 ## [0.11.12] - 2026-09-04
 
 ### Fixed

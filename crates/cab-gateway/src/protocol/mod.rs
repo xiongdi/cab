@@ -413,4 +413,74 @@ mod tests {
         assert_eq!(anthropic["content"][1]["text"], "done");
         assert_eq!(anthropic["usage"]["input_tokens"], 8);
     }
+
+    #[tokio::test]
+    async fn responses_sse_to_anthropic_maps_tool_use_lifecycle() {
+        use super::stream::transform_responses_sse_to_anthropic;
+        use futures::StreamExt;
+
+        let responses_sse = concat!(
+            "event: response.output_item.added\n",
+            "data: {\"type\":\"response.output_item.added\",\"output_index\":1,\"item\":{\"id\":\"rs_msg\",\"type\":\"message\",\"status\":\"in_progress\",\"role\":\"assistant\",\"content\":[]}}\n\n",
+            "event: response.output_text.delta\n",
+            "data: {\"type\":\"response.output_text.delta\",\"output_index\":1,\"item_id\":\"rs_msg\",\"delta\":\"Checking files for you.\"}\n\n",
+            "event: response.output_text.done\n",
+            "data: {\"type\":\"response.output_text.done\",\"output_index\":1,\"item_id\":\"rs_msg\",\"text\":\"Checking files for you.\"}\n\n",
+            "event: response.output_item.added\n",
+            "data: {\"type\":\"response.output_item.added\",\"output_index\":2,\"item\":{\"id\":\"fc_abc\",\"type\":\"function_call\",\"status\":\"in_progress\",\"name\":\"Bash\",\"call_id\":\"call_abc\",\"arguments\":\"\"}}\n\n",
+            "event: response.function_call_arguments.delta\n",
+            "data: {\"type\":\"response.function_call_arguments.delta\",\"output_index\":2,\"item_id\":\"fc_abc\",\"delta\":\"{\\\"command\\\":\\\"ls\\\"}\"}\n\n",
+            "event: response.function_call_arguments.done\n",
+            "data: {\"type\":\"response.function_call_arguments.done\",\"output_index\":2,\"item_id\":\"fc_abc\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\",\"name\":\"Bash\"}\n\n",
+            "event: response.output_item.done\n",
+            "data: {\"type\":\"response.output_item.done\",\"output_index\":2,\"item\":{\"id\":\"fc_abc\",\"type\":\"function_call\",\"status\":\"completed\",\"name\":\"Bash\",\"call_id\":\"call_abc\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}}\n\n",
+            "event: response.completed\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[{\"id\":\"fc_abc\",\"type\":\"function_call\",\"status\":\"completed\",\"name\":\"Bash\",\"call_id\":\"call_abc\",\"arguments\":\"{\\\"command\\\":\\\"ls\\\"}\"}],\"usage\":{\"input_tokens\":500,\"output_tokens\":50,\"input_tokens_details\":{\"cached_tokens\":100}}}}\n\n",
+        );
+        let upstream = futures::stream::iter(vec![Ok::<bytes::Bytes, std::convert::Infallible>(
+            bytes::Bytes::from(responses_sse),
+        )]);
+        let mut out = transform_responses_sse_to_anthropic(upstream, "muse-spark".into());
+        let mut chunks = Vec::new();
+        while let Some(item) = out.next().await {
+            chunks.push(String::from_utf8(item.unwrap().to_vec()).unwrap());
+        }
+        let joined = chunks.join("");
+
+        // 1. Must contain text delta
+        assert!(joined.contains("\"text\":\"Checking files for you.\""));
+
+        // 2. Must contain tool_use block with call_id and name
+        assert!(joined.contains("\"type\":\"tool_use\""));
+        assert!(joined.contains("\"id\":\"call_abc\""));
+        assert!(joined.contains("\"name\":\"Bash\""));
+        assert!(joined.contains("\"input_json_delta\""));
+
+        // 3. Must have stop_reason: tool_use
+        assert!(joined.contains("\"stop_reason\":\"tool_use\""));
+
+        // 4. Must carry usage
+        assert!(joined.contains("\"input_tokens\":500"));
+        assert!(joined.contains("\"output_tokens\":50"));
+        assert!(joined.contains("\"cache_read_input_tokens\":100"));
+
+        // 5. Text content_block_stop must occur BEFORE tool_use content_block_start
+        let text_stop = joined
+            .find("\"index\":0,\"type\":\"content_block_stop\"")
+            .expect("text stop");
+        let tool_start = joined
+            .find("\"index\":1,\"type\":\"content_block_start\"")
+            .expect("tool start");
+        assert!(
+            text_stop < tool_start,
+            "Text block must be stopped before tool block starts: {joined}"
+        );
+
+        // 6. Ensure input_json_delta is not duplicated
+        let delta_count = joined.matches("\"type\":\"input_json_delta\"").count();
+        assert_eq!(
+            delta_count, 1,
+            "input_json_delta should appear exactly once"
+        );
+    }
 }

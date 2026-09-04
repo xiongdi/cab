@@ -135,44 +135,70 @@ pub async fn proxy_request_with_timeouts(
     stream: bool,
     timeouts: ProxyTimeouts,
 ) -> Result<Response, CabError> {
-    let mut req = client.post(upstream_url).body(body.clone());
+    let build_req = || {
+        let mut req = client.post(upstream_url).body(body.clone());
 
-    // Forward relevant headers
-    if let Some(ct) = headers.get("content-type") {
-        req = req.header("content-type", ct);
-    } else {
-        req = req.header("content-type", "application/json");
-    }
-
-    // Set authorization header
-    if !api_key.is_empty() {
-        req = req.header("authorization", format!("Bearer {api_key}"));
-
-        // Anthropic-compatible endpoints expect the key as `x-api-key`;
-        // some (e.g. opencode.ai Console Go) reject `Authorization: Bearer` alone.
-        if protocol == "anthropic-messages" {
-            req = req.header("x-api-key", api_key);
+        // Forward relevant headers
+        if let Some(ct) = headers.get("content-type") {
+            req = req.header("content-type", ct);
+        } else {
+            req = req.header("content-type", "application/json");
         }
 
-        // Forward anthropic-version if the client sent it
-        if let Some(v) = headers.get("anthropic-version") {
-            req = req.header("anthropic-version", v);
-        }
-    } else {
-        // Pass through existing auth headers from the client
-        if let Some(auth) = headers.get("authorization") {
-            req = req.header("authorization", auth);
-        }
-        if let Some(xkey) = headers.get("x-goog-api-key") {
-            req = req.header("x-goog-api-key", xkey);
-        }
-        if let Some(v) = headers.get("anthropic-version") {
-            req = req.header("anthropic-version", v);
-        }
-    }
+        // Set authorization header
+        if !api_key.is_empty() {
+            req = req.header("authorization", format!("Bearer {api_key}"));
 
-    let upstream_resp = match tokio::time::timeout(timeouts.ttfb, req.send()).await {
+            // Anthropic-compatible endpoints expect the key as `x-api-key`;
+            // some (e.g. opencode.ai Console Go) reject `Authorization: Bearer` alone.
+            if protocol == "anthropic-messages" {
+                req = req.header("x-api-key", api_key);
+            }
+
+            // Forward anthropic-version if the client sent it
+            if let Some(v) = headers.get("anthropic-version") {
+                req = req.header("anthropic-version", v);
+            }
+        } else {
+            // Pass through existing auth headers from the client
+            if let Some(auth) = headers.get("authorization") {
+                req = req.header("authorization", auth);
+            }
+            if let Some(xkey) = headers.get("x-goog-api-key") {
+                req = req.header("x-goog-api-key", xkey);
+            }
+            if let Some(v) = headers.get("anthropic-version") {
+                req = req.header("anthropic-version", v);
+            }
+        }
+
+        req
+    };
+
+    let upstream_resp = match tokio::time::timeout(timeouts.ttfb, build_req().send()).await {
         Ok(Ok(resp)) => resp,
+        Ok(Err(e)) if e.is_connect() || e.is_request() => {
+            tracing::warn!("Transient upstream connection error ({e}), retrying once...");
+            match tokio::time::timeout(timeouts.ttfb, build_req().send()).await {
+                Ok(Ok(resp)) => resp,
+                Ok(Err(e2)) => {
+                    tracing::error!("Upstream request failed after retry: {e2}");
+                    return Err(CabError::Proxy(format!(
+                        "Failed to connect to upstream: {e2}"
+                    )));
+                }
+                Err(_) => {
+                    tracing::error!(
+                        "Upstream request timed out waiting for response headers (TTFB > {}s)",
+                        timeouts.ttfb.as_secs()
+                    );
+                    return Err(CabError::Proxy(format!(
+                        "Upstream request timed out waiting for response headers (TTFB > {}s)",
+                        timeouts.ttfb.as_secs()
+                    )));
+                }
+            }
+        }
         Ok(Err(e)) => {
             tracing::error!("Upstream request failed: {e}");
             return Err(CabError::Proxy(format!(

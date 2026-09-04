@@ -253,6 +253,9 @@ pub async fn execute_with_fallback_with_protocol(
                         &endpoint.protocol,
                         request.stream,
                     );
+                    // Ensure Responses API requests don't fail due to small max_tokens
+                    // starving reasoning or reseller gateways rejecting non-auto tool_choice.
+                    crate::shaping::ensure_responses_safety(&mut converted_val, &endpoint.protocol);
                     if let Ok(new_body_bytes) = serde_json::to_vec(&converted_val) {
                         rewritten_body = bytes::Bytes::from(new_body_bytes);
                     }
