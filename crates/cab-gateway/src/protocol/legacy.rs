@@ -1098,31 +1098,71 @@ impl<S> TokenTrackingStream<S> {
 
     fn process_bytes(&mut self, bytes: &[u8]) {
         self.buffer.extend_from_slice(bytes);
-        while let Some(pos) = self.buffer.iter().position(|&b| b == b'\n') {
-            let line_bytes = self.buffer.drain(..=pos).collect::<Vec<u8>>();
-            self.process_sse_line(&line_bytes);
+        let Some(last_nl) = self.buffer.iter().rposition(|&b| b == b'\n') else {
+            return;
+        };
+
+        // Extract any usage events without holding a borrow on self.buffer.
+        let mut usage_events = Vec::new();
+        for line_bytes in self.buffer[..=last_nl].split(|&b| b == b'\n') {
+            if let Some(json_val) = Self::extract_usage_event(line_bytes) {
+                usage_events.push(json_val);
+            }
+        }
+
+        self.buffer.drain(..=last_nl);
+
+        for event in usage_events {
+            self.track_protocol_event(&event);
         }
     }
 
-    /// Process an SSE line, including a final line that is not newline-terminated.
-    fn process_sse_line(&mut self, line_bytes: &[u8]) {
-        let line = String::from_utf8_lossy(line_bytes);
-        let trimmed = line.trim();
-        if let Some(data_content) = trimmed.strip_prefix("data:") {
-            let data_content = data_content.trim();
-            if data_content != "[DONE]"
-                && !data_content.is_empty()
-                && let Ok(json_val) = serde_json::from_str::<serde_json::Value>(data_content)
-            {
-                self.track_protocol_event(&json_val);
+    /// Extract and parse JSON data from an SSE line only if it carries usage info.
+    fn extract_usage_event(line_bytes: &[u8]) -> Option<serde_json::Value> {
+        // Fast trim of leading ASCII whitespace
+        let mut trimmed = line_bytes;
+        while let Some((&first, rest)) = trimmed.split_first() {
+            if first == b' ' || first == b'\t' || first == b'\r' {
+                trimmed = rest;
+            } else {
+                break;
             }
         }
+        let mut data = trimmed.strip_prefix(b"data:")?;
+        while let Some((&first, rest)) = data.split_first() {
+            if first == b' ' || first == b'\t' || first == b'\r' {
+                data = rest;
+            } else {
+                break;
+            }
+        }
+        while let Some((&last, rest)) = data.split_last() {
+            if last == b' ' || last == b'\t' || last == b'\r' {
+                data = rest;
+            } else {
+                break;
+            }
+        }
+        if data.is_empty() || data == b"[DONE]" {
+            return None;
+        }
+
+        // Fast path: skip 99%+ of SSE data frames that do not contain usage info.
+        // Every supported protocol records token counts under an object containing "usage".
+        if !data.windows(5).any(|w| w == b"usage") {
+            return None;
+        }
+
+        let data_str = std::str::from_utf8(data).ok()?;
+        serde_json::from_str::<serde_json::Value>(data_str).ok()
     }
 
     fn flush_buffer(&mut self) {
         if !self.buffer.is_empty() {
             let remaining = std::mem::take(&mut self.buffer);
-            self.process_sse_line(&remaining);
+            if let Some(json_val) = Self::extract_usage_event(&remaining) {
+                self.track_protocol_event(&json_val);
+            }
         }
     }
 
@@ -1347,7 +1387,7 @@ impl<S> Drop for TokenTrackingStream<S> {
             }
             _ => self.log.input_tokens + self.log.cache_read_tokens + self.log.output_tokens,
         };
-        if let Ok(resp_str) = String::from_utf8(self.accumulated_response.clone()) {
+        if let Ok(resp_str) = String::from_utf8(std::mem::take(&mut self.accumulated_response)) {
             self.log.response_body = Some(resp_str);
         }
         let pool = self.pool.clone();
@@ -2675,5 +2715,66 @@ data: [DONE]
         assert!(combined.contains(r#""name":"Test""#));
         assert!(combined.contains(r#""partial_json":"{\"a\":"#));
         assert!(combined.contains(r#""partial_json":"1}""#));
+    }
+
+    #[tokio::test]
+    async fn token_tracking_skips_non_usage_chunks_and_tracks_final_usage() {
+        use futures::StreamExt;
+
+        let pool = cab_db::InMemoryStore::new();
+        let log_id = "log-fast-path".to_string();
+        let initial_log = RequestLog {
+            id: log_id.clone(),
+            timestamp: "now".into(),
+            agent: "claude-code".into(),
+            agent_protocol: None,
+            provider: "OpenCode Go".into(),
+            provider_protocol: None,
+            model: "qwen/qwen3.8-flash".into(),
+            input_tokens: 0,
+            output_tokens: 0,
+            total_tokens: 0,
+            cache_read_tokens: 0,
+            cache_creation_tokens: 0,
+            latency_ms: 10,
+            status: 200,
+            error: None,
+            path: "/v1/messages".into(),
+            stream: true,
+            request_body: None,
+            response_body: None,
+        };
+
+        let chunks = futures::stream::iter(vec![
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_start","message":{"usage":{"input_tokens":100,"output_tokens":1}}}
+"#,
+            )),
+            // Text delta chunks without usage should be fast-pathed and skipped
+            Ok(Bytes::from_static(
+                br#"data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Hello"}}
+data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"Let me think"}}
+"#,
+            )),
+            // Final delta chunk with usage
+            Ok(Bytes::from_static(
+                br#"data: {"type":"message_delta","usage":{"output_tokens":25}}
+data: {"type":"message_stop"}
+"#,
+            )),
+        ]);
+
+        let mut stream = TokenTrackingStream::new(chunks, pool.clone(), initial_log);
+        while stream.next().await.is_some() {}
+        drop(stream);
+
+        let data = pool.inner.read().unwrap();
+        let log = data
+            .request_logs
+            .iter()
+            .find(|entry| entry.id == log_id)
+            .unwrap();
+        assert_eq!(log.input_tokens, 100);
+        assert_eq!(log.output_tokens, 25);
     }
 }

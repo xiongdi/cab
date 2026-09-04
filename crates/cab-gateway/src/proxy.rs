@@ -3,8 +3,96 @@ use axum::http::{HeaderMap, HeaderValue};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use cab_core::{CabError, extract_retry_after};
-use futures::TryStreamExt;
+use futures::{Stream, TryStreamExt};
 use reqwest::Client;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use std::time::Duration;
+
+/// Default timeout for waiting for response headers from upstream (Time To First Byte / TTFB).
+pub const UPSTREAM_TTFB_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Default maximum idle time between successive chunks in an active stream before timing out.
+pub const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Timeout configuration for proxying requests upstream.
+#[derive(Debug, Clone, Copy)]
+pub struct ProxyTimeouts {
+    pub ttfb: Duration,
+    pub stream_idle: Duration,
+}
+
+impl Default for ProxyTimeouts {
+    fn default() -> Self {
+        Self {
+            ttfb: UPSTREAM_TTFB_TIMEOUT,
+            stream_idle: STREAM_IDLE_TIMEOUT,
+        }
+    }
+}
+
+/// A stream wrapper that enforces a maximum idle duration between items.
+pub struct IdleTimeoutStream<S> {
+    inner: Pin<Box<S>>,
+    idle_timeout: Duration,
+    sleep: Pin<Box<tokio::time::Sleep>>,
+    timed_out: bool,
+}
+
+impl<S> IdleTimeoutStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+{
+    pub fn new(inner: S, idle_timeout: Duration) -> Self {
+        Self {
+            inner: Box::pin(inner),
+            idle_timeout,
+            sleep: Box::pin(tokio::time::sleep(idle_timeout)),
+            timed_out: false,
+        }
+    }
+}
+
+impl<S> Stream for IdleTimeoutStream<S>
+where
+    S: Stream<Item = Result<Bytes, std::io::Error>> + Send + 'static,
+{
+    type Item = Result<Bytes, std::io::Error>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.timed_out {
+            return Poll::Ready(None);
+        }
+
+        match self.inner.as_mut().poll_next(cx) {
+            Poll::Ready(Some(Ok(bytes))) => {
+                let deadline = tokio::time::Instant::now() + self.idle_timeout;
+                self.sleep.as_mut().reset(deadline);
+                Poll::Ready(Some(Ok(bytes)))
+            }
+            Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => {
+                if self.sleep.as_mut().poll(cx).is_ready() {
+                    self.timed_out = true;
+                    tracing::warn!(
+                        "Upstream stream idle timeout exceeded (no data for {}s)",
+                        self.idle_timeout.as_secs()
+                    );
+                    Poll::Ready(Some(Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        format!(
+                            "Upstream stream idle timeout exceeded (no data for {}s)",
+                            self.idle_timeout.as_secs()
+                        ),
+                    ))))
+                } else {
+                    Poll::Pending
+                }
+            }
+        }
+    }
+}
 
 /// Forward a request to the upstream provider and return the response.
 ///
@@ -21,6 +109,31 @@ pub async fn proxy_request(
     body: Bytes,
     headers: &HeaderMap,
     stream: bool,
+) -> Result<Response, CabError> {
+    proxy_request_with_timeouts(
+        client,
+        upstream_url,
+        api_key,
+        protocol,
+        body,
+        headers,
+        stream,
+        ProxyTimeouts::default(),
+    )
+    .await
+}
+
+/// Forward a request to the upstream provider with explicit TTFB and streaming idle timeouts.
+#[allow(clippy::too_many_arguments)]
+pub async fn proxy_request_with_timeouts(
+    client: &Client,
+    upstream_url: &str,
+    api_key: &str,
+    protocol: &str,
+    body: Bytes,
+    headers: &HeaderMap,
+    stream: bool,
+    timeouts: ProxyTimeouts,
 ) -> Result<Response, CabError> {
     let mut req = client.post(upstream_url).body(body.clone());
 
@@ -58,10 +171,25 @@ pub async fn proxy_request(
         }
     }
 
-    let upstream_resp = req.send().await.map_err(|e| {
-        tracing::error!("Upstream request failed: {e}");
-        CabError::Proxy(format!("Failed to connect to upstream: {e}"))
-    })?;
+    let upstream_resp = match tokio::time::timeout(timeouts.ttfb, req.send()).await {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            tracing::error!("Upstream request failed: {e}");
+            return Err(CabError::Proxy(format!(
+                "Failed to connect to upstream: {e}"
+            )));
+        }
+        Err(_) => {
+            tracing::error!(
+                "Upstream request timed out waiting for response headers (TTFB > {}s)",
+                timeouts.ttfb.as_secs()
+            );
+            return Err(CabError::Proxy(format!(
+                "Upstream request timed out waiting for response headers (TTFB > {}s)",
+                timeouts.ttfb.as_secs()
+            )));
+        }
+    };
 
     let status = upstream_resp.status();
 
@@ -79,7 +207,7 @@ pub async fn proxy_request(
     }
 
     if stream {
-        // Stream the response body through as SSE
+        // Stream the response body through as SSE with an idle timeout between chunks
         let content_type = upstream_resp
             .headers()
             .get("content-type")
@@ -87,8 +215,8 @@ pub async fn proxy_request(
             .unwrap_or_else(|| HeaderValue::from_static("text/event-stream"));
 
         let byte_stream = upstream_resp.bytes_stream().map_err(std::io::Error::other);
-
-        let body = Body::from_stream(byte_stream);
+        let idle_stream = IdleTimeoutStream::new(byte_stream, timeouts.stream_idle);
+        let body = Body::from_stream(idle_stream);
 
         let mut response = Response::builder()
             .status(status.as_u16())
@@ -121,16 +249,36 @@ pub async fn proxy_get(
     upstream_url: &str,
     api_key: &str,
 ) -> Result<impl IntoResponse, CabError> {
+    proxy_get_with_timeout(client, upstream_url, api_key, UPSTREAM_TTFB_TIMEOUT).await
+}
+
+/// Simple proxy for passing through a GET request with explicit TTFB timeout.
+pub async fn proxy_get_with_timeout(
+    client: &Client,
+    upstream_url: &str,
+    api_key: &str,
+    ttfb_timeout: Duration,
+) -> Result<impl IntoResponse, CabError> {
     let mut req = client.get(upstream_url);
 
     if !api_key.is_empty() {
         req = req.header("authorization", format!("Bearer {api_key}"));
     }
 
-    let resp = req
-        .send()
-        .await
-        .map_err(|e| CabError::Proxy(format!("Failed to connect to upstream: {e}")))?;
+    let resp = match tokio::time::timeout(ttfb_timeout, req.send()).await {
+        Ok(Ok(resp)) => resp,
+        Ok(Err(e)) => {
+            return Err(CabError::Proxy(format!(
+                "Failed to connect to upstream: {e}"
+            )));
+        }
+        Err(_) => {
+            return Err(CabError::Proxy(format!(
+                "Upstream request timed out waiting for response headers (TTFB > {}s)",
+                ttfb_timeout.as_secs()
+            )));
+        }
+    };
 
     let status = resp.status();
     let body_bytes = resp
@@ -409,5 +557,79 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, CabError::Proxy(message) if message.contains("Failed to connect")));
+    }
+
+    #[tokio::test]
+    async fn proxy_request_ttfb_timeout_returns_proxy_error() {
+        async fn slow_post() -> impl IntoResponse {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            Json(serde_json::json!({"ok": true}))
+        }
+        let server = spawn_router(Router::new().route("/slow", post(slow_post))).await;
+
+        let err = proxy_request_with_timeouts(
+            &Client::new(),
+            &format!("{}/slow", server.base_url),
+            "secret",
+            "openai-compatible",
+            Bytes::from_static(b"{}"),
+            &HeaderMap::new(),
+            false,
+            ProxyTimeouts {
+                ttfb: Duration::from_millis(20),
+                stream_idle: Duration::from_secs(60),
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(
+            err,
+            CabError::Proxy(message) if message.contains("timed out waiting for response headers")
+        ));
+    }
+
+    #[tokio::test]
+    async fn proxy_request_stream_idle_timeout_terminates_stream() {
+        async fn stalled_stream() -> impl IntoResponse {
+            let s = futures::stream::unfold(0, |state| async move {
+                if state == 0 {
+                    Some((
+                        Ok::<_, std::io::Error>(Bytes::from_static(b"data: chunk1\n\n")),
+                        1,
+                    ))
+                } else {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    Some((
+                        Ok::<_, std::io::Error>(Bytes::from_static(b"data: chunk2\n\n")),
+                        2,
+                    ))
+                }
+            });
+            (
+                [("content-type", "text/event-stream")],
+                Body::from_stream(s),
+            )
+        }
+        let server = spawn_router(Router::new().route("/stalled", post(stalled_stream))).await;
+
+        let response = proxy_request_with_timeouts(
+            &Client::new(),
+            &format!("{}/stalled", server.base_url),
+            "secret",
+            "openai-compatible",
+            Bytes::from_static(b"{}"),
+            &HeaderMap::new(),
+            true,
+            ProxyTimeouts {
+                ttfb: Duration::from_secs(5),
+                stream_idle: Duration::from_millis(50),
+            },
+        )
+        .await
+        .unwrap();
+
+        let result = to_bytes(response.into_body(), 10 * 1024 * 1024).await;
+        assert!(result.is_err());
     }
 }

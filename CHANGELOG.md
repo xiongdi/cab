@@ -5,6 +5,14 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.12] - 2026-09-04
+
+### Fixed
+
+- Streaming responses now use fast-path SSE filtering that bypasses JSON deserialization and string allocations for non-usage frames, eliminating typewriter output stutter.
+- Added distinct upstream TTFB timeout (60s) and streaming idle timeout (60s) via `IdleTimeoutStream`, avoiding premature connection drops during long reasoning/thinking phases.
+- Extended default upstream client timeout to 600s.
+
 ## [0.11.11] - 2026-09-03
 
 ### Fixed
