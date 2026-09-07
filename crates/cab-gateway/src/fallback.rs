@@ -16,6 +16,35 @@ pub struct ProxyRequest {
     /// When true, rewrite the forwarded body for upstream prefix-cache
     /// friendliness (deterministic tool ordering + Anthropic `cache_control`).
     pub shape_requests: bool,
+    /// Opaque session fingerprint (hex of CAB affinity `session_key`) used when
+    /// synthesizing `x-opencode-session` for OpenCode Go upstreams.
+    pub session_fingerprint: Option<String>,
+}
+
+/// Ensure `x-opencode-session` is set for OpenCode Go hops.
+///
+/// Prefers a client-supplied header, then the CAB session fingerprint, then a
+/// one-shot UUID so Go models that require the header still succeed.
+pub(crate) fn headers_for_upstream(
+    provider_id: &str,
+    headers: &axum::http::HeaderMap,
+    session_fingerprint: Option<&str>,
+) -> axum::http::HeaderMap {
+    let mut out = headers.clone();
+    if !cab_core::is_opencode_go_provider(provider_id) {
+        return out;
+    }
+    if out.contains_key("x-opencode-session") {
+        return out;
+    }
+    let value = session_fingerprint
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    if let Ok(hv) = axum::http::HeaderValue::from_str(&value) {
+        out.insert("x-opencode-session", hv);
+    }
+    out
 }
 
 fn is_messages_path(path_suffix: &str) -> bool {
@@ -262,6 +291,11 @@ pub async fn execute_with_fallback_with_protocol(
                 }
 
                 let upstream_stream = request.stream;
+                let upstream_headers = headers_for_upstream(
+                    &resolved.provider_id,
+                    &request.headers,
+                    request.session_fingerprint.as_deref(),
+                );
 
                 let mut rate_limit_attempt: u32 = 0;
                 loop {
@@ -271,7 +305,7 @@ pub async fn execute_with_fallback_with_protocol(
                         &api_key,
                         &endpoint.protocol,
                         rewritten_body.clone(),
-                        &request.headers,
+                        &upstream_headers,
                         upstream_stream,
                     )
                     .await
@@ -488,7 +522,7 @@ mod tests {
     use super::*;
     use axum::body::{Bytes, to_bytes};
     use axum::extract::State;
-    use axum::http::{HeaderMap, StatusCode};
+    use axum::http::{HeaderMap, HeaderValue, StatusCode};
     use axum::response::IntoResponse;
     use axum::routing::post;
     use axum::{Json, Router};
@@ -496,6 +530,50 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use tokio::net::TcpListener;
     use tokio::sync::oneshot;
+
+    #[test]
+    fn headers_for_upstream_skips_non_opencode_go() {
+        let headers = HeaderMap::new();
+        let out = headers_for_upstream("anthropic", &headers, Some("fp-1"));
+        assert!(!out.contains_key("x-opencode-session"));
+    }
+
+    #[test]
+    fn headers_for_upstream_prefers_client_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-opencode-session",
+            HeaderValue::from_static("client-session"),
+        );
+        let out = headers_for_upstream("opencode-go", &headers, Some("fp-1"));
+        assert_eq!(
+            out.get("x-opencode-session").unwrap().to_str().unwrap(),
+            "client-session"
+        );
+    }
+
+    #[test]
+    fn headers_for_upstream_uses_fingerprint_when_missing() {
+        let headers = HeaderMap::new();
+        let out = headers_for_upstream("opencode-go", &headers, Some("deadbeef"));
+        assert_eq!(
+            out.get("x-opencode-session").unwrap().to_str().unwrap(),
+            "deadbeef"
+        );
+    }
+
+    #[test]
+    fn headers_for_upstream_synthesizes_uuid_without_fingerprint() {
+        let headers = HeaderMap::new();
+        let out = headers_for_upstream("opencode-go", &headers, None);
+        let value = out
+            .get("x-opencode-session")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(uuid::Uuid::parse_str(&value).is_ok(), "got {value}");
+    }
 
     #[derive(Clone, Default)]
     struct Recorder {
@@ -713,6 +791,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, provider, routed_model) = execute_with_fallback(
@@ -758,6 +837,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "v1/messages".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -802,6 +882,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "v1/messages".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -847,6 +928,7 @@ data: [DONE]\n\n",
             stream: true,
             path_suffix: "v1/messages".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -892,6 +974,7 @@ data: [DONE]\n\n",
             stream: true,
             path_suffix: "v1/messages".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -939,6 +1022,7 @@ data: [DONE]\n\n",
             stream: true,
             path_suffix: "responses".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -986,6 +1070,7 @@ data: [DONE]\n\n",
             stream: true,
             path_suffix: "responses".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -1051,6 +1136,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, _, _) = execute_with_fallback(
@@ -1116,6 +1202,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, provider, routed_model) = execute_with_fallback(
@@ -1158,6 +1245,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let (response, provider, routed_model) = execute_with_fallback(
@@ -1189,6 +1277,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
         let err = execute_with_fallback(
             &reqwest::Client::new(),
@@ -1265,6 +1354,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         let err = execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)
@@ -1291,6 +1381,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         // Connection to port 1 fails immediately. Each execute records one
@@ -1339,6 +1430,7 @@ data: [DONE]\n\n",
             stream: false,
             path_suffix: "chat/completions".into(),
             shape_requests: false,
+            session_fingerprint: None,
         };
 
         execute_with_fallback(&reqwest::Client::new(), &store, &primary, &[], &request)

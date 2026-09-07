@@ -172,6 +172,12 @@ pub async fn proxy_request_with_timeouts(
             }
         }
 
+        // OpenCode Go session affinity / availability (injected by fallback for
+        // opencode-go, or forwarded when the client already sent it).
+        if let Some(v) = headers.get("x-opencode-session") {
+            req = req.header("x-opencode-session", v);
+        }
+
         req
     };
 
@@ -368,6 +374,7 @@ mod tests {
             "x_api_key": headers.get("x-api-key").and_then(|v| v.to_str().ok()),
             "x_goog_api_key": headers.get("x-goog-api-key").and_then(|v| v.to_str().ok()),
             "anthropic_version": headers.get("anthropic-version").and_then(|v| v.to_str().ok()),
+            "x_opencode_session": headers.get("x-opencode-session").and_then(|v| v.to_str().ok()),
             "content_type": headers.get("content-type").and_then(|v| v.to_str().ok()),
             "body": serde_json::from_slice::<serde_json::Value>(&body).unwrap(),
         }))
@@ -423,6 +430,32 @@ mod tests {
         assert_eq!(json["authorization"], "Bearer secret");
         assert_eq!(json["content_type"], "application/json");
         assert_eq!(json["body"]["hello"], "world");
+        assert_eq!(json["x_opencode_session"], serde_json::Value::Null);
+    }
+
+    #[tokio::test]
+    async fn proxy_request_forwards_x_opencode_session() {
+        let server = spawn_router(Router::new().route("/post", post(echo_post))).await;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            "x-opencode-session",
+            HeaderValue::from_static("cab-session-abc"),
+        );
+
+        let response = proxy_request(
+            &Client::new(),
+            &format!("{}/post", server.base_url),
+            "secret",
+            "openai-compatible",
+            Bytes::from_static(br#"{"hello":"world"}"#),
+            &headers,
+            false,
+        )
+        .await
+        .unwrap();
+
+        let json = json_from_response(response).await;
+        assert_eq!(json["x_opencode_session"], "cab-session-abc");
     }
 
     #[tokio::test]

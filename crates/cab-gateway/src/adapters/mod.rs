@@ -170,6 +170,7 @@ pub async fn handle_proxied_request(
         stream,
         path_suffix: adapter.path_suffix().to_string(),
         shape_requests: cache_request_shaping_enabled,
+        session_fingerprint: session_key.map(|key| format!("{key:x}")),
     };
 
     let result = execute_with_fallback_with_protocol(

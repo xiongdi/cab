@@ -5,6 +5,12 @@ All notable changes to CAB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.14] - 2026-09-07
+
+### Fixed
+
+- **OpenCode Go session affinity**: Forward or synthesize a stable `x-opencode-session` header on every `opencode-go` upstream hop (prefer client value, else CAB affinity fingerprint, else a one-shot UUID). This prevents Console Go `MissingSessionID` / `Model is unavailable` failures on models such as DeepSeek Flash while keeping session stickiness aligned with CAB cache affinity.
+
 ## [0.11.13] - 2026-09-04
 
 ### Fixed
